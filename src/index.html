@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="BulkPixel is a local-first desktop utility for bulk image conversion and resizing."
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>BulkPixel</title>
+    <script type="module" src="/main.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="panel app-header">
+        <div class="brand-group">
+          <img class="brand-logo" src="/logo.png" alt="BulkPixel logo" />
+          <h1>BulkPixel</h1>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="panel upload-panel" aria-labelledby="upload-title">
+          <div class="section-header">
+            <div>
+              <p class="section-kicker">Upload Area</p>
+              <h2 id="upload-title">Drop images here</h2>
+            </div>
+          </div>
+
+          <button id="dropzone" class="dropzone" type="button">
+            <div class="dropzone-icon" aria-hidden="true">
+              <span></span>
+              <span></span>
+            </div>
+            <div class="dropzone-copy">
+              <p id="dropzone-title" class="dropzone-title">Drop images here</p>
+              <p class="dropzone-helper">or click to browse files</p>
+              <p class="dropzone-meta">
+                Supported formats: JPG, JPEG, PNG, WEBP
+              </p>
+            </div>
+          </button>
+
+          <div class="preview-block">
+            <div class="section-header preview-header">
+              <div>
+                <p class="section-kicker">Preview</p>
+                <h2 id="preview-title">Uploaded Images</h2>
+              </div>
+              <div class="section-actions">
+                <button id="add-images-button" class="button secondary compact" type="button">
+                  Add Images
+                </button>
+              </div>
+            </div>
+            <p id="preview-meta" class="section-meta">No images added yet</p>
+            <div id="preview-list" class="preview-list" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <section class="panel settings-panel" aria-labelledby="settings-title">
+          <div class="section-header">
+            <div>
+              <p class="section-kicker">Settings</p>
+              <h2 id="settings-title">Conversion Settings</h2>
+            </div>
+          </div>
+
+          <div class="settings-stack">
+            <div class="field-group">
+              <label class="field-label">Export Format</label>
+              <div class="format-toggle" id="format-toggle" role="radiogroup" aria-label="Export format">
+                <button type="button" class="format-option" data-format="jpeg">JPEG</button>
+                <button type="button" class="format-option" data-format="png">PNG</button>
+                <button type="button" class="format-option" data-format="webp">WEBP</button>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <div class="field-row label-row">
+                <label class="field-label">Original Resolution</label>
+                <span id="resize-reference" class="value-badge">Waiting for images</span>
+              </div>
+              <div class="field-row split">
+                <label class="field" for="width-input">
+                  <span class="field-label">Width</span>
+                  <input id="width-input" type="number" inputmode="numeric" min="1" step="1" placeholder="Leave empty" />
+                </label>
+                <label class="field" for="height-input">
+                  <span class="field-label">Height</span>
+                  <input id="height-input" type="number" inputmode="numeric" min="1" step="1" placeholder="Leave empty" />
+                </label>
+              </div>
+              <p id="resize-helper" class="field-helper">
+                Aspect ratio is preserved automatically
+              </p>
+            </div>
+
+            <div class="field-group">
+              <div class="field-row label-row">
+                <label class="field-label" for="quality-slider">Quality</label>
+                <span id="quality-value" class="value-badge">90</span>
+              </div>
+              <input id="quality-slider" class="slider" type="range" min="1" max="100" step="1" value="90" />
+              <p id="quality-helper" class="field-helper">
+                JPEG and WEBP respect this setting. PNG stays lossless.
+              </p>
+            </div>
+
+            <div class="field-group">
+              <label class="field" for="prefix-input">
+                <span class="field-label">Filename Prefix</span>
+                <input id="prefix-input" type="text" spellcheck="false" placeholder="Optional prefix" />
+              </label>
+            </div>
+
+            <div class="field-group">
+              <div class="field-row label-row">
+                <label class="field-label" for="output-path">Output Folder</label>
+                <button id="choose-folder-button" class="button secondary compact" type="button">
+                  Choose Folder
+                </button>
+              </div>
+              <div class="path-display" id="output-path" title=""></div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="panel action-bar">
+        <div class="status-stack">
+          <span class="status-label">Status</span>
+          <div class="status-line">
+            <span id="status-spinner" class="spinner status-spinner" aria-hidden="true"></span>
+            <p id="status-text" class="status-text">Choose images to begin.</p>
+          </div>
+        </div>
+        <div class="action-buttons">
+          <button id="remove-all-button" class="button secondary" type="button">
+            Remove All
+          </button>
+          <button id="convert-button" class="button primary" type="button">
+            Bulk Convert
+          </button>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

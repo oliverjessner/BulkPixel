@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BulkPixel Icon Artboard</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 1024px;
+        height: 1024px;
+        overflow: hidden;
+        background: transparent;
+        font-family: system-ui, sans-serif;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+      }
+
+      .icon-surface {
+        position: relative;
+        width: 856px;
+        height: 856px;
+        border-radius: 192px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.015)),
+          linear-gradient(160deg, #1b2229 0%, #10161b 100%);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.06),
+          0 22px 46px rgba(0, 0, 0, 0.28),
+          0 48px 90px rgba(0, 0, 0, 0.18);
+        display: grid;
+        place-items: center;
+      }
+
+      .icon-surface::before {
+        content: "";
+        position: absolute;
+        inset: 32px;
+        border-radius: 164px;
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        pointer-events: none;
+      }
+
+      .icon-surface::after {
+        content: "";
+        position: absolute;
+        inset: 84px;
+        border-radius: 136px;
+        background:
+          radial-gradient(circle at 26% 36%, rgba(34, 197, 94, 0.16), transparent 34%),
+          radial-gradient(circle at 74% 32%, rgba(249, 115, 22, 0.13), transparent 30%),
+          radial-gradient(circle at 64% 72%, rgba(37, 99, 235, 0.16), transparent 30%);
+        filter: blur(22px);
+        opacity: 0.9;
+        pointer-events: none;
+      }
+
+      .logo-wrap {
+        position: relative;
+        z-index: 1;
+        width: 704px;
+        height: 704px;
+        display: grid;
+        place-items: center;
+        filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.28));
+      }
+
+      .logo-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="icon-surface">
+      <div class="logo-wrap">
+        <img src="./icon_logo.png" alt="BulkPixel icon artwork" />
+      </div>
+    </div>
+  </body>
+</html>
