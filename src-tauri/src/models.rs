@@ -6,6 +6,7 @@ pub enum ExportFormat {
     Jpeg,
     Png,
     Webp,
+    Avif,
 }
 
 impl ExportFormat {
@@ -14,6 +15,7 @@ impl ExportFormat {
             Self::Jpeg => "jpg",
             Self::Png => "png",
             Self::Webp => "webp",
+            Self::Avif => "avif",
         }
     }
 }
@@ -37,7 +39,8 @@ pub struct ConversionRequest {
     pub format: ExportFormat,
     pub resize: ResizeOptions,
     pub quality: u8,
-    pub prefix: String,
+    pub filename_component: String,
+    pub filename_mode: String,
     pub output_dir: String,
 }
 

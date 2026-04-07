@@ -16,7 +16,7 @@ use crate::models::{
     LoadedImage, ProbeImagesResponse, RejectedImage,
 };
 
-const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp"];
+const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp", "avif"];
 const THUMBNAIL_WIDTH: u32 = 220;
 const THUMBNAIL_HEIGHT: u32 = 140;
 
@@ -206,7 +206,8 @@ fn convert_single_image(
     let bytes = encode_image(&resized, &request.format, request.quality)?;
     let output_path = next_available_output_path(
         output_dir,
-        &request.prefix,
+        &request.filename_component,
+        &request.filename_mode,
         input_path,
         request.format.extension(),
         reserved_names,
@@ -301,6 +302,17 @@ fn encode_image(
             let webp_data = encoder.encode(quality as f32);
             buffer.extend_from_slice(webp_data.as_ref());
         }
+        ExportFormat::Avif => {
+            let rgba = image.to_rgba8();
+            let avif_quality = quality.clamp(1, 100);
+            let encoder = image::codecs::avif::AvifEncoder::new_with_speed_quality(&mut buffer, 6, avif_quality);
+            encoder.write_image(
+                rgba.as_raw(),
+                rgba.width(),
+                rgba.height(),
+                ColorType::Rgba8.into(),
+            )?;
+        }
     }
 
     Ok(buffer)
@@ -368,13 +380,15 @@ fn format_label_from_extension(path: &Path) -> String {
         Some("jpg") | Some("jpeg") => "JPEG".into(),
         Some("png") => "PNG".into(),
         Some("webp") => "WEBP".into(),
+        Some("avif") => "AVIF".into(),
         _ => "Image".into(),
     }
 }
 
 fn next_available_output_path(
     output_dir: &Path,
-    prefix: &str,
+    filename_component: &str,
+    filename_mode: &str,
     source_path: &Path,
     target_extension: &str,
     reserved_names: &mut HashSet<PathBuf>,
@@ -383,17 +397,35 @@ fn next_available_output_path(
         .file_stem()
         .map(|value| value.to_string_lossy().to_string())
         .unwrap_or_else(|| "image".into());
-    let sanitized_prefix = sanitize_component(prefix);
+    let sanitized_component = sanitize_component(filename_component);
     let sanitized_stem = sanitize_component(&stem);
-    let base_name = format!(
-        "{}{}",
-        sanitized_prefix,
+    let base_name = if sanitized_component.is_empty() {
         if sanitized_stem.is_empty() {
             "image".to_string()
         } else {
             sanitized_stem
         }
-    );
+    } else if filename_mode == "postfix" {
+        format!(
+            "{}{}",
+            if sanitized_stem.is_empty() {
+                "image".to_string()
+            } else {
+                sanitized_stem
+            },
+            sanitized_component
+        )
+    } else {
+        format!(
+            "{}{}",
+            sanitized_component,
+            if sanitized_stem.is_empty() {
+                "image".to_string()
+            } else {
+                sanitized_stem
+            }
+        )
+    };
 
     let mut counter = 0_usize;
 
@@ -484,6 +516,7 @@ mod tests {
         let first = next_available_output_path(
             Path::new("/tmp"),
             "bulk_",
+            "prefix",
             Path::new("/images/photo.png"),
             "jpg",
             &mut reserved,
@@ -491,6 +524,7 @@ mod tests {
         let second = next_available_output_path(
             Path::new("/tmp"),
             "bulk_",
+            "prefix",
             Path::new("/images/photo.png"),
             "jpg",
             &mut reserved,
@@ -498,5 +532,20 @@ mod tests {
 
         assert!(first.ends_with("bulk_photo.jpg"));
         assert!(second.ends_with("bulk_photo_1.jpg"));
+    }
+
+    #[test]
+    fn applies_postfix_mode() {
+        let mut reserved = HashSet::new();
+        let result = next_available_output_path(
+            Path::new("/tmp"),
+            "_v1",
+            "postfix",
+            Path::new("/images/photo.png"),
+            "jpg",
+            &mut reserved,
+        );
+
+        assert!(result.ends_with("photo_v1.jpg"));
     }
 }
