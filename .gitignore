@@ -1,6 +1,15 @@
 node_modules/
+dist/
+build/
+.next/
+coverage/
 src-tauri/gen/
 src-tauri/target/
 .DS_Store
+.env
+.env.*
+*.log
 npm-debug.log*
+*.sqlite
+*.db
 .qwen

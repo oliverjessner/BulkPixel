@@ -1,4 +1,4 @@
-import { buildResultTone, escapeHtml, formatBytes, formatDimensions, pluralize } from './formatters.js';
+import { buildResultTone, formatBytes, formatDimensions, pluralize } from './formatters.js';
 
 export function renderApp(state, elements) {
     renderControls(state, elements);
@@ -73,58 +73,96 @@ function renderStatus(state, elements) {
 
 function renderPreview(state, elements) {
     if (!state.images.length) {
-        elements.previewList.innerHTML = `
-      <div class="empty-state">
-        <p class="empty-title">No images added yet</p>
-        <p class="empty-copy">Drop JPG, PNG, or WEBP files into the upload area to start.</p>
-      </div>
-    `;
+        elements.previewList.replaceChildren(buildEmptyState());
         return;
     }
 
-    elements.previewList.innerHTML = state.images
-        .map(image => {
-            const result = image.result;
-            const tone = buildResultTone(result);
-            const displayFileType = buildDisplayFileType(image, result);
-            const displayDimensions = buildDisplayDimensions(image, result);
-            const resultMarkup = result
-                ? result.success
-                    ? `
-            <div class="preview-result tone-${tone}">
-              <span class="result-chip">
-                ${escapeHtml(buildResultChipText(result))}
-              </span>
-            </div>
-          `
-                    : `
-            <div class="preview-result tone-${tone}">
-              <span class="result-chip">${escapeHtml(result.message)}</span>
-            </div>
-          `
-                : '';
+    elements.previewList.replaceChildren(...state.images.map(buildPreviewCard));
+}
 
-            return `
-        <article class="preview-card">
-          <div class="thumb-wrap">
-            <img src="${image.previewDataUrl}" alt="${escapeHtml(image.name)} preview" />
-            <button class="thumb-remove-button remove-image-button" type="button" data-image-id="${image.id}" aria-label="Remove ${escapeHtml(image.name)}">
-              <span aria-hidden="true">×</span>
-            </button>
-          </div>
-          <div class="preview-body">
-            <div class="preview-title-row">
-              <div>
-                <h3 class="preview-name" title="${escapeHtml(image.name)}">${escapeHtml(image.name)}</h3>
-                <p class="preview-subtitle">${displayFileType} · ${displayDimensions}</p>
-              </div>
-            </div>
-            ${resultMarkup}
-          </div>
-        </article>
-      `;
-        })
-        .join('');
+function buildEmptyState() {
+    const emptyState = document.createElement('div');
+    emptyState.className = 'empty-state';
+
+    const title = document.createElement('p');
+    title.className = 'empty-title';
+    title.textContent = 'No images added yet';
+
+    const copy = document.createElement('p');
+    copy.className = 'empty-copy';
+    copy.textContent = 'Drop JPG, PNG, or WEBP files into the upload area to start.';
+
+    emptyState.append(title, copy);
+    return emptyState;
+}
+
+function buildPreviewCard(image) {
+    const result = image.result;
+    const displayFileType = buildDisplayFileType(image, result);
+    const displayDimensions = buildDisplayDimensions(image, result);
+
+    const card = document.createElement('article');
+    card.className = 'preview-card';
+
+    const thumbWrap = document.createElement('div');
+    thumbWrap.className = 'thumb-wrap';
+
+    const previewImage = document.createElement('img');
+    previewImage.src = image.previewDataUrl;
+    previewImage.alt = `${image.name} preview`;
+
+    const removeButton = document.createElement('button');
+    removeButton.className = 'thumb-remove-button remove-image-button';
+    removeButton.type = 'button';
+    removeButton.dataset.imageId = image.id;
+    removeButton.setAttribute('aria-label', `Remove ${image.name}`);
+
+    const removeIcon = document.createElement('span');
+    removeIcon.setAttribute('aria-hidden', 'true');
+    removeIcon.textContent = '×';
+    removeButton.append(removeIcon);
+
+    thumbWrap.append(previewImage, removeButton);
+
+    const body = document.createElement('div');
+    body.className = 'preview-body';
+
+    const titleRow = document.createElement('div');
+    titleRow.className = 'preview-title-row';
+
+    const titleContent = document.createElement('div');
+
+    const name = document.createElement('h3');
+    name.className = 'preview-name';
+    name.title = image.name;
+    name.textContent = image.name;
+
+    const subtitle = document.createElement('p');
+    subtitle.className = 'preview-subtitle';
+    subtitle.textContent = `${displayFileType} · ${displayDimensions}`;
+
+    titleContent.append(name, subtitle);
+    titleRow.append(titleContent);
+    body.append(titleRow);
+
+    if (result) {
+        body.append(buildPreviewResult(result));
+    }
+
+    card.append(thumbWrap, body);
+    return card;
+}
+
+function buildPreviewResult(result) {
+    const resultElement = document.createElement('div');
+    resultElement.className = `preview-result tone-${buildResultTone(result)}`;
+
+    const chip = document.createElement('span');
+    chip.className = 'result-chip';
+    chip.textContent = result.success ? buildResultChipText(result) : result.message;
+
+    resultElement.append(chip);
+    return resultElement;
 }
 
 function buildResizeReferenceText(state) {

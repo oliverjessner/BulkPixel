@@ -4,7 +4,8 @@
   "description": "Capability for the main BulkPixel window",
   "windows": ["main"],
   "permissions": [
-    "core:default",
-    "dialog:default"
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "dialog:allow-open"
   ]
 }
