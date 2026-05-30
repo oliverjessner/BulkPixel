@@ -75,6 +75,7 @@ function bindEvents() {
 
     elements.removeAllButton.addEventListener('click', () => {
         state.images = [];
+        state.filenameComponent = '';
         syncResizeReference();
         clearResults();
         setStatus('info', 'All images were removed.');
