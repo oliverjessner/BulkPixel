@@ -3,6 +3,7 @@ import { renderApp } from './ui.js';
 
 const { invoke } = window.__TAURI__.core;
 const dialogApi = window.__TAURI__.dialog;
+const eventApi = window.__TAURI__.event;
 const webviewApi = window.__TAURI__.webview;
 
 const state = {
@@ -34,6 +35,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     cacheElements();
     bindEvents();
     render();
+    await bindOpenedFiles();
     await hydrateDefaultOutputDirectory();
     await bindNativeDragDrop();
 });
@@ -184,6 +186,36 @@ async function hydrateDefaultOutputDirectory() {
     }
 }
 
+async function bindOpenedFiles() {
+    if (eventApi?.listen) {
+        try {
+            await eventApi.listen('opened-files', event => {
+                const paths = normalizePathPayload(event.payload);
+                if (paths.length) {
+                    void addImagePaths(paths, { source: 'Finder' });
+                }
+            });
+        } catch (error) {
+            setStatus('warning', normaliseError(error, 'Finder imports are unavailable in this environment.'));
+            render();
+        }
+    }
+
+    await importInitialOpenedFiles();
+}
+
+async function importInitialOpenedFiles() {
+    try {
+        const paths = normalizePathPayload(await invoke('get_opened_files'));
+        if (paths.length) {
+            await addImagePaths(paths, { source: 'Finder' });
+        }
+    } catch (error) {
+        setStatus('error', normaliseError(error, 'Unable to import images opened from Finder.'));
+        render();
+    }
+}
+
 async function bindNativeDragDrop() {
     if (!webviewApi?.getCurrentWebview) {
         return;
@@ -262,12 +294,17 @@ async function chooseOutputDirectory() {
     }
 }
 
-async function addImagePaths(paths) {
-    const uniquePaths = [...new Set(paths.filter(Boolean))];
+async function addImagePaths(paths, options = {}) {
+    const source = options.source ?? '';
+    const uniquePaths = [...new Set(normalizePathPayload(paths))];
     const existingPaths = new Set(state.images.map(image => image.path));
     const freshPaths = uniquePaths.filter(path => !existingPaths.has(path));
 
     if (!freshPaths.length) {
+        if (source) {
+            return;
+        }
+
         setStatus('info', 'Those images are already loaded.');
         render();
         return;
@@ -276,7 +313,9 @@ async function addImagePaths(paths) {
     state.isImporting = true;
     state.status = {
         kind: 'info',
-        text: `Importing ${pluralize('image', freshPaths.length)}...`,
+        text: source
+            ? `Importing ${pluralize('image', freshPaths.length)} from ${source}...`
+            : `Importing ${pluralize('image', freshPaths.length)}...`,
     };
     render();
 
@@ -293,12 +332,9 @@ async function addImagePaths(paths) {
         clearResults();
 
         if (response.rejected.length) {
-            setStatus(
-                'warning',
-                `${pluralize('image', loadedImages.length)} added. ${pluralize('file', response.rejected.length)} skipped.`,
-            );
+            setStatus('warning', buildImportStatus(loadedImages.length, response.rejected.length, source));
         } else {
-            setStatus('success', `${pluralize('image', loadedImages.length)} added.`);
+            setStatus('success', buildImportStatus(loadedImages.length, 0, source));
         }
     } catch (error) {
         setStatus('error', normaliseError(error, 'Unable to inspect the selected images.'));
@@ -441,6 +477,32 @@ function normalizeDialogSelection(selection) {
     }
 
     return Array.isArray(selection) ? selection : [selection];
+}
+
+function normalizePathPayload(payload) {
+    if (!payload) {
+        return [];
+    }
+
+    const values = Array.isArray(payload) ? payload : [payload];
+    return values.filter(path => typeof path === 'string' && path.trim());
+}
+
+function buildImportStatus(loadedCount, rejectedCount, source) {
+    const loadedText = source
+        ? `${pluralize('image', loadedCount)} imported from ${source}`
+        : `${pluralize('image', loadedCount)} added`;
+
+    if (!rejectedCount) {
+        return `${loadedText}.`;
+    }
+
+    const skippedText =
+        rejectedCount === 1
+            ? '1 file was skipped because it is not a supported image'
+            : `${rejectedCount} files were skipped because they are not supported images`;
+
+    return loadedCount ? `${loadedText}. ${skippedText}.` : `${skippedText}.`;
 }
 
 function createImageId() {

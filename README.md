@@ -4,7 +4,7 @@
 
 **Convert more. Click less.**
 
-BulkPixel is a local-first desktop app for fast batch image processing.  
+BulkPixel is a local-first desktop app for fast batch image processing (Mac Only).  
 Drop in multiple images, choose an output format, resize if needed, and export everything in one go.
 
 Built for people who do not want a bloated image editor just to prepare assets for the web, blogs, apps, client work, or side projects.
@@ -42,6 +42,26 @@ It is local-first, fast, and intentionally restrained.
 - Collision-safe saving with `_1`, `_2`, and so on
 - Per-image and total savings analysis
 - Clear success, partial-success, and error feedback
+
+## macOS Open With test cases
+
+1. BulkPixel is closed:
+   - Select a PNG in Finder
+   - Right-click -> Open With -> BulkPixel
+   - Expected: BulkPixel starts and the image appears in the queue
+
+2. BulkPixel is already running:
+   - Select multiple JPG, PNG, or WEBP files in Finder
+   - Right-click -> Open With -> BulkPixel
+   - Expected: The existing app receives the files and adds them to the queue
+
+3. Unsupported file type:
+   - Open a TXT file or another unsupported file with BulkPixel
+   - Expected: The file is ignored or reported as unsupported without starting a conversion
+
+4. Duplicate file:
+   - Open the same file twice with BulkPixel
+   - Expected: The app does not crash and the queue remains valid. BulkPixel currently keeps one queue entry per path while it is already loaded.
 
 ## Who it is for
 
