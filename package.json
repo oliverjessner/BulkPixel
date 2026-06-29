@@ -1,13 +1,13 @@
 {
     "name": "bulkpixel",
     "private": true,
-    "version": "1.0.4",
+    "version": "2.0.0",
     "type": "module",
     "scripts": {
         "tauri": "tauri",
         "dev": "tauri dev",
         "build": "tauri build",
-        "publish": "sh publish.sh"
+        "publish": "sh scripts/publish.sh"
     },
     "devDependencies": {
         "@tauri-apps/cli": "^2.10.1"

@@ -19,6 +19,7 @@ use crate::models::{
 const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp", "avif"];
 const THUMBNAIL_WIDTH: u32 = 220;
 const THUMBNAIL_HEIGHT: u32 = 140;
+const MAX_RESIZE_DIMENSION: u32 = 9999;
 
 #[derive(Debug, Error)]
 pub enum AppError {
@@ -140,9 +141,14 @@ fn validate_request(request: &ConversionRequest) -> Result<(), AppError> {
     }
 
     match (request.resize.width, request.resize.height) {
-        (Some(0), _) | (_, Some(0)) => {
+        (Some(width), _) if !is_valid_resize_dimension(width) => {
             return Err(AppError::Validation(
-                "Width and height must be greater than zero.".into(),
+                "Width must be between 1 and 9999.".into(),
+            ));
+        }
+        (_, Some(height)) if !is_valid_resize_dimension(height) => {
+            return Err(AppError::Validation(
+                "Height must be between 1 and 9999.".into(),
             ));
         }
         (Some(_), Some(_)) => {
@@ -160,6 +166,10 @@ fn validate_request(request: &ConversionRequest) -> Result<(), AppError> {
     }
 
     Ok(())
+}
+
+fn is_valid_resize_dimension(value: u32) -> bool {
+    (1..=MAX_RESIZE_DIMENSION).contains(&value)
 }
 
 fn load_single_image(path: &Path) -> Result<LoadedImage, AppError> {

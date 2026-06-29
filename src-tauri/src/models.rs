@@ -104,3 +104,35 @@ pub struct ConversionResponse {
     pub results: Vec<ConversionItemResult>,
     pub summary: ConversionSummary,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavePresetRequest {
+    pub id: Option<i64>,
+    pub name: String,
+    pub format: String,
+    pub resize_mode: String,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub quality: u8,
+    pub filename_component: String,
+    pub filename_mode: String,
+    pub output_directory: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversionPreset {
+    pub id: i64,
+    pub name: String,
+    pub format: String,
+    pub resize_mode: String,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub quality: u8,
+    pub filename_component: String,
+    pub filename_mode: String,
+    pub output_directory: String,
+    pub created_at: String,
+    pub updated_at: String,
+}

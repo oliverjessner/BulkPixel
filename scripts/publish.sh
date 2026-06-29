@@ -2,13 +2,17 @@
 
 set -eu
 
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+cd "$REPO_ROOT"
+
 RELEASE_REPO="oliverjessner/BulkPixel"
-CHANGELOG_URL="https://raw.githubusercontent.com/$RELEASE_REPO/main/changelog.md"
+CHANGELOG_URL="https://raw.githubusercontent.com/$RELEASE_REPO/main/docs/changelog.md"
 BUNDLE_DIR="src-tauri/target/release/bundle"
 DMG_DIR="$BUNDLE_DIR/dmg"
 TMP_CHANGELOG=$(mktemp)
 TMP_RELEASE_NOTES=$(mktemp)
-LOCAL_CHANGELOG="changelog.md"
+LOCAL_CHANGELOG="docs/changelog.md"
 
 cleanup() {
     rm -f "$TMP_CHANGELOG" "$TMP_RELEASE_NOTES"

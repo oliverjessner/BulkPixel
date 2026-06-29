@@ -1,8 +1,15 @@
 mod image_pipeline;
 mod models;
+mod presets;
 
 use image_pipeline::{convert_images, default_output_directory, probe_images};
-use models::{ConversionRequest, ConversionResponse, ProbeImagesResponse};
+use models::{
+    ConversionPreset, ConversionRequest, ConversionResponse, ProbeImagesResponse, SavePresetRequest,
+};
+use presets::{
+    delete_preset as delete_preset_from_store, list_presets as list_presets_from_store,
+    save_preset as save_preset_to_store,
+};
 use std::{collections::HashSet, sync::Mutex};
 use tauri::menu::Menu;
 #[cfg(target_os = "macos")]
@@ -67,6 +74,24 @@ async fn bulk_convert_images(request: ConversionRequest) -> Result<ConversionRes
 }
 
 #[tauri::command]
+fn list_presets(app: tauri::AppHandle) -> Result<Vec<ConversionPreset>, String> {
+    list_presets_from_store(&app).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn save_preset(
+    app: tauri::AppHandle,
+    request: SavePresetRequest,
+) -> Result<ConversionPreset, String> {
+    save_preset_to_store(&app, request).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn delete_preset(app: tauri::AppHandle, id: i64) -> Result<(), String> {
+    delete_preset_from_store(&app, id).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn get_opened_files(opened_files: tauri::State<'_, OpenedFilesState>) -> Vec<String> {
     opened_files.take_initial_files()
 }
@@ -85,6 +110,9 @@ pub fn run() {
             get_default_output_directory,
             probe_images_command,
             bulk_convert_images,
+            list_presets,
+            save_preset,
+            delete_preset,
             get_opened_files
         ])
         .build(tauri::generate_context!())

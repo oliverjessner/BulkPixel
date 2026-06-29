@@ -18,9 +18,17 @@
                     <img class="brand-logo" src="/assets/icons/logo.png" alt="BulkPixel logo" />
                     <h1>BulkPixel</h1>
                 </div>
+                <nav id="app-mode-toggle" class="app-mode-toggle" aria-label="Main view">
+                    <button class="app-mode-button is-active" type="button" data-view="convert" aria-pressed="true">
+                        Convert
+                    </button>
+                    <button class="app-mode-button" type="button" data-view="presets" aria-pressed="false">
+                        Presets
+                    </button>
+                </nav>
             </header>
 
-            <main class="workspace">
+            <main id="convert-view" class="workspace app-view">
                 <section class="panel upload-panel" aria-labelledby="upload-title">
                     <div class="section-header">
                         <div>
@@ -59,11 +67,17 @@
                 </section>
 
                 <section class="panel settings-panel" aria-labelledby="settings-title">
-                    <div class="section-header">
+                    <div class="section-header settings-title-row">
                         <div>
                             <p class="section-kicker">Settings</p>
                             <h2 id="settings-title">Conversion Settings</h2>
                         </div>
+                        <label class="preset-picker" for="preset-select">
+                            <span>Preset:</span>
+                            <select id="preset-select" class="preset-select" aria-label="Conversion preset">
+                                <option value="custom">Custom</option>
+                            </select>
+                        </label>
                     </div>
 
                     <div class="settings-stack">
@@ -80,7 +94,14 @@
                         <div class="field-group">
                             <div class="field-row label-row">
                                 <label class="field-label">Original Resolution</label>
-                                <span id="resize-reference" class="value-badge">Waiting for images</span>
+                                <button
+                                    id="resize-reference"
+                                    class="value-badge reference-reset-button"
+                                    type="button"
+                                    aria-label="Reset dimensions to reference resolution"
+                                >
+                                    Waiting for images
+                                </button>
                             </div>
                             <div class="field-row split">
                                 <label class="field" for="width-input">
@@ -90,6 +111,7 @@
                                         type="number"
                                         inputmode="numeric"
                                         min="1"
+                                        max="9999"
                                         step="1"
                                         placeholder="Leave empty"
                                     />
@@ -101,6 +123,7 @@
                                         type="number"
                                         inputmode="numeric"
                                         min="1"
+                                        max="9999"
                                         step="1"
                                         placeholder="Leave empty"
                                     />
@@ -159,7 +182,153 @@
                 </section>
             </main>
 
-            <footer class="panel action-bar">
+            <main id="presets-view" class="presets-workspace app-view" hidden>
+                <section class="panel preset-editor-panel" aria-label="Preset editor">
+                    <form id="preset-form" class="preset-form">
+                            <div class="preset-form-header">
+                                <div>
+                                    <p class="section-kicker">Editor</p>
+                                    <h3 id="preset-form-title">Create Preset</h3>
+                                </div>
+                                <button id="preset-reset-button" class="button secondary compact" type="button">
+                                    Clear
+                                </button>
+                            </div>
+
+                            <label class="field" for="preset-name-input">
+                                <span class="field-label">Preset Name</span>
+                                <input
+                                    id="preset-name-input"
+                                    type="text"
+                                    spellcheck="false"
+                                    placeholder="e.g. Website WEBP"
+                                />
+                            </label>
+
+                            <div class="field-group">
+                                <label class="field-label">Export Format</label>
+                                <div
+                                    class="format-toggle"
+                                    id="preset-format-toggle"
+                                    role="radiogroup"
+                                    aria-label="Preset export format"
+                                >
+                                    <button type="button" class="format-option" data-format="jpeg">JPEG</button>
+                                    <button type="button" class="format-option" data-format="png">PNG</button>
+                                    <button type="button" class="format-option" data-format="webp">WEBP</button>
+                                    <button type="button" class="format-option" data-format="avif">AVIF</button>
+                                </div>
+                            </div>
+
+                            <div class="field-group">
+                                <label class="field-label">Resolution</label>
+                                <div
+                                    class="filename-toggle-group resize-mode-toggle"
+                                    id="preset-resize-mode-toggle"
+                                    role="radiogroup"
+                                    aria-label="Preset resolution mode"
+                                >
+                                    <button type="button" class="toggle-button" data-mode="none" aria-pressed="true">
+                                        Original
+                                    </button>
+                                    <button type="button" class="toggle-button" data-mode="width" aria-pressed="false">
+                                        Width
+                                    </button>
+                                    <button type="button" class="toggle-button" data-mode="height" aria-pressed="false">
+                                        Height
+                                    </button>
+                                </div>
+                                <div class="field-row split">
+                                    <label class="field" for="preset-width-input">
+                                        <span class="field-label">Width</span>
+                                        <input
+                                            id="preset-width-input"
+                                            type="number"
+                                            inputmode="numeric"
+                                            min="1"
+                                            max="9999"
+                                            step="1"
+                                            placeholder="Auto"
+                                        />
+                                    </label>
+                                    <label class="field" for="preset-height-input">
+                                        <span class="field-label">Height</span>
+                                        <input
+                                            id="preset-height-input"
+                                            type="number"
+                                            inputmode="numeric"
+                                            min="1"
+                                            max="9999"
+                                            step="1"
+                                            placeholder="Auto"
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="field-group">
+                                <div class="field-row label-row">
+                                    <label class="field-label" for="preset-quality-slider">Quality</label>
+                                    <span id="preset-quality-value" class="value-badge">100</span>
+                                </div>
+                                <input
+                                    id="preset-quality-slider"
+                                    class="slider"
+                                    type="range"
+                                    min="1"
+                                    max="100"
+                                    step="1"
+                                    value="100"
+                                />
+                            </div>
+
+                            <div class="field-group">
+                                <label class="field-label">Filename Component</label>
+                                <div class="filename-toggle-group" id="preset-filename-toggle">
+                                    <button type="button" class="toggle-button" data-mode="prefix" aria-pressed="true">
+                                        Prefix
+                                    </button>
+                                    <button type="button" class="toggle-button" data-mode="postfix" aria-pressed="false">
+                                        Postfix
+                                    </button>
+                                </div>
+                                <input
+                                    id="preset-filename-input"
+                                    type="text"
+                                    spellcheck="false"
+                                    placeholder="Enter filename component"
+                                />
+                            </div>
+
+                            <div class="field-group">
+                                <div class="field-row label-row">
+                                    <label class="field-label" for="preset-output-path">Output Folder</label>
+                                    <button id="preset-choose-folder-button" class="button secondary compact" type="button">
+                                        Choose Folder
+                                    </button>
+                                </div>
+                                <div class="path-display" id="preset-output-path" title=""></div>
+                            </div>
+
+                            <button id="preset-save-button" class="button primary preset-save-button" type="submit">
+                                Save Preset
+                            </button>
+                    </form>
+                </section>
+
+                <section class="panel preset-library-panel" aria-labelledby="saved-presets-title">
+                            <div class="preset-list-header">
+                                <div>
+                                    <p class="section-kicker">Library</p>
+                                    <h3 id="saved-presets-title">Saved Presets</h3>
+                                </div>
+                                <span id="preset-count" class="value-badge">0</span>
+                            </div>
+                            <div id="preset-list" class="preset-list" aria-live="polite"></div>
+                </section>
+            </main>
+
+            <footer id="convert-action-bar" class="panel action-bar">
                 <div class="status-stack">
                     <span class="status-label">Status</span>
                     <div class="status-line">

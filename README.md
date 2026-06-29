@@ -39,29 +39,37 @@ It is local-first, fast, and intentionally restrained.
 - Honest PNG handling without fake "compression" promises
 - Optional filename prefix or postfix (toggle between modes)
 - Output folder selection
+- Presets for saving reusable conversion settings
 - Collision-safe saving with `_1`, `_2`, and so on
 - Per-image and total savings analysis
 - Clear success, partial-success, and error feedback
 
+## Presets
+
+Presets let you save complete conversion setups and reuse them later.  
+A preset stores the export format, resize setting, quality, filename prefix or postfix, and output folder.
+
+Use `Convert` for normal batch conversion. Use `Presets` to create, edit, duplicate, or delete saved setups. In the conversion settings, the preset dropdown lets you switch between `Default`, saved presets, and `Custom` when settings are changed manually.
+
 ## macOS Open With test cases
 
 1. BulkPixel is closed:
-   - Select a PNG in Finder
-   - Right-click -> Open With -> BulkPixel
-   - Expected: BulkPixel starts and the image appears in the queue
+    - Select a PNG in Finder
+    - Right-click -> Open With -> BulkPixel
+    - Expected: BulkPixel starts and the image appears in the queue
 
 2. BulkPixel is already running:
-   - Select multiple JPG, PNG, or WEBP files in Finder
-   - Right-click -> Open With -> BulkPixel
-   - Expected: The existing app receives the files and adds them to the queue
+    - Select multiple JPG, PNG, or WEBP files in Finder
+    - Right-click -> Open With -> BulkPixel
+    - Expected: The existing app receives the files and adds them to the queue
 
 3. Unsupported file type:
-   - Open a TXT file or another unsupported file with BulkPixel
-   - Expected: The file is ignored or reported as unsupported without starting a conversion
+    - Open a TXT file or another unsupported file with BulkPixel
+    - Expected: The file is ignored or reported as unsupported without starting a conversion
 
 4. Duplicate file:
-   - Open the same file twice with BulkPixel
-   - Expected: The app does not crash and the queue remains valid. BulkPixel currently keeps one queue entry per path while it is already loaded.
+    - Open the same file twice with BulkPixel
+    - Expected: The app does not crash and the queue remains valid. BulkPixel currently keeps one queue entry per path while it is already loaded.
 
 ## Who it is for
 
