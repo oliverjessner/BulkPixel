@@ -1,6 +1,6 @@
 # BulkPixel 🖼️
 
-![](/src/assets/screenshots/main.png)
+![BulkPixel convert view](/src/assets/mockups/bulkpixel_1920.webp)
 
 **Convert more. Click less.**
 
@@ -50,6 +50,8 @@ Presets let you save complete conversion setups and reuse them later.
 A preset stores the export format, resize setting, quality, filename prefix or postfix, and output folder.
 
 Use `Convert` for normal batch conversion. Use `Presets` to create, edit, duplicate, or delete saved setups. In the conversion settings, the preset dropdown lets you switch between `Default`, saved presets, and `Custom` when settings are changed manually.
+
+![BulkPixel presets view](/src/assets/mockups/presets_1920.webp)
 
 ## macOS Open With test cases
 

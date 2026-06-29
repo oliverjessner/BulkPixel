@@ -4,7 +4,7 @@ use rusqlite::{params, Connection, Error as SqlError, OptionalExtension};
 use tauri::{AppHandle, Manager};
 use thiserror::Error;
 
-use crate::models::{ConversionPreset, SavePresetRequest};
+use crate::models::{ConversionPreset, ConversionSummary, ExportFormat, SavePresetRequest};
 
 const DATABASE_FILE: &str = "presets.sqlite3";
 const VALID_FORMATS: &[&str] = &["jpeg", "png", "webp", "avif"];
@@ -40,6 +40,42 @@ const CREATE_PRESETS_TABLE_SQL: &str = "
 
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+";
+const CREATE_STATISTICS_TABLE_SQL: &str = "
+    CREATE TABLE IF NOT EXISTS statistics (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+
+        amount INTEGER GENERATED ALWAYS AS (
+            webp + avif + jpeg + png
+        ) STORED,
+
+        webp INTEGER NOT NULL DEFAULT 0
+            CHECK (webp >= 0),
+
+        avif INTEGER NOT NULL DEFAULT 0
+            CHECK (avif >= 0),
+
+        jpeg INTEGER NOT NULL DEFAULT 0
+            CHECK (jpeg >= 0),
+
+        png INTEGER NOT NULL DEFAULT 0
+            CHECK (png >= 0),
+
+        input_bytes INTEGER NOT NULL DEFAULT 0 CHECK (input_bytes >= 0),
+        output_bytes INTEGER NOT NULL DEFAULT 0 CHECK (output_bytes >= 0),
+        processing_time_ms INTEGER NOT NULL DEFAULT 0
+            CHECK (processing_time_ms >= 0),
+
+        saved_bytes INTEGER GENERATED ALWAYS AS (
+            CASE
+                WHEN input_bytes > output_bytes THEN input_bytes - output_bytes
+                ELSE 0
+            END
+        ) STORED,
+
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_conversion_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 ";
 
@@ -149,6 +185,41 @@ pub fn delete_preset(app: &AppHandle, id: i64) -> Result<(), PresetError> {
     Ok(())
 }
 
+pub fn record_conversion_statistics(
+    app: &AppHandle,
+    format: &ExportFormat,
+    summary: &ConversionSummary,
+    processing_time_ms: u128,
+) -> Result<(), PresetError> {
+    if summary.success_count == 0 {
+        return Ok(());
+    }
+
+    let connection = open_connection(app)?;
+    let format_column = statistics_format_column(format);
+    let success_count = saturating_i64_from_usize(summary.success_count);
+    let input_bytes = saturating_i64_from_u64(summary.total_original_size);
+    let output_bytes = saturating_i64_from_u64(summary.total_converted_size);
+    let processing_time_ms = saturating_i64_from_u128(processing_time_ms);
+
+    let statement = format!(
+        "UPDATE statistics
+         SET {format_column} = {format_column} + ?1,
+             input_bytes = input_bytes + ?2,
+             output_bytes = output_bytes + ?3,
+             processing_time_ms = processing_time_ms + ?4,
+             last_conversion_at = CURRENT_TIMESTAMP
+         WHERE id = 1",
+    );
+
+    connection.execute(
+        &statement,
+        params![success_count, input_bytes, output_bytes, processing_time_ms],
+    )?;
+
+    Ok(())
+}
+
 fn open_connection(app: &AppHandle) -> Result<Connection, PresetError> {
     let database_path = database_path(app)?;
     let mut connection = Connection::open(database_path)?;
@@ -180,6 +251,14 @@ fn initialize_schema(connection: &mut Connection) -> Result<(), PresetError> {
         None => connection.execute_batch(CREATE_PRESETS_TABLE_SQL)?,
     }
 
+    initialize_statistics_schema(connection)?;
+
+    Ok(())
+}
+
+fn initialize_statistics_schema(connection: &Connection) -> Result<(), PresetError> {
+    connection.execute_batch(CREATE_STATISTICS_TABLE_SQL)?;
+    connection.execute("INSERT OR IGNORE INTO statistics (id) VALUES (1)", [])?;
     Ok(())
 }
 
@@ -324,4 +403,25 @@ fn validate_request(request: &SavePresetRequest) -> Result<(), PresetError> {
 
 fn is_valid_dimension(value: Option<u32>) -> bool {
     value.is_some_and(|dimension| (1..=9999).contains(&dimension))
+}
+
+fn statistics_format_column(format: &ExportFormat) -> &'static str {
+    match format {
+        ExportFormat::Jpeg => "jpeg",
+        ExportFormat::Png => "png",
+        ExportFormat::Webp => "webp",
+        ExportFormat::Avif => "avif",
+    }
+}
+
+fn saturating_i64_from_u64(value: u64) -> i64 {
+    i64::try_from(value).unwrap_or(i64::MAX)
+}
+
+fn saturating_i64_from_u128(value: u128) -> i64 {
+    i64::try_from(value).unwrap_or(i64::MAX)
+}
+
+fn saturating_i64_from_usize(value: usize) -> i64 {
+    i64::try_from(value).unwrap_or(i64::MAX)
 }

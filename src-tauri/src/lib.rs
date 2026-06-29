@@ -8,9 +8,10 @@ use models::{
 };
 use presets::{
     delete_preset as delete_preset_from_store, list_presets as list_presets_from_store,
+    record_conversion_statistics as record_conversion_statistics_in_store,
     save_preset as save_preset_to_store,
 };
-use std::{collections::HashSet, sync::Mutex};
+use std::{collections::HashSet, sync::Mutex, time::Instant};
 use tauri::menu::Menu;
 #[cfg(target_os = "macos")]
 use tauri::{Emitter, Manager};
@@ -66,11 +67,27 @@ async fn probe_images_command(paths: Vec<String>) -> Result<ProbeImagesResponse,
 }
 
 #[tauri::command]
-async fn bulk_convert_images(request: ConversionRequest) -> Result<ConversionResponse, String> {
-    tauri::async_runtime::spawn_blocking(move || convert_images(request))
+async fn bulk_convert_images(
+    app: tauri::AppHandle,
+    request: ConversionRequest,
+) -> Result<ConversionResponse, String> {
+    let format = request.format.clone();
+    let started_at = Instant::now();
+    let response = tauri::async_runtime::spawn_blocking(move || convert_images(request))
         .await
         .map_err(|error| error.to_string())?
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+
+    if let Err(error) = record_conversion_statistics_in_store(
+        &app,
+        &format,
+        &response.summary,
+        started_at.elapsed().as_millis(),
+    ) {
+        eprintln!("failed to update conversion statistics: {error}");
+    }
+
+    Ok(response)
 }
 
 #[tauri::command]
