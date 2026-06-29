@@ -5,7 +5,7 @@
 - status now shows the sum of the savings
 - presets, define your own preset and use it
 - CLI, full docu in README.md
-- update outdate stuff
+- update outdated deps
 
 # 1.0.4
 
