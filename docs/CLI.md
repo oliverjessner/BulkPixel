@@ -3,6 +3,15 @@
 BulkPixel ships with a CLI. In the DMG, it is included as a `bulkpixel` symlink next to `BulkPixel.app`.
 The symlink points to the app binary. Running the binary without arguments opens the desktop app; running CLI commands executes BulkPixel in the terminal.
 
+## Install
+
+Install BulkPixel and the CLI with Homebrew:
+
+```sh
+brew tap oliverjessner/tap
+brew install --cask bulkpixel
+```
+
 ## Help and Version
 
 ```sh

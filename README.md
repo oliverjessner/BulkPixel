@@ -57,6 +57,14 @@ Use `Convert` for normal batch conversion. Use `Presets` to create, edit, duplic
 ## CLI
 
 BulkPixel also ships a `bulkpixel` command for terminal workflows.
+
+Install BulkPixel and the CLI with Homebrew:
+
+```sh
+brew tap oliverjessner/tap
+brew install --cask bulkpixel
+```
+
 See [docs/CLI.md](docs/CLI.md) for commands, flags, preset usage, overwrite rules, and statistics output.
 
 ## macOS Open With test cases
