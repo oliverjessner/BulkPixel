@@ -106,9 +106,19 @@ EOF
 
 PRODUCT_NAME=$(node -p 'require("./src-tauri/tauri.conf.json").productName')
 VERSION=$(node -p 'require("./package.json").version || "0.0.0"')
+TAURI_VERSION=$(node -p 'require("./src-tauri/tauri.conf.json").version || "0.0.0"')
+CARGO_VERSION=$(awk -F '"' '/^version =/ { print $2; exit }' src-tauri/Cargo.toml)
 TAG="v$VERSION"
 APP="$BUNDLE_DIR/macos/${PRODUCT_NAME}.app"
 OUT="$DMG_DIR/${PRODUCT_NAME}_${VERSION}_aarch64_adhoc.dmg"
+
+if [ "$VERSION" != "$TAURI_VERSION" ] || [ "$VERSION" != "$CARGO_VERSION" ]; then
+    echo "Version mismatch:"
+    echo "  package.json: $VERSION"
+    echo "  src-tauri/tauri.conf.json: $TAURI_VERSION"
+    echo "  src-tauri/Cargo.toml: $CARGO_VERSION"
+    exit 1
+fi
 
 echo "Cleaning previous builds..."
 rm -rf "$BUNDLE_DIR"
@@ -153,10 +163,10 @@ hdiutil create -volname "$PRODUCT_NAME" -srcfolder "$DMG_SOURCE" -ov -format UDZ
 echo "Created $OUT"
 
 echo "Preparing release notes..."
-if curl -L --fail --silent --show-error "$CHANGELOG_URL" -o "$TMP_CHANGELOG"; then
-    :
-elif [ -f "$LOCAL_CHANGELOG" ]; then
+if [ -f "$LOCAL_CHANGELOG" ]; then
     cp "$LOCAL_CHANGELOG" "$TMP_CHANGELOG"
+elif curl -L --fail --silent --show-error "$CHANGELOG_URL" -o "$TMP_CHANGELOG"; then
+    :
 else
     echo "Unable to fetch remote changelog and no local $LOCAL_CHANGELOG found."
     exit 1
