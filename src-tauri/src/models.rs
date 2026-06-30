@@ -18,6 +18,29 @@ impl ExportFormat {
             Self::Avif => "avif",
         }
     }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Jpeg => "JPEG",
+            Self::Png => "PNG",
+            Self::Webp => "WEBP",
+            Self::Avif => "AVIF",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CollisionMode {
+    Rename,
+    Error,
+    Overwrite,
+}
+
+impl Default for CollisionMode {
+    fn default() -> Self {
+        Self::Rename
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -42,6 +65,8 @@ pub struct ConversionRequest {
     pub filename_component: String,
     pub filename_mode: String,
     pub output_dir: String,
+    #[serde(default)]
+    pub collision_mode: CollisionMode,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -135,4 +160,19 @@ pub struct ConversionPreset {
     pub output_directory: String,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConversionStatistics {
+    pub amount: i64,
+    pub webp: i64,
+    pub avif: i64,
+    pub jpeg: i64,
+    pub png: i64,
+    pub input_bytes: i64,
+    pub output_bytes: i64,
+    pub processing_time_ms: i64,
+    pub saved_bytes: i64,
+    pub created_at: String,
+    pub last_conversion_at: String,
 }

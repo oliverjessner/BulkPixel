@@ -13,9 +13,13 @@ DMG_DIR="$BUNDLE_DIR/dmg"
 TMP_CHANGELOG=$(mktemp)
 TMP_RELEASE_NOTES=$(mktemp)
 LOCAL_CHANGELOG="docs/changelog.md"
+DMG_SOURCE=""
 
 cleanup() {
     rm -f "$TMP_CHANGELOG" "$TMP_RELEASE_NOTES"
+    if [ -n "$DMG_SOURCE" ]; then
+        rm -rf "$DMG_SOURCE"
+    fi
 }
 
 trap cleanup EXIT
@@ -64,7 +68,22 @@ codesign --verify --deep --strict --verbose=2 "$APP"
 echo "Creating DMG..."
 mkdir -p "$DMG_DIR"
 rm -f "$OUT"
-hdiutil create -volname "$PRODUCT_NAME" -srcfolder "$APP" -ov -format UDZO "$OUT"
+DMG_SOURCE=$(mktemp -d)
+cp -R "$APP" "$DMG_SOURCE/"
+APP_EXECUTABLE_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP/Contents/Info.plist" 2>/dev/null || echo "$PRODUCT_NAME")
+APP_EXECUTABLE="$APP/Contents/MacOS/$APP_EXECUTABLE_NAME"
+if [ ! -x "$APP_EXECUTABLE" ]; then
+    APP_EXECUTABLE_NAME="bulkpixel"
+    APP_EXECUTABLE="$APP/Contents/MacOS/$APP_EXECUTABLE_NAME"
+fi
+
+if [ ! -x "$APP_EXECUTABLE" ]; then
+    echo "Unable to find app executable for CLI symlink."
+    exit 1
+fi
+
+ln -s "${PRODUCT_NAME}.app/Contents/MacOS/$APP_EXECUTABLE_NAME" "$DMG_SOURCE/bulkpixel"
+hdiutil create -volname "$PRODUCT_NAME" -srcfolder "$DMG_SOURCE" -ov -format UDZO "$OUT"
 echo "Created $OUT"
 
 echo "Preparing release notes..."

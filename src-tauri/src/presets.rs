@@ -4,9 +4,12 @@ use rusqlite::{params, Connection, Error as SqlError, OptionalExtension};
 use tauri::{AppHandle, Manager};
 use thiserror::Error;
 
-use crate::models::{ConversionPreset, ConversionSummary, ExportFormat, SavePresetRequest};
+use crate::models::{
+    ConversionPreset, ConversionStatistics, ConversionSummary, ExportFormat, SavePresetRequest,
+};
 
 const DATABASE_FILE: &str = "presets.sqlite3";
+const APP_DATA_DIR_NAME: &str = "com.oli.bulkpixel";
 const VALID_FORMATS: &[&str] = &["jpeg", "png", "webp", "avif"];
 const VALID_RESIZE_MODES: &[&str] = &["none", "width", "height"];
 const VALID_FILENAME_MODES: &[&str] = &["prefix", "postfix"];
@@ -91,6 +94,17 @@ pub enum PresetError {
 
 pub fn list_presets(app: &AppHandle) -> Result<Vec<ConversionPreset>, PresetError> {
     let connection = open_connection(app)?;
+    list_presets_with_connection(&connection)
+}
+
+pub fn list_presets_for_cli() -> Result<Vec<ConversionPreset>, PresetError> {
+    let connection = open_cli_connection()?;
+    list_presets_with_connection(&connection)
+}
+
+fn list_presets_with_connection(
+    connection: &Connection,
+) -> Result<Vec<ConversionPreset>, PresetError> {
     let mut statement = connection.prepare(
         "SELECT id, name, format, resize_mode, width, height, quality, filename_component,
                 filename_mode, output_directory, created_at, updated_at
@@ -107,12 +121,23 @@ pub fn list_presets(app: &AppHandle) -> Result<Vec<ConversionPreset>, PresetErro
 
 pub fn save_preset(
     app: &AppHandle,
+    request: SavePresetRequest,
+) -> Result<ConversionPreset, PresetError> {
+    let connection = open_connection(app)?;
+    save_preset_with_connection(&connection, request)
+}
+
+pub fn save_preset_for_cli(request: SavePresetRequest) -> Result<ConversionPreset, PresetError> {
+    let connection = open_cli_connection()?;
+    save_preset_with_connection(&connection, request)
+}
+
+fn save_preset_with_connection(
+    connection: &Connection,
     mut request: SavePresetRequest,
 ) -> Result<ConversionPreset, PresetError> {
     normalize_request(&mut request);
     validate_request(&request)?;
-
-    let connection = open_connection(app)?;
 
     match request.id {
         Some(id) => {
@@ -176,6 +201,16 @@ pub fn save_preset(
 
 pub fn delete_preset(app: &AppHandle, id: i64) -> Result<(), PresetError> {
     let connection = open_connection(app)?;
+    delete_preset_with_connection(&connection, id)
+}
+
+pub fn delete_preset_by_name_for_cli(name: &str) -> Result<(), PresetError> {
+    let connection = open_cli_connection()?;
+    let preset = get_preset_by_name(&connection, name)?;
+    delete_preset_with_connection(&connection, preset.id)
+}
+
+fn delete_preset_with_connection(connection: &Connection, id: i64) -> Result<(), PresetError> {
     let changed = connection.execute("DELETE FROM presets WHERE id = ?1", params![id])?;
 
     if changed == 0 {
@@ -185,8 +220,32 @@ pub fn delete_preset(app: &AppHandle, id: i64) -> Result<(), PresetError> {
     Ok(())
 }
 
+pub fn find_preset_by_name_for_cli(name: &str) -> Result<ConversionPreset, PresetError> {
+    let connection = open_cli_connection()?;
+    get_preset_by_name(&connection, name)
+}
+
 pub fn record_conversion_statistics(
     app: &AppHandle,
+    format: &ExportFormat,
+    summary: &ConversionSummary,
+    processing_time_ms: u128,
+) -> Result<(), PresetError> {
+    let connection = open_connection(app)?;
+    record_conversion_statistics_with_connection(&connection, format, summary, processing_time_ms)
+}
+
+pub fn record_conversion_statistics_for_cli(
+    format: &ExportFormat,
+    summary: &ConversionSummary,
+    processing_time_ms: u128,
+) -> Result<(), PresetError> {
+    let connection = open_cli_connection()?;
+    record_conversion_statistics_with_connection(&connection, format, summary, processing_time_ms)
+}
+
+fn record_conversion_statistics_with_connection(
+    connection: &Connection,
     format: &ExportFormat,
     summary: &ConversionSummary,
     processing_time_ms: u128,
@@ -195,7 +254,6 @@ pub fn record_conversion_statistics(
         return Ok(());
     }
 
-    let connection = open_connection(app)?;
     let format_column = statistics_format_column(format);
     let success_count = saturating_i64_from_usize(summary.success_count);
     let input_bytes = saturating_i64_from_u64(summary.total_original_size);
@@ -220,8 +278,43 @@ pub fn record_conversion_statistics(
     Ok(())
 }
 
+pub fn load_statistics_for_cli() -> Result<ConversionStatistics, PresetError> {
+    let connection = open_cli_connection()?;
+    connection
+        .query_row(
+            "SELECT amount, webp, avif, jpeg, png, input_bytes, output_bytes,
+                    processing_time_ms, saved_bytes, created_at, last_conversion_at
+             FROM statistics
+             WHERE id = 1",
+            [],
+            |row| {
+                Ok(ConversionStatistics {
+                    amount: row.get(0)?,
+                    webp: row.get(1)?,
+                    avif: row.get(2)?,
+                    jpeg: row.get(3)?,
+                    png: row.get(4)?,
+                    input_bytes: row.get(5)?,
+                    output_bytes: row.get(6)?,
+                    processing_time_ms: row.get(7)?,
+                    saved_bytes: row.get(8)?,
+                    created_at: row.get(9)?,
+                    last_conversion_at: row.get(10)?,
+                })
+            },
+        )
+        .map_err(PresetError::from)
+}
+
 fn open_connection(app: &AppHandle) -> Result<Connection, PresetError> {
     let database_path = database_path(app)?;
+    let mut connection = Connection::open(database_path)?;
+    initialize_schema(&mut connection)?;
+    Ok(connection)
+}
+
+fn open_cli_connection() -> Result<Connection, PresetError> {
+    let database_path = cli_database_path()?;
     let mut connection = Connection::open(database_path)?;
     initialize_schema(&mut connection)?;
     Ok(connection)
@@ -232,6 +325,17 @@ fn database_path(app: &AppHandle) -> Result<PathBuf, PresetError> {
         .path()
         .app_data_dir()
         .map_err(|error| PresetError::Storage(error.to_string()))?;
+    database_path_from_directory(directory)
+}
+
+fn cli_database_path() -> Result<PathBuf, PresetError> {
+    let directory = dirs::data_dir()
+        .ok_or_else(|| PresetError::Storage("Unable to resolve the data directory.".into()))?
+        .join(APP_DATA_DIR_NAME);
+    database_path_from_directory(directory)
+}
+
+fn database_path_from_directory(directory: PathBuf) -> Result<PathBuf, PresetError> {
     fs::create_dir_all(&directory).map_err(|error| PresetError::Storage(error.to_string()))?;
     Ok(directory.join(DATABASE_FILE))
 }
@@ -312,6 +416,25 @@ fn get_preset(connection: &Connection, id: i64) -> Result<ConversionPreset, Pres
             map_preset_row,
         )
         .map_err(PresetError::from)
+}
+
+fn get_preset_by_name(
+    connection: &Connection,
+    name: &str,
+) -> Result<ConversionPreset, PresetError> {
+    let normalized_name = name.trim();
+    connection
+        .query_row(
+            "SELECT id, name, format, resize_mode, width, height, quality, filename_component,
+                    filename_mode, output_directory, created_at, updated_at
+             FROM presets
+             WHERE lower(name) = lower(?1)
+             LIMIT 1",
+            params![normalized_name],
+            map_preset_row,
+        )
+        .optional()?
+        .ok_or_else(|| PresetError::Validation(format!("Preset not found: {normalized_name}")))
 }
 
 fn map_preset_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ConversionPreset> {

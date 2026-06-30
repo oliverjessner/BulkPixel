@@ -1,3 +1,4 @@
+mod cli;
 mod image_pipeline;
 mod models;
 mod presets;
@@ -145,6 +146,10 @@ pub fn run() {
             let _ = event;
         }
     });
+}
+
+pub fn run_cli_from_env() -> i32 {
+    cli::run_from_env()
 }
 
 #[cfg(target_os = "macos")]

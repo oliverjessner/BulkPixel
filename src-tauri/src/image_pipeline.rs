@@ -12,8 +12,8 @@ use image::{
 use thiserror::Error;
 
 use crate::models::{
-    ConversionItemResult, ConversionRequest, ConversionResponse, ConversionSummary, ExportFormat,
-    LoadedImage, ProbeImagesResponse, RejectedImage,
+    CollisionMode, ConversionItemResult, ConversionRequest, ConversionResponse, ConversionSummary,
+    ExportFormat, LoadedImage, ProbeImagesResponse, RejectedImage,
 };
 
 const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp", "avif"];
@@ -220,8 +220,9 @@ fn convert_single_image(
         &request.filename_mode,
         input_path,
         request.format.extension(),
+        &request.collision_mode,
         reserved_names,
-    );
+    )?;
 
     fs::write(&output_path, &bytes)?;
 
@@ -315,7 +316,11 @@ fn encode_image(
         ExportFormat::Avif => {
             let rgba = image.to_rgba8();
             let avif_quality = quality.clamp(1, 100);
-            let encoder = image::codecs::avif::AvifEncoder::new_with_speed_quality(&mut buffer, 6, avif_quality);
+            let encoder = image::codecs::avif::AvifEncoder::new_with_speed_quality(
+                &mut buffer,
+                6,
+                avif_quality,
+            );
             encoder.write_image(
                 rgba.as_raw(),
                 rgba.width(),
@@ -401,8 +406,9 @@ fn next_available_output_path(
     filename_mode: &str,
     source_path: &Path,
     target_extension: &str,
+    collision_mode: &CollisionMode,
     reserved_names: &mut HashSet<PathBuf>,
-) -> PathBuf {
+) -> Result<PathBuf, AppError> {
     let stem = source_path
         .file_stem()
         .map(|value| value.to_string_lossy().to_string())
@@ -437,23 +443,54 @@ fn next_available_output_path(
         )
     };
 
-    let mut counter = 0_usize;
+    let output_path = output_dir.join(format!("{base_name}.{target_extension}"));
 
-    loop {
-        let file_name = if counter == 0 {
-            format!("{base_name}.{target_extension}")
-        } else {
-            format!("{base_name}_{counter}.{target_extension}")
-        };
+    match collision_mode {
+        CollisionMode::Error => reserve_exact_output_path(output_path, reserved_names, false),
+        CollisionMode::Overwrite => reserve_exact_output_path(output_path, reserved_names, true),
+        CollisionMode::Rename => {
+            let mut counter = 0_usize;
 
-        let candidate = output_dir.join(file_name);
-        if !candidate.exists() && !reserved_names.contains(&candidate) {
-            reserved_names.insert(candidate.clone());
-            return candidate;
+            loop {
+                let file_name = if counter == 0 {
+                    format!("{base_name}.{target_extension}")
+                } else {
+                    format!("{base_name}_{counter}.{target_extension}")
+                };
+
+                let candidate = output_dir.join(file_name);
+                if !candidate.exists() && !reserved_names.contains(&candidate) {
+                    reserved_names.insert(candidate.clone());
+                    return Ok(candidate);
+                }
+
+                counter += 1;
+            }
         }
-
-        counter += 1;
     }
+}
+
+fn reserve_exact_output_path(
+    output_path: PathBuf,
+    reserved_names: &mut HashSet<PathBuf>,
+    allow_existing: bool,
+) -> Result<PathBuf, AppError> {
+    if reserved_names.contains(&output_path) {
+        return Err(AppError::Validation(format!(
+            "Output file would be written more than once: {}",
+            output_path.to_string_lossy()
+        )));
+    }
+
+    if !allow_existing && output_path.exists() {
+        return Err(AppError::Validation(format!(
+            "Output file already exists: {}",
+            output_path.to_string_lossy()
+        )));
+    }
+
+    reserved_names.insert(output_path.clone());
+    Ok(output_path)
 }
 
 fn sanitize_component(value: &str) -> String {
@@ -512,6 +549,7 @@ fn human_size(bytes: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::{next_available_output_path, sanitize_component};
+    use crate::models::CollisionMode;
     use std::{collections::HashSet, path::Path};
 
     #[test]
@@ -529,16 +567,20 @@ mod tests {
             "prefix",
             Path::new("/images/photo.png"),
             "jpg",
+            &CollisionMode::Rename,
             &mut reserved,
-        );
+        )
+        .expect("first output path");
         let second = next_available_output_path(
             Path::new("/tmp"),
             "bulk_",
             "prefix",
             Path::new("/images/photo.png"),
             "jpg",
+            &CollisionMode::Rename,
             &mut reserved,
-        );
+        )
+        .expect("second output path");
 
         assert!(first.ends_with("bulk_photo.jpg"));
         assert!(second.ends_with("bulk_photo_1.jpg"));
@@ -553,9 +595,37 @@ mod tests {
             "postfix",
             Path::new("/images/photo.png"),
             "jpg",
+            &CollisionMode::Rename,
+            &mut reserved,
+        )
+        .expect("output path");
+
+        assert!(result.ends_with("photo_v1.jpg"));
+    }
+
+    #[test]
+    fn rejects_duplicate_exact_names_when_requested() {
+        let mut reserved = HashSet::new();
+        let first = next_available_output_path(
+            Path::new("/tmp"),
+            "bulk_",
+            "prefix",
+            Path::new("/images/photo.png"),
+            "jpg",
+            &CollisionMode::Error,
+            &mut reserved,
+        );
+        let second = next_available_output_path(
+            Path::new("/tmp"),
+            "bulk_",
+            "prefix",
+            Path::new("/images/photo.png"),
+            "jpg",
+            &CollisionMode::Error,
             &mut reserved,
         );
 
-        assert!(result.ends_with("photo_v1.jpg"));
+        assert!(first.is_ok());
+        assert!(second.is_err());
     }
 }
