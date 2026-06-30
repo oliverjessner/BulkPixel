@@ -10,10 +10,15 @@ RELEASE_REPO="oliverjessner/BulkPixel"
 CHANGELOG_URL="https://raw.githubusercontent.com/$RELEASE_REPO/main/docs/changelog.md"
 BUNDLE_DIR="src-tauri/target/release/bundle"
 DMG_DIR="$BUNDLE_DIR/dmg"
+HOMEBREW_TAP_DIR=${HOMEBREW_TAP_DIR:-}
 TMP_CHANGELOG=$(mktemp)
 TMP_RELEASE_NOTES=$(mktemp)
 LOCAL_CHANGELOG="docs/changelog.md"
 DMG_SOURCE=""
+
+if [ -z "$HOMEBREW_TAP_DIR" ]; then
+    HOMEBREW_TAP_DIR="$REPO_ROOT/../homebrew-tap"
+fi
 
 cleanup() {
     rm -f "$TMP_CHANGELOG" "$TMP_RELEASE_NOTES"
@@ -34,9 +39,70 @@ require_command() {
 require_command npm
 require_command node
 require_command gh
+require_command git
 require_command codesign
 require_command hdiutil
 require_command curl
+require_command shasum
+
+update_homebrew_cask() {
+    if [ ! -d "$HOMEBREW_TAP_DIR/.git" ]; then
+        echo "Homebrew tap not found at $HOMEBREW_TAP_DIR"
+        echo "Set HOMEBREW_TAP_DIR to the tap checkout before publishing."
+        exit 1
+    fi
+
+    if [ -n "$(git -C "$HOMEBREW_TAP_DIR" status --porcelain)" ]; then
+        echo "Homebrew tap has uncommitted changes. Commit or stash them before publishing."
+        exit 1
+    fi
+
+    echo "Updating Homebrew cask..."
+    git -C "$HOMEBREW_TAP_DIR" pull --ff-only
+
+    DMG_SHA256=$(shasum -a 256 "$OUT" | awk '{ print $1 }')
+    CASK_DIR="$HOMEBREW_TAP_DIR/Casks"
+    CASK_PATH="$CASK_DIR/bulkpixel.rb"
+    mkdir -p "$CASK_DIR"
+
+    cat > "$CASK_PATH" <<EOF
+cask "bulkpixel" do
+  version "$VERSION"
+  sha256 "$DMG_SHA256"
+
+  url "https://github.com/oliverjessner/BulkPixel/releases/download/v#{version}/BulkPixel_#{version}_aarch64_adhoc.dmg",
+      verified: "github.com/oliverjessner/BulkPixel/"
+  name "$PRODUCT_NAME"
+  desc "Local-first batch image converter"
+  homepage "https://github.com/oliverjessner/BulkPixel"
+
+  depends_on arch: :arm64
+  depends_on macos: :big_sur
+
+  app "$PRODUCT_NAME.app"
+  binary "#{appdir}/$PRODUCT_NAME.app/Contents/MacOS/$APP_EXECUTABLE_NAME", target: "bulkpixel"
+
+  zap trash: [
+    "~/Library/Application Support/com.oli.bulkpixel",
+    "~/Library/Preferences/com.oli.bulkpixel.plist",
+  ]
+end
+EOF
+
+    if command -v brew >/dev/null 2>&1; then
+        brew style "$CASK_PATH"
+    fi
+
+    git -C "$HOMEBREW_TAP_DIR" add "Casks/bulkpixel.rb"
+
+    if git -C "$HOMEBREW_TAP_DIR" diff --cached --quiet; then
+        echo "Homebrew cask already up to date."
+        return
+    fi
+
+    git -C "$HOMEBREW_TAP_DIR" commit -m "Update BulkPixel cask to $TAG"
+    git -C "$HOMEBREW_TAP_DIR" push
+}
 
 PRODUCT_NAME=$(node -p 'require("./src-tauri/tauri.conf.json").productName')
 VERSION=$(node -p 'require("./package.json").version || "0.0.0"')
@@ -111,6 +177,8 @@ gh release create "$TAG" "$OUT" \
     --repo "$RELEASE_REPO" \
     --title "${PRODUCT_NAME} $TAG" \
     --notes-file "$TMP_RELEASE_NOTES"
+
+update_homebrew_cask
 
 echo "Build completed successfully."
 echo "Opening the ${PRODUCT_NAME} release page..."

@@ -1,6 +1,6 @@
 [package]
 name = "bulkpixel"
-version = "2.0.0"
+version = "2.0.1"
 description = "BulkPixel desktop app"
 authors = ["oli"]
 edition = "2021"
