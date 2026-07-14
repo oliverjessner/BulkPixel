@@ -2,9 +2,14 @@ use std::{collections::HashSet, env, path::Path, time::Instant};
 
 use crate::{
     image_pipeline::convert_images,
+    magic_directories::{
+        delete_magic_directory_for_cli, list_magic_directories_for_cli,
+        save_magic_directory_for_cli,
+    },
     models::{
-        CollisionMode, ConversionImageInput, ConversionPreset, ConversionRequest,
-        ConversionResponse, ConversionStatistics, ExportFormat, ResizeOptions, SavePresetRequest,
+        validate_multiple_preset_markers, CollisionMode, ConversionImageInput, ConversionPreset,
+        ConversionRequest, ConversionResponse, ConversionStatistics, ExportFormat, MagicDirectory,
+        ResizeOptions, SaveMagicDirectoryRequest, SavePresetRequest,
     },
     presets::{
         delete_preset_by_name_for_cli, find_preset_by_name_for_cli, list_presets_for_cli,
@@ -22,11 +27,15 @@ Usage:
   bulkpixel presets create --name <name> --output-dir <dir> --format <format> [options]
   bulkpixel presets update --name <name> [options]
   bulkpixel presets delete --name <name>
+  bulkpixel magic-directories list
+  bulkpixel magic-directories create --path <dir> --formats <format...> --presets <name...>
+  bulkpixel magic-directories update --id <id> [options]
+  bulkpixel magic-directories delete --id <id>
   bulkpixel stats
   bulkpixel --help
   bulkpixel --version
 
-Formats:
+Export formats:
   jpeg, png, webp, avif
 ";
 
@@ -55,6 +64,15 @@ struct PresetOptions {
     quality: Option<String>,
     prefix: Option<String>,
     postfix: Option<String>,
+}
+
+#[derive(Debug, Default)]
+struct MagicDirectoryOptions {
+    id: Option<String>,
+    path: Option<String>,
+    formats: Vec<String>,
+    preset_names: Vec<String>,
+    enabled: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -92,8 +110,52 @@ fn execute(args: Vec<String>) -> Result<i32, String> {
     match args[0].as_str() {
         "convert" => handle_convert(&args[1..]),
         "presets" => handle_presets(&args[1..]),
+        "magic-directories" => handle_magic_directories(&args[1..]),
         "stats" => handle_stats(&args[1..]),
         command => Err(format!("Unknown command: {command}")),
+    }
+}
+
+fn handle_magic_directories(args: &[String]) -> Result<i32, String> {
+    let Some(command) = args.first() else {
+        return Err("Missing magic-directories command.".into());
+    };
+    if command == "--help" || command == "-h" {
+        println!("{HELP_TEXT}");
+        return Ok(0);
+    }
+
+    match command.as_str() {
+        "list" => {
+            let directories =
+                list_magic_directories_for_cli().map_err(|error| error.to_string())?;
+            print_magic_directories(&directories);
+            Ok(0)
+        }
+        "create" => {
+            let options = parse_magic_directory_options(&args[1..])?;
+            let request = build_create_magic_directory_request(options)?;
+            let directory =
+                save_magic_directory_for_cli(request).map_err(|error| error.to_string())?;
+            println!("Magic directory created: {}", directory.path);
+            Ok(0)
+        }
+        "update" => {
+            let options = parse_magic_directory_options(&args[1..])?;
+            let request = build_update_magic_directory_request(options)?;
+            let directory =
+                save_magic_directory_for_cli(request).map_err(|error| error.to_string())?;
+            println!("Magic directory updated: {}", directory.path);
+            Ok(0)
+        }
+        "delete" => {
+            let options = parse_magic_directory_options(&args[1..])?;
+            let id = parse_magic_directory_id(options.id.as_deref())?;
+            delete_magic_directory_for_cli(id).map_err(|error| error.to_string())?;
+            println!("Magic directory deleted: {id}");
+            Ok(0)
+        }
+        other => Err(format!("Unknown magic-directories command: {other}")),
     }
 }
 
@@ -392,6 +454,117 @@ fn parse_preset_options(args: &[String]) -> Result<PresetOptions, String> {
     Ok(options)
 }
 
+fn parse_magic_directory_options(args: &[String]) -> Result<MagicDirectoryOptions, String> {
+    let mut options = MagicDirectoryOptions::default();
+    let mut index = 0_usize;
+
+    while index < args.len() {
+        match args[index].as_str() {
+            "--id" => {
+                let (value, next_index) = take_one_value(args, index)?;
+                options.id = Some(value);
+                index = next_index;
+            }
+            "--path" => {
+                let (value, next_index) = take_one_value(args, index)?;
+                options.path = Some(value);
+                index = next_index;
+            }
+            "--formats" => {
+                let (values, next_index) = take_values(args, index)?;
+                options.formats = values;
+                index = next_index;
+            }
+            "--presets" => {
+                let (values, next_index) = take_values(args, index)?;
+                options.preset_names = values;
+                index = next_index;
+            }
+            "--enabled" => {
+                if options.enabled == Some(false) {
+                    return Err("Use either --enabled or --disabled, not both.".into());
+                }
+                options.enabled = Some(true);
+                index += 1;
+            }
+            "--disabled" => {
+                if options.enabled == Some(true) {
+                    return Err("Use either --enabled or --disabled, not both.".into());
+                }
+                options.enabled = Some(false);
+                index += 1;
+            }
+            flag => return Err(format!("Unknown magic-directories flag: {flag}")),
+        }
+    }
+
+    Ok(options)
+}
+
+fn build_create_magic_directory_request(
+    options: MagicDirectoryOptions,
+) -> Result<SaveMagicDirectoryRequest, String> {
+    let path = options
+        .path
+        .ok_or_else(|| "--path is required.".to_string())?;
+    if options.formats.is_empty() {
+        return Err("--formats is required.".into());
+    }
+    let presets = load_requested_presets(&options.preset_names)?;
+    if presets.len() > 1 {
+        validate_multiple_preset_markers(&presets)?;
+    }
+
+    Ok(SaveMagicDirectoryRequest {
+        id: None,
+        path,
+        formats: options.formats,
+        preset_ids: presets.into_iter().map(|preset| preset.id).collect(),
+        enabled: options.enabled.unwrap_or(true),
+    })
+}
+
+fn build_update_magic_directory_request(
+    options: MagicDirectoryOptions,
+) -> Result<SaveMagicDirectoryRequest, String> {
+    let id = parse_magic_directory_id(options.id.as_deref())?;
+    let existing = list_magic_directories_for_cli()
+        .map_err(|error| error.to_string())?
+        .into_iter()
+        .find(|directory| directory.id == id)
+        .ok_or_else(|| "Magic directory not found.".to_string())?;
+    let preset_ids = if options.preset_names.is_empty() {
+        existing.preset_ids
+    } else {
+        let presets = load_requested_presets(&options.preset_names)?;
+        if presets.len() > 1 {
+            validate_multiple_preset_markers(&presets)?;
+        }
+        presets.into_iter().map(|preset| preset.id).collect()
+    };
+
+    Ok(SaveMagicDirectoryRequest {
+        id: Some(id),
+        path: options.path.unwrap_or(existing.path),
+        formats: if options.formats.is_empty() {
+            existing.formats
+        } else {
+            options.formats
+        },
+        preset_ids,
+        enabled: options.enabled.unwrap_or(existing.enabled),
+    })
+}
+
+fn parse_magic_directory_id(value: Option<&str>) -> Result<i64, String> {
+    value
+        .ok_or_else(|| "--id is required.".to_string())?
+        .parse::<i64>()
+        .ok()
+        .filter(|id| *id > 0)
+        .ok_or_else(|| "--id must be a positive number.".to_string())
+}
+
 fn take_values(args: &[String], flag_index: usize) -> Result<(Vec<String>, usize), String> {
     let flag = &args[flag_index];
     let mut index = flag_index + 1;
@@ -636,29 +809,6 @@ fn load_requested_presets(names: &[String]) -> Result<Vec<ConversionPreset>, Str
         .collect()
 }
 
-fn validate_multiple_preset_markers(presets: &[ConversionPreset]) -> Result<(), String> {
-    let mut markers = HashSet::new();
-
-    for preset in presets {
-        let component = preset.filename_component.trim();
-        if component.is_empty() {
-            return Err(format!(
-                "Preset collision risk: '{}' has no prefix or postfix.",
-                preset.name
-            ));
-        }
-
-        let marker = format!("{}:{component}", preset.filename_mode);
-        if !markers.insert(marker) {
-            return Err(
-                "Preset collision risk: multiple presets use the same prefix/postfix.".into(),
-            );
-        }
-    }
-
-    Ok(())
-}
-
 fn record_statistics(
     format: &ExportFormat,
     response: &ConversionResponse,
@@ -701,6 +851,7 @@ fn format_label_from_path(path: &str) -> String {
         Some("png") => "PNG".into(),
         Some("webp") => "WEBP".into(),
         Some("avif") => "AVIF".into(),
+        Some("svg") => "SVG".into(),
         _ => "IMAGE".into(),
     }
 }
@@ -825,6 +976,40 @@ fn print_presets(presets: &[ConversionPreset]) {
         }
 
         println!("Output Folder: {}", preset.output_directory);
+    }
+}
+
+fn print_magic_directories(directories: &[MagicDirectory]) {
+    println!("BulkPixel Magic Directories ({})", directories.len());
+    println!("-----------------------------");
+
+    for (index, directory) in directories.iter().enumerate() {
+        if index > 0 {
+            println!();
+        }
+        println!("ID: {}", directory.id);
+        println!("Path: {}", directory.path);
+        println!(
+            "Status: {}",
+            if directory.enabled {
+                "Enabled"
+            } else {
+                "Disabled"
+            }
+        );
+        println!(
+            "Formats: {}",
+            directory.formats.join(", ").to_ascii_uppercase()
+        );
+        println!(
+            "Preset IDs: {}",
+            directory
+                .preset_ids
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
     }
 }
 

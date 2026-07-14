@@ -41,6 +41,16 @@ export function pluralize(word, count) {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
+export function buildDeletePresetConfirmation(name) {
+  return ['Delete preset "', name, '"?'].join("");
+}
+
+export function buildBrandTitle(magicDirectoryChangeDetected) {
+  return magicDirectoryChangeDetected
+    ? "BulkPixel - Magic Directory change detected"
+    : "BulkPixel";
+}
+
 export function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")

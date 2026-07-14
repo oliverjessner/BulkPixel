@@ -31,7 +31,7 @@ It is local-first, fast, and intentionally restrained.
 - Drag and drop images into the app
 - Native file picker support
 - Batch conversion for multiple images at once
-- Input support for `jpg`, `jpeg`, `png`, `avif` and `webp`
+- Input support for `jpg`, `jpeg`, `png`, `avif`, `webp` and `svg`
 - Export to `jpg`, `png`, `avif` or `webp`
 - Resize by width or height
 - Automatic aspect-ratio preservation
@@ -40,7 +40,8 @@ It is local-first, fast, and intentionally restrained.
 - Optional filename prefix or postfix (toggle between modes)
 - Output folder selection
 - Presets for saving reusable conversion settings
-- Terminal CLI for scripted conversion, preset management, and statistics
+- Magic Directories for automatically running presets when new SVG, PNG, WEBP, or AVIF files arrive
+- Terminal CLI for scripted conversion, preset and Magic Directory management, and statistics
 - Collision-safe saving with `_1`, `_2`, and so on
 - Per-image and total savings analysis
 - Clear success, partial-success, and error feedback
@@ -53,6 +54,12 @@ A preset stores the export format, resize setting, quality, filename prefix or p
 Use `Convert` for normal batch conversion. Use `Presets` to create, edit, duplicate, or delete saved setups. In the conversion settings, the preset dropdown lets you switch between `Default`, saved presets, and `Custom` when settings are changed manually.
 
 ![BulkPixel presets view](/src/assets/mockups/presets_1920.webp)
+
+## Magic Directories
+
+Magic Directories watch selected folders while BulkPixel is running. Choose one or more input formats and one or more presets. When a matching file is added directly to the folder, BulkPixel waits for the write to finish and applies every selected preset automatically.
+
+Rules are stored alongside presets and statistics in BulkPixel's shared SQLite database. Generated outputs are ignored by the watcher to prevent conversion loops. When multiple presets are selected, each preset must use a unique non-empty prefix or postfix.
 
 ## CLI
 

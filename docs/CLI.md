@@ -21,6 +21,8 @@ bulkpixel --version
 
 ## Convert Images
 
+Supported input formats are JPEG, PNG, WEBP, AVIF, and SVG. SVG files are rasterized at the requested width or height while preserving their aspect ratio. Export formats remain JPEG, PNG, WEBP, and AVIF.
+
 Required:
 
 - `--input`
@@ -204,6 +206,42 @@ Only the passed values are changed.
 ```sh
 bulkpixel presets delete \
   --name "Blog Header"
+```
+
+## Magic Directories
+
+Magic Directory rules use the same SQLite database as the desktop app. The desktop app performs the actual watching while it is running. Rules created or changed through the CLI are loaded the next time the desktop app starts.
+
+Supported watched formats are `svg`, `png`, `webp`, and `avif`. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
+
+Create a rule:
+
+```sh
+bulkpixel magic-directories create \
+  --path ./incoming-images \
+  --formats svg png webp \
+  --presets "Website WEBP" "Archive AVIF"
+```
+
+List rules and their IDs:
+
+```sh
+bulkpixel magic-directories list
+```
+
+Update selected settings. Omitted settings keep their existing values:
+
+```sh
+bulkpixel magic-directories update \
+  --id 1 \
+  --formats svg png \
+  --disabled
+```
+
+Use `--enabled` to reactivate a saved rule. Delete a rule with:
+
+```sh
+bulkpixel magic-directories delete --id 1
 ```
 
 ## Statistics

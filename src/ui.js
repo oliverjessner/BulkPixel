@@ -1,13 +1,20 @@
-import { buildResultTone, formatBytes, formatDimensions, pluralize } from './formatters.js';
+import { buildBrandTitle, buildResultTone, formatBytes, formatDimensions, pluralize } from './formatters.js';
 
 export function renderApp(state, elements) {
+    renderBrand(state, elements);
     renderView(state, elements);
     renderControls(state, elements);
     renderPresetPicker(state, elements);
     renderPresetForm(state, elements);
     renderPresetList(state, elements);
+    renderMagicDirectoryForm(state, elements);
+    renderMagicDirectoryList(state, elements);
     renderStatus(state, elements);
     renderPreview(state, elements);
+}
+
+function renderBrand(state, elements) {
+    elements.brandTitle.textContent = buildBrandTitle(state.magicDirectoryChangeDetected);
 }
 
 function renderControls(state, elements) {
@@ -75,7 +82,8 @@ function renderView(state, elements) {
     const isConvertView = state.view === 'convert';
 
     elements.convertView.hidden = !isConvertView;
-    elements.presetsView.hidden = isConvertView;
+    elements.presetsView.hidden = state.view !== 'presets';
+    elements.magicView.hidden = state.view !== 'magic';
     elements.convertActionBar.hidden = !isConvertView;
 
     for (const button of elements.appModeButtons) {
@@ -83,6 +91,65 @@ function renderView(state, elements) {
         button.classList.toggle('is-active', isActive);
         button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     }
+}
+
+function renderMagicDirectoryForm(state, elements) {
+    const form = state.magicDirectoryForm;
+    const isSaving = state.isMagicDirectorySaving;
+
+    elements.magicFormTitle.textContent = form.id ? 'Edit Magic Directory' : 'Add Magic Directory';
+    elements.magicDirectoryPath.textContent = form.path || 'Choose a directory to watch...';
+    elements.magicDirectoryPath.title = form.path;
+    elements.magicChooseDirectoryButton.disabled = isSaving;
+    elements.magicResetButton.disabled = isSaving;
+
+    for (const option of elements.magicFormatOptions) {
+        const isActive = form.formats.includes(option.dataset.format);
+        option.classList.toggle('is-active', isActive);
+        option.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        option.disabled = isSaving;
+    }
+
+    if (!state.presets.length) {
+        elements.magicPresetOptions.replaceChildren(
+            buildPresetEmptyState('Create a preset before adding a magic directory.'),
+        );
+    } else {
+        elements.magicPresetOptions.replaceChildren(
+            ...state.presets.map(preset =>
+                buildMagicPresetOption(preset, form.presetIds.includes(preset.id), isSaving),
+            ),
+        );
+    }
+
+    elements.magicEnabledButton.classList.toggle('is-active', form.enabled);
+    elements.magicEnabledButton.setAttribute('aria-pressed', form.enabled ? 'true' : 'false');
+    elements.magicEnabledButton.textContent = form.enabled ? 'Enabled' : 'Disabled';
+    elements.magicEnabledButton.disabled = isSaving;
+    elements.magicSaveButton.disabled = isSaving || !state.presets.length;
+    elements.magicSaveButton.textContent = isSaving
+        ? 'Saving Magic Directory...'
+        : form.id
+          ? 'Update Magic Directory'
+          : 'Save Magic Directory';
+}
+
+function renderMagicDirectoryList(state, elements) {
+    elements.magicCount.textContent = String(state.magicDirectories.length);
+    elements.magicActivity.textContent = state.magicActivity.text;
+    elements.magicActivity.dataset.kind = state.magicActivity.kind;
+
+    if (state.magicDirectoriesLoading) {
+        elements.magicList.replaceChildren(buildPresetEmptyState('Loading magic directories...'));
+        return;
+    }
+    if (!state.magicDirectories.length) {
+        elements.magicList.replaceChildren(buildPresetEmptyState('No magic directories saved yet.'));
+        return;
+    }
+    elements.magicList.replaceChildren(
+        ...state.magicDirectories.map(directory => buildMagicDirectoryCard(directory, state.presets)),
+    );
 }
 
 function renderPresetPicker(state, elements) {
@@ -240,6 +307,76 @@ function buildPresetActionButton(action, presetId, label, tone) {
     button.dataset.presetId = String(presetId);
     button.textContent = label;
     return button;
+}
+
+function buildMagicPresetOption(preset, selected, disabled) {
+    const label = document.createElement('label');
+    label.className = 'magic-preset-option';
+
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.dataset.presetId = String(preset.id);
+    input.checked = selected;
+    input.disabled = disabled;
+
+    const copy = document.createElement('span');
+    const name = document.createElement('strong');
+    name.textContent = preset.name;
+    const details = document.createElement('small');
+    details.textContent = `${preset.format.toUpperCase()} · ${buildPresetResolutionText(preset)}`;
+    copy.append(name, details);
+    label.append(input, copy);
+    return label;
+}
+
+function buildMagicDirectoryCard(directory, presets) {
+    const card = document.createElement('article');
+    card.className = 'preset-card magic-directory-card';
+
+    const body = document.createElement('div');
+    body.className = 'preset-card-body';
+    const title = document.createElement('h4');
+    title.textContent = directoryName(directory.path);
+    const status = document.createElement('p');
+    status.className = directory.enabled ? 'magic-status-enabled' : 'magic-status-disabled';
+    status.textContent = directory.enabled ? 'Watching' : 'Disabled';
+    const formats = document.createElement('p');
+    formats.textContent = `Formats: ${directory.formats.map(format => format.toUpperCase()).join(', ')}`;
+    const selectedPresetNames = directory.presetIds
+        .map(id => presets.find(preset => preset.id === id)?.name)
+        .filter(Boolean);
+    const presetSummary = document.createElement('p');
+    presetSummary.textContent = selectedPresetNames.length
+        ? `Presets: ${selectedPresetNames.join(', ')}`
+        : 'No presets selected';
+    const path = document.createElement('p');
+    path.className = 'preset-card-path';
+    path.title = directory.path;
+    path.textContent = directory.path;
+    body.append(title, status, formats, presetSummary, path);
+
+    const actions = document.createElement('div');
+    actions.className = 'preset-card-actions';
+    actions.append(
+        buildMagicActionButton('edit', directory.id, 'Edit'),
+        buildMagicActionButton('delete', directory.id, 'Delete'),
+    );
+    card.append(body, actions);
+    return card;
+}
+
+function buildMagicActionButton(action, id, label) {
+    const button = document.createElement('button');
+    button.className = 'button secondary compact magic-action-button';
+    button.type = 'button';
+    button.dataset.action = action;
+    button.dataset.magicDirectoryId = String(id);
+    button.textContent = label;
+    return button;
+}
+
+function directoryName(path) {
+    return path.split(/[\\/]/).filter(Boolean).pop() || path;
 }
 
 function buildPresetEmptyState(message) {

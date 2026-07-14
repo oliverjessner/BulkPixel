@@ -1,3 +1,11 @@
+# 2.1.0
+
+- Magic Directories for automatic preset-based conversion
+- show Magic Directory activity in the app header
+- migrate early Magic Directory database schemas without losing preset links
+- SVG import support
+- itworksbut fix
+
 # 2.0.3
 
 - bundle macOS AVIF decoder dependency in the app

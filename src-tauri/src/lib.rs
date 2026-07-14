@@ -1,11 +1,18 @@
 mod cli;
 mod image_pipeline;
+mod magic_directories;
 mod models;
 mod presets;
 
 use image_pipeline::{convert_images, default_output_directory, probe_images};
+use magic_directories::{
+    delete_magic_directory as delete_magic_directory_from_store,
+    list_magic_directories as list_magic_directories_from_store, refresh_watcher,
+    save_magic_directory as save_magic_directory_to_store, MagicWatcherState,
+};
 use models::{
-    ConversionPreset, ConversionRequest, ConversionResponse, ProbeImagesResponse, SavePresetRequest,
+    ConversionPreset, ConversionRequest, ConversionResponse, MagicDirectory, ProbeImagesResponse,
+    SaveMagicDirectoryRequest, SavePresetRequest,
 };
 use presets::{
     delete_preset as delete_preset_from_store, list_presets as list_presets_from_store,
@@ -106,7 +113,32 @@ fn save_preset(
 
 #[tauri::command]
 fn delete_preset(app: tauri::AppHandle, id: i64) -> Result<(), String> {
-    delete_preset_from_store(&app, id).map_err(|error| error.to_string())
+    delete_preset_from_store(&app, id).map_err(|error| error.to_string())?;
+    refresh_watcher(&app, &app.state::<MagicWatcherState>())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn list_magic_directories(app: tauri::AppHandle) -> Result<Vec<MagicDirectory>, String> {
+    list_magic_directories_from_store(&app).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn save_magic_directory(
+    app: tauri::AppHandle,
+    request: SaveMagicDirectoryRequest,
+) -> Result<MagicDirectory, String> {
+    let directory =
+        save_magic_directory_to_store(&app, request).map_err(|error| error.to_string())?;
+    refresh_watcher(&app, &app.state::<MagicWatcherState>())?;
+    Ok(directory)
+}
+
+#[tauri::command]
+fn delete_magic_directory(app: tauri::AppHandle, id: i64) -> Result<(), String> {
+    delete_magic_directory_from_store(&app, id).map_err(|error| error.to_string())?;
+    refresh_watcher(&app, &app.state::<MagicWatcherState>())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -118,10 +150,14 @@ fn get_opened_files(opened_files: tauri::State<'_, OpenedFilesState>) -> Vec<Str
 pub fn run() {
     let app = tauri::Builder::default()
         .manage(OpenedFilesState::default())
+        .manage(MagicWatcherState::default())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let menu = Menu::default(app.handle())?;
             app.set_menu(menu)?;
+            if let Err(error) = refresh_watcher(app.handle(), &app.state::<MagicWatcherState>()) {
+                eprintln!("failed to start magic directory watcher: {error}");
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -131,6 +167,9 @@ pub fn run() {
             list_presets,
             save_preset,
             delete_preset,
+            list_magic_directories,
+            save_magic_directory,
+            delete_magic_directory,
             get_opened_files
         ])
         .build(tauri::generate_context!())

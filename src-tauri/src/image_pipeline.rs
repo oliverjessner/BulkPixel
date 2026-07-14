@@ -2,13 +2,15 @@ use std::{
     collections::HashSet,
     fs,
     path::{Path, PathBuf},
+    sync::{Arc, OnceLock},
 };
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use image::{
     codecs::{jpeg::JpegEncoder, png::PngEncoder},
-    ColorType, DynamicImage, GenericImageView, ImageBuffer, ImageEncoder, Rgb, RgbImage,
+    ColorType, DynamicImage, GenericImageView, ImageBuffer, ImageEncoder, Rgb, RgbImage, RgbaImage,
 };
+use resvg::{tiny_skia, usvg};
 use thiserror::Error;
 
 use crate::models::{
@@ -16,7 +18,7 @@ use crate::models::{
     ExportFormat, LoadedImage, ProbeImagesResponse, RejectedImage,
 };
 
-const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp", "avif"];
+const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp", "avif", "svg"];
 const THUMBNAIL_WIDTH: u32 = 220;
 const THUMBNAIL_HEIGHT: u32 = 140;
 const MAX_RESIZE_DIMENSION: u32 = 9999;
@@ -29,6 +31,8 @@ pub enum AppError {
     Io(#[from] std::io::Error),
     #[error("Image processing error: {0}")]
     Image(#[from] image::ImageError),
+    #[error("SVG processing error: {0}")]
+    Svg(String),
 }
 
 pub fn default_output_directory() -> String {
@@ -176,9 +180,20 @@ fn load_single_image(path: &Path) -> Result<LoadedImage, AppError> {
     validate_input_extension(path)?;
 
     let metadata = fs::metadata(path)?;
-    let image = image::open(path)?;
-    let (width, height) = image.dimensions();
-    let preview_data_url = build_preview_data_url(&image)?;
+    let (width, height, preview_data_url) = if is_svg(path) {
+        let tree = load_svg_tree(path)?;
+        let (width, height) = svg_dimensions(&tree);
+        let (preview_width, preview_height) =
+            fit_dimensions(width, height, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
+        let preview = rasterize_svg(&tree, preview_width, preview_height)?;
+        let preview_data_url = build_preview_data_url(&preview)?;
+        (width, height, preview_data_url)
+    } else {
+        let image = image::open(path)?;
+        let (width, height) = image.dimensions();
+        let preview_data_url = build_preview_data_url(&image)?;
+        (width, height, preview_data_url)
+    };
 
     Ok(LoadedImage {
         path: path.to_string_lossy().to_string(),
@@ -209,8 +224,20 @@ fn convert_single_image(
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| input_path.to_string_lossy().to_string());
 
-    let image = image::open(input_path)?;
-    let resized = resize_image(&image, request.resize.width, request.resize.height);
+    let resized = if is_svg(input_path) {
+        let tree = load_svg_tree(input_path)?;
+        let (source_width, source_height) = svg_dimensions(&tree);
+        let (target_width, target_height) = resize_dimensions(
+            source_width,
+            source_height,
+            request.resize.width,
+            request.resize.height,
+        );
+        rasterize_svg(&tree, target_width, target_height)?
+    } else {
+        let image = image::open(input_path)?;
+        resize_image(&image, request.resize.width, request.resize.height)
+    };
     let (converted_width, converted_height) = resized.dimensions();
 
     let bytes = encode_image(&resized, &request.format, request.quality)?;
@@ -254,29 +281,97 @@ fn convert_single_image(
 }
 
 fn resize_image(image: &DynamicImage, width: Option<u32>, height: Option<u32>) -> DynamicImage {
+    let (target_width, target_height) =
+        resize_dimensions(image.width(), image.height(), width, height);
+
+    if target_width == image.width() && target_height == image.height() {
+        image.clone()
+    } else {
+        image.resize_exact(
+            target_width,
+            target_height,
+            image::imageops::FilterType::Lanczos3,
+        )
+    }
+}
+
+fn resize_dimensions(
+    source_width: u32,
+    source_height: u32,
+    width: Option<u32>,
+    height: Option<u32>,
+) -> (u32, u32) {
     match (width, height) {
         (Some(width), None) => {
-            let (_, original_height) = image.dimensions();
             let computed_height =
-                ((original_height as f64 * width as f64) / image.width() as f64).round() as u32;
-            image.resize_exact(
-                width.max(1),
-                computed_height.max(1),
-                image::imageops::FilterType::Lanczos3,
-            )
+                ((source_height as f64 * width as f64) / source_width as f64).round() as u32;
+            (width.max(1), computed_height.max(1))
         }
         (None, Some(height)) => {
-            let (original_width, _) = image.dimensions();
             let computed_width =
-                ((original_width as f64 * height as f64) / image.height() as f64).round() as u32;
-            image.resize_exact(
-                computed_width.max(1),
-                height.max(1),
-                image::imageops::FilterType::Lanczos3,
-            )
+                ((source_width as f64 * height as f64) / source_height as f64).round() as u32;
+            (computed_width.max(1), height.max(1))
         }
-        _ => image.clone(),
+        _ => (source_width, source_height),
     }
+}
+
+fn fit_dimensions(
+    source_width: u32,
+    source_height: u32,
+    max_width: u32,
+    max_height: u32,
+) -> (u32, u32) {
+    let scale = (max_width as f64 / source_width as f64)
+        .min(max_height as f64 / source_height as f64)
+        .min(1.0);
+
+    (
+        (source_width as f64 * scale).round().max(1.0) as u32,
+        (source_height as f64 * scale).round().max(1.0) as u32,
+    )
+}
+
+fn load_svg_tree(path: &Path) -> Result<usvg::Tree, AppError> {
+    let options = usvg::Options {
+        resources_dir: fs::canonicalize(path)
+            .ok()
+            .and_then(|absolute_path| absolute_path.parent().map(Path::to_path_buf)),
+        fontdb: svg_font_database(),
+        ..usvg::Options::default()
+    };
+
+    let data = fs::read(path)?;
+    usvg::Tree::from_data(&data, &options).map_err(|error| AppError::Svg(error.to_string()))
+}
+
+fn svg_font_database() -> Arc<usvg::fontdb::Database> {
+    static FONT_DATABASE: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
+
+    Arc::clone(FONT_DATABASE.get_or_init(|| {
+        let mut database = usvg::fontdb::Database::new();
+        database.load_system_fonts();
+        Arc::new(database)
+    }))
+}
+
+fn svg_dimensions(tree: &usvg::Tree) -> (u32, u32) {
+    let size = tree.size().to_int_size();
+    (size.width(), size.height())
+}
+
+fn rasterize_svg(tree: &usvg::Tree, width: u32, height: u32) -> Result<DynamicImage, AppError> {
+    let mut pixmap = tiny_skia::Pixmap::new(width, height)
+        .ok_or_else(|| AppError::Svg("The SVG dimensions are too large to render.".into()))?;
+    let transform = tiny_skia::Transform::from_scale(
+        width as f32 / tree.size().width(),
+        height as f32 / tree.size().height(),
+    );
+    resvg::render(tree, transform, &mut pixmap.as_mut());
+
+    let image = RgbaImage::from_raw(width, height, pixmap.take_demultiplied())
+        .ok_or_else(|| AppError::Svg("The rendered SVG has invalid pixel data.".into()))?;
+    Ok(DynamicImage::ImageRgba8(image))
 }
 
 fn encode_image(
@@ -385,6 +480,12 @@ fn validate_input_extension(path: &Path) -> Result<(), AppError> {
     }
 }
 
+fn is_svg(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
+}
+
 fn format_label_from_extension(path: &Path) -> String {
     match path
         .extension()
@@ -396,6 +497,7 @@ fn format_label_from_extension(path: &Path) -> String {
         Some("png") => "PNG".into(),
         Some("webp") => "WEBP".into(),
         Some("avif") => "AVIF".into(),
+        Some("svg") => "SVG".into(),
         _ => "Image".into(),
     }
 }
@@ -548,14 +650,34 @@ fn human_size(bytes: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{next_available_output_path, sanitize_component};
+    use super::{next_available_output_path, rasterize_svg, resize_dimensions, sanitize_component};
     use crate::models::CollisionMode;
+    use image::GenericImageView;
+    use resvg::usvg;
     use std::{collections::HashSet, path::Path};
 
     #[test]
     fn sanitizes_file_components() {
         assert_eq!(sanitize_component(" bulk:/demo* "), "bulk__demo_");
         assert_eq!(sanitize_component(".."), "");
+    }
+
+    #[test]
+    fn rasterizes_svg_at_the_requested_size() {
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50">
+            <rect width="100" height="50" fill="#ff0000" fill-opacity="0.5"/>
+        </svg>"##;
+        let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).expect("valid SVG");
+        let image = rasterize_svg(&tree, 400, 200).expect("rendered SVG");
+
+        assert_eq!(image.dimensions(), (400, 200));
+        assert_eq!(image.to_rgba8().get_pixel(200, 100).0, [255, 0, 0, 128]);
+    }
+
+    #[test]
+    fn preserves_aspect_ratio_for_svg_resize_dimensions() {
+        assert_eq!(resize_dimensions(100, 50, Some(350), None), (350, 175));
+        assert_eq!(resize_dimensions(100, 50, None, Some(175)), (350, 175));
     }
 
     #[test]

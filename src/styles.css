@@ -709,7 +709,8 @@ select:focus {
     line-height: 1.5;
 }
 
-.presets-workspace {
+.presets-workspace,
+.magic-workspace {
     min-height: 0;
     display: grid;
     grid-template-columns: minmax(360px, 0.85fr) minmax(0, 1.15fr);
@@ -717,7 +718,9 @@ select:focus {
 }
 
 .preset-editor-panel,
-.preset-library-panel {
+.preset-library-panel,
+.magic-editor-panel,
+.magic-library-panel {
     min-height: 0;
     padding: 16px;
     overflow: hidden;
@@ -758,7 +761,8 @@ select:focus {
     margin-top: auto;
 }
 
-.preset-library-panel {
+.preset-library-panel,
+.magic-library-panel {
     gap: 12px;
 }
 
@@ -816,6 +820,92 @@ select:focus {
 
 .preset-empty-state {
     min-height: 180px;
+}
+
+.magic-presets-field {
+    min-height: 0;
+}
+
+.magic-preset-options {
+    display: grid;
+    gap: 8px;
+    max-height: 210px;
+    overflow-y: auto;
+}
+
+.magic-preset-options .preset-empty-state {
+    min-height: 110px;
+}
+
+.magic-preset-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #12161b;
+    cursor: pointer;
+}
+
+.magic-preset-option:has(input:checked) {
+    border-color: rgba(34, 197, 94, 0.48);
+    background: rgba(34, 197, 94, 0.08);
+}
+
+.magic-preset-option input {
+    width: auto;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.magic-preset-option span {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.magic-preset-option strong {
+    font-size: 0.9rem;
+}
+
+.magic-preset-option small {
+    color: var(--text-muted);
+}
+
+.magic-enabled-button {
+    min-width: 100px;
+}
+
+.magic-enabled-button.is-active {
+    border-color: rgba(34, 197, 94, 0.48);
+    background: rgba(34, 197, 94, 0.12);
+    color: #c8f7d9;
+}
+
+.magic-activity {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #13171c;
+    color: var(--text-muted);
+    font-size: 0.86rem;
+    line-height: 1.4;
+}
+
+.magic-activity[data-kind='success'],
+.magic-status-enabled {
+    color: var(--positive) !important;
+}
+
+.magic-activity[data-kind='warning'] {
+    color: var(--warning);
+}
+
+.magic-activity[data-kind='error'],
+.magic-status-disabled {
+    color: var(--negative) !important;
 }
 
 .action-bar {

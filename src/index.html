@@ -16,7 +16,7 @@
             <header class="panel app-header">
                 <div class="brand-group">
                     <img class="brand-logo" src="/assets/icons/logo.png" alt="BulkPixel logo" />
-                    <h1>BulkPixel</h1>
+                    <h1 id="brand-title">BulkPixel</h1>
                 </div>
                 <nav id="app-mode-toggle" class="app-mode-toggle" aria-label="Main view">
                     <button class="app-mode-button is-active" type="button" data-view="convert" aria-pressed="true">
@@ -24,6 +24,9 @@
                     </button>
                     <button class="app-mode-button" type="button" data-view="presets" aria-pressed="false">
                         Presets
+                    </button>
+                    <button class="app-mode-button" type="button" data-view="magic" aria-pressed="false">
+                        Magic Directories
                     </button>
                 </nav>
             </header>
@@ -45,7 +48,7 @@
                         <div class="dropzone-copy">
                             <p id="dropzone-title" class="dropzone-title">Drop images here</p>
                             <p class="dropzone-helper">or click to browse files</p>
-                            <p class="dropzone-meta">Supported formats: JPG, JPEG, PNG, WEBP, AVIF</p>
+                            <p class="dropzone-meta">Supported formats: JPG, JPEG, PNG, WEBP, AVIF, SVG</p>
                         </div>
                     </button>
 
@@ -325,6 +328,79 @@
                                 <span id="preset-count" class="value-badge">0</span>
                             </div>
                             <div id="preset-list" class="preset-list" aria-live="polite"></div>
+                </section>
+            </main>
+
+            <main id="magic-view" class="magic-workspace app-view" hidden>
+                <section class="panel magic-editor-panel" aria-label="Magic directory editor">
+                    <form id="magic-form" class="preset-form">
+                        <div class="preset-form-header">
+                            <div>
+                                <p class="section-kicker">Automation</p>
+                                <h3 id="magic-form-title">Add Magic Directory</h3>
+                            </div>
+                            <button id="magic-reset-button" class="button secondary compact" type="button">
+                                Clear
+                            </button>
+                        </div>
+
+                        <div class="field-group">
+                            <div class="field-row label-row">
+                                <label class="field-label" for="magic-directory-path">Directory</label>
+                                <button id="magic-choose-directory-button" class="button secondary compact" type="button">
+                                    Choose Folder
+                                </button>
+                            </div>
+                            <div class="path-display" id="magic-directory-path" title=""></div>
+                        </div>
+
+                        <div class="field-group">
+                            <label class="field-label">Watch File Types</label>
+                            <div id="magic-format-options" class="format-toggle" aria-label="Watched file formats">
+                                <button type="button" class="format-option magic-format-option" data-format="svg" aria-pressed="false">SVG</button>
+                                <button type="button" class="format-option magic-format-option" data-format="png" aria-pressed="false">PNG</button>
+                                <button type="button" class="format-option magic-format-option" data-format="webp" aria-pressed="false">WEBP</button>
+                                <button type="button" class="format-option magic-format-option" data-format="avif" aria-pressed="false">AVIF</button>
+                            </div>
+                            <p class="field-helper">Select one or more formats. Files in subfolders are ignored.</p>
+                        </div>
+
+                        <div class="field-group magic-presets-field">
+                            <label class="field-label">Run Presets</label>
+                            <div id="magic-preset-options" class="magic-preset-options"></div>
+                            <p class="field-helper">Select one or more presets to run for every matching file.</p>
+                        </div>
+
+                        <div class="field-group">
+                            <div class="field-row label-row">
+                                <div>
+                                    <span class="field-label">Watcher Status</span>
+                                    <p class="field-helper">Disabled rules remain saved but do not process files.</p>
+                                </div>
+                                <button id="magic-enabled-button" class="toggle-button magic-enabled-button" type="button" aria-pressed="true">
+                                    Enabled
+                                </button>
+                            </div>
+                        </div>
+
+                        <button id="magic-save-button" class="button primary preset-save-button" type="submit">
+                            Save Magic Directory
+                        </button>
+                    </form>
+                </section>
+
+                <section class="panel magic-library-panel" aria-labelledby="magic-directories-title">
+                    <div class="preset-list-header">
+                        <div>
+                            <p class="section-kicker">Watcher</p>
+                            <h3 id="magic-directories-title">Magic Directories</h3>
+                        </div>
+                        <span id="magic-count" class="value-badge">0</span>
+                    </div>
+                    <div id="magic-activity" class="magic-activity" data-kind="info" aria-live="polite">
+                        Watching starts when BulkPixel opens.
+                    </div>
+                    <div id="magic-list" class="preset-list" aria-live="polite"></div>
                 </section>
             </main>
 

@@ -1,12 +1,13 @@
 {
     "name": "bulkpixel",
     "private": true,
-    "version": "2.0.3",
+    "version": "2.1.0",
     "type": "module",
     "scripts": {
         "tauri": "tauri",
         "dev": "tauri dev",
         "build": "tauri build",
+        "test": "node --test",
         "publish": "sh scripts/publish.sh"
     },
     "devDependencies": {

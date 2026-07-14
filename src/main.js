@@ -1,4 +1,10 @@
-import { formatBytes, formatPercent, pluralize, sanitizeNumberInput } from './formatters.js';
+import {
+    buildDeletePresetConfirmation,
+    formatBytes,
+    formatPercent,
+    pluralize,
+    sanitizeNumberInput,
+} from './formatters.js';
 import { renderApp } from './ui.js';
 
 const { invoke } = window.__TAURI__.core;
@@ -26,6 +32,15 @@ const state = {
     presets: [],
     presetsLoading: false,
     isPresetSaving: false,
+    magicDirectories: [],
+    magicDirectoriesLoading: false,
+    isMagicDirectorySaving: false,
+    magicDirectoryForm: buildEmptyMagicDirectoryForm(),
+    magicActivity: {
+        kind: 'info',
+        text: 'Watching starts when BulkPixel opens.',
+    },
+    magicDirectoryChangeDetected: false,
     selectedPresetId: 'custom',
     presetForm: buildEmptyPresetForm(),
     isProcessing: false,
@@ -48,12 +63,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     await hydrateDefaultOutputDirectory();
     resetPresetFormToCurrentSettings();
     await loadPresets();
+    await loadMagicDirectories();
+    await bindMagicDirectoryEvents();
     await bindNativeDragDrop();
 });
 
 function cacheElements() {
     elements.convertView = document.querySelector('#convert-view');
     elements.presetsView = document.querySelector('#presets-view');
+    elements.magicView = document.querySelector('#magic-view');
+    elements.brandTitle = document.querySelector('#brand-title');
     elements.convertActionBar = document.querySelector('#convert-action-bar');
     elements.appModeButtons = [...document.querySelectorAll('.app-mode-button')];
     elements.dropzone = document.querySelector('#dropzone');
@@ -96,6 +115,18 @@ function cacheElements() {
     elements.presetSaveButton = document.querySelector('#preset-save-button');
     elements.presetCount = document.querySelector('#preset-count');
     elements.presetList = document.querySelector('#preset-list');
+    elements.magicForm = document.querySelector('#magic-form');
+    elements.magicFormTitle = document.querySelector('#magic-form-title');
+    elements.magicResetButton = document.querySelector('#magic-reset-button');
+    elements.magicDirectoryPath = document.querySelector('#magic-directory-path');
+    elements.magicChooseDirectoryButton = document.querySelector('#magic-choose-directory-button');
+    elements.magicFormatOptions = [...document.querySelectorAll('.magic-format-option')];
+    elements.magicPresetOptions = document.querySelector('#magic-preset-options');
+    elements.magicEnabledButton = document.querySelector('#magic-enabled-button');
+    elements.magicSaveButton = document.querySelector('#magic-save-button');
+    elements.magicCount = document.querySelector('#magic-count');
+    elements.magicActivity = document.querySelector('#magic-activity');
+    elements.magicList = document.querySelector('#magic-list');
 }
 
 function bindEvents() {
@@ -335,6 +366,55 @@ function bindPresetEvents() {
 
         handlePresetAction(button.dataset.action, button.dataset.presetId);
     });
+
+    elements.magicForm.addEventListener('submit', event => {
+        event.preventDefault();
+        void saveMagicDirectoryForm();
+    });
+
+    elements.magicResetButton.addEventListener('click', () => {
+        state.magicDirectoryForm = buildEmptyMagicDirectoryForm();
+        render();
+    });
+
+    elements.magicChooseDirectoryButton.addEventListener('click', () => {
+        void chooseMagicDirectory();
+    });
+
+    for (const option of elements.magicFormatOptions) {
+        option.addEventListener('click', () => {
+            if (state.isMagicDirectorySaving) {
+                return;
+            }
+            toggleMagicFormat(option.dataset.format);
+            render();
+        });
+    }
+
+    elements.magicPresetOptions.addEventListener('change', event => {
+        const input = event.target.closest('input[data-preset-id]');
+        if (!input || state.isMagicDirectorySaving) {
+            return;
+        }
+        toggleMagicPreset(Number(input.dataset.presetId), input.checked);
+        render();
+    });
+
+    elements.magicEnabledButton.addEventListener('click', () => {
+        if (state.isMagicDirectorySaving) {
+            return;
+        }
+        state.magicDirectoryForm.enabled = !state.magicDirectoryForm.enabled;
+        render();
+    });
+
+    elements.magicList.addEventListener('click', event => {
+        const button = event.target.closest('.magic-action-button');
+        if (!button) {
+            return;
+        }
+        handleMagicDirectoryAction(button.dataset.action, button.dataset.magicDirectoryId);
+    });
 }
 
 async function hydrateDefaultOutputDirectory() {
@@ -358,6 +438,40 @@ async function loadPresets() {
         setStatus('error', normaliseError(error, 'Unable to load presets.'));
     } finally {
         state.presetsLoading = false;
+        render();
+    }
+}
+
+async function loadMagicDirectories(options = {}) {
+    if (options.showLoading !== false) {
+        state.magicDirectoriesLoading = true;
+        render();
+    }
+
+    try {
+        state.magicDirectories = await invoke('list_magic_directories');
+    } catch (error) {
+        setMagicActivity('error', normaliseError(error, 'Unable to load magic directories.'));
+    } finally {
+        state.magicDirectoriesLoading = false;
+        render();
+    }
+}
+
+async function bindMagicDirectoryEvents() {
+    if (!eventApi?.listen) {
+        return;
+    }
+
+    try {
+        await eventApi.listen('magic-directory-event', event => {
+            const payload = event.payload ?? {};
+            setMagicActivity(payload.kind ?? 'info', payload.message ?? 'Magic directory activity updated.');
+            state.magicDirectoryChangeDetected = Boolean(payload.active);
+            render();
+        });
+    } catch (error) {
+        setMagicActivity('error', normaliseError(error, 'Magic directory activity is unavailable.'));
         render();
     }
 }
@@ -430,7 +544,7 @@ async function pickImages() {
             filters: [
                 {
                     name: 'Images',
-                    extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif'],
+                    extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg'],
                 },
             ],
         });
@@ -492,6 +606,26 @@ async function choosePresetOutputDirectory() {
     }
 }
 
+async function chooseMagicDirectory() {
+    try {
+        const selection = await dialogApi.open({
+            directory: true,
+            multiple: false,
+            defaultPath: state.magicDirectoryForm.path || undefined,
+        });
+        const [path] = normalizeDialogSelection(selection);
+        if (!path) {
+            return;
+        }
+
+        state.magicDirectoryForm.path = path;
+        render();
+    } catch (error) {
+        setMagicActivity('error', normaliseError(error, 'Unable to choose a magic directory.'));
+        render();
+    }
+}
+
 async function savePresetForm() {
     const validationMessage = validatePresetForm();
     if (validationMessage) {
@@ -524,7 +658,7 @@ async function deletePresetById(id) {
         return;
     }
 
-    const confirmed = window.confirm(`Delete preset "${preset.name}"?`);
+    const confirmed = window.confirm(buildDeletePresetConfirmation(preset.name));
     if (!confirmed) {
         return;
     }
@@ -532,6 +666,10 @@ async function deletePresetById(id) {
     try {
         await invoke('delete_preset', { id: Number(id) });
         state.presets = state.presets.filter(item => String(item.id) !== String(id));
+        state.magicDirectoryForm.presetIds = state.magicDirectoryForm.presetIds.filter(
+            presetId => String(presetId) !== String(id),
+        );
+        await loadMagicDirectories({ showLoading: false });
 
         if (String(state.presetForm.id) === String(id)) {
             state.presetForm = buildEmptyPresetForm({ outputDirectory: state.outputDirectory || state.defaultOutputDirectory });
@@ -545,6 +683,60 @@ async function deletePresetById(id) {
         render();
     } catch (error) {
         setStatus('error', normaliseError(error, 'Unable to delete preset.'));
+        render();
+    }
+}
+
+async function saveMagicDirectoryForm() {
+    const validationMessage = validateMagicDirectoryForm();
+    if (validationMessage) {
+        setMagicActivity('error', validationMessage);
+        render();
+        return;
+    }
+
+    state.isMagicDirectorySaving = true;
+    render();
+    try {
+        const saved = await invoke('save_magic_directory', {
+            request: buildMagicDirectoryRequest(),
+        });
+        upsertMagicDirectory(saved);
+        state.magicDirectoryForm = buildMagicDirectoryFormFromDirectory(saved);
+        setMagicActivity(
+            'success',
+            saved.enabled
+                ? `Magic directory "${saved.path}" saved and watching.`
+                : `Magic directory "${saved.path}" saved as disabled.`,
+        );
+    } catch (error) {
+        setMagicActivity('error', normaliseError(error, 'Unable to save the magic directory.'));
+    } finally {
+        state.isMagicDirectorySaving = false;
+        render();
+    }
+}
+
+async function deleteMagicDirectoryById(id) {
+    const directory = findMagicDirectoryById(id);
+    if (!directory) {
+        return;
+    }
+    const message = ['Delete magic directory "', directory.path, '"?'].join('');
+    if (!window.confirm(message)) {
+        return;
+    }
+
+    try {
+        await invoke('delete_magic_directory', { id: Number(id) });
+        state.magicDirectories = state.magicDirectories.filter(item => String(item.id) !== String(id));
+        if (String(state.magicDirectoryForm.id) === String(id)) {
+            state.magicDirectoryForm = buildEmptyMagicDirectoryForm();
+        }
+        setMagicActivity('success', `Magic directory "${directory.path}" deleted.`);
+        render();
+    } catch (error) {
+        setMagicActivity('error', normaliseError(error, 'Unable to delete the magic directory.'));
         render();
     }
 }
@@ -759,6 +951,23 @@ function handlePresetAction(action, presetId) {
     }
 }
 
+function handleMagicDirectoryAction(action, id) {
+    const directory = findMagicDirectoryById(id);
+    if (!directory) {
+        return;
+    }
+
+    if (action === 'edit') {
+        state.magicDirectoryForm = buildMagicDirectoryFormFromDirectory(directory);
+        render();
+        return;
+    }
+
+    if (action === 'delete') {
+        void deleteMagicDirectoryById(id);
+    }
+}
+
 function resetPresetFormToCurrentSettings() {
     state.presetForm = buildEmptyPresetForm({
         format: state.format,
@@ -786,6 +995,87 @@ function buildEmptyPresetForm(overrides = {}) {
         outputDirectory: '',
         ...overrides,
     };
+}
+
+function buildEmptyMagicDirectoryForm(overrides = {}) {
+    return {
+        id: null,
+        path: '',
+        formats: [],
+        presetIds: [],
+        enabled: true,
+        ...overrides,
+    };
+}
+
+function buildMagicDirectoryFormFromDirectory(directory) {
+    return buildEmptyMagicDirectoryForm({
+        id: directory.id,
+        path: directory.path,
+        formats: [...directory.formats],
+        presetIds: [...directory.presetIds],
+        enabled: Boolean(directory.enabled),
+    });
+}
+
+function buildMagicDirectoryRequest() {
+    const form = state.magicDirectoryForm;
+    return {
+        id: form.id,
+        path: form.path,
+        formats: [...form.formats],
+        presetIds: [...form.presetIds],
+        enabled: form.enabled,
+    };
+}
+
+function validateMagicDirectoryForm() {
+    const form = state.magicDirectoryForm;
+    if (!form.path.trim()) {
+        return 'Choose a directory to watch.';
+    }
+    if (!form.formats.length) {
+        return 'Choose at least one file format to watch.';
+    }
+    if (!form.presetIds.length) {
+        return 'Choose at least one preset to run.';
+    }
+    if (form.presetIds.length > 1) {
+        const selectedPresets = form.presetIds.map(findPresetById).filter(Boolean);
+        const markers = new Set();
+        for (const preset of selectedPresets) {
+            const component = preset.filenameComponent?.trim();
+            if (!component) {
+                return `Preset collision risk: "${preset.name}" has no prefix or postfix.`;
+            }
+            const marker = `${preset.filenameMode}:${component}`;
+            if (markers.has(marker)) {
+                return 'Preset collision risk: selected presets use the same prefix or postfix.';
+            }
+            markers.add(marker);
+        }
+    }
+    return '';
+}
+
+function toggleMagicFormat(format) {
+    const formats = new Set(state.magicDirectoryForm.formats);
+    if (formats.has(format)) {
+        formats.delete(format);
+    } else {
+        formats.add(format);
+    }
+    state.magicDirectoryForm.formats = [...formats];
+}
+
+function toggleMagicPreset(presetId, selected) {
+    const presetIds = new Set(state.magicDirectoryForm.presetIds.map(Number));
+    if (selected) {
+        presetIds.add(presetId);
+    } else {
+        presetIds.delete(presetId);
+    }
+    state.magicDirectoryForm.presetIds = [...presetIds];
 }
 
 function buildPresetFormFromPreset(preset) {
@@ -885,12 +1175,30 @@ function upsertPreset(savedPreset) {
         .sort(comparePresetsByName);
 }
 
+function upsertMagicDirectory(savedDirectory) {
+    const exists = state.magicDirectories.some(directory => directory.id === savedDirectory.id);
+    state.magicDirectories = (exists
+        ? state.magicDirectories.map(directory =>
+              directory.id === savedDirectory.id ? savedDirectory : directory,
+          )
+        : [...state.magicDirectories, savedDirectory]
+    ).sort(compareMagicDirectoriesByPath);
+}
+
+function compareMagicDirectoriesByPath(left, right) {
+    return left.path.localeCompare(right.path, undefined, { sensitivity: 'base' }) || left.id - right.id;
+}
+
 function comparePresetsByName(left, right) {
     return left.name.localeCompare(right.name, undefined, { sensitivity: 'base' }) || left.id - right.id;
 }
 
 function findPresetById(id) {
     return state.presets.find(preset => String(preset.id) === String(id));
+}
+
+function findMagicDirectoryById(id) {
+    return state.magicDirectories.find(directory => String(directory.id) === String(id));
 }
 
 function normalizeResizeMode(value) {
@@ -1052,6 +1360,10 @@ function normaliseError(error, fallbackMessage) {
 
 function setStatus(kind, text) {
     state.status = { kind, text };
+}
+
+function setMagicActivity(kind, text) {
+    state.magicActivity = { kind, text };
 }
 
 function render() {

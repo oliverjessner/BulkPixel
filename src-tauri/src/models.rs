@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -10,6 +12,16 @@ pub enum ExportFormat {
 }
 
 impl ExportFormat {
+    pub fn from_value(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "jpeg" | "jpg" => Some(Self::Jpeg),
+            "png" => Some(Self::Png),
+            "webp" => Some(Self::Webp),
+            "avif" => Some(Self::Avif),
+            _ => None,
+        }
+    }
+
     pub fn extension(&self) -> &'static str {
         match self {
             Self::Jpeg => "jpg",
@@ -160,6 +172,60 @@ pub struct ConversionPreset {
     pub output_directory: String,
     pub created_at: String,
     pub updated_at: String,
+}
+
+pub fn validate_multiple_preset_markers(presets: &[ConversionPreset]) -> Result<(), String> {
+    let mut markers = HashSet::new();
+
+    for preset in presets {
+        let component = preset.filename_component.trim();
+        if component.is_empty() {
+            return Err(format!(
+                "Preset collision risk: '{}' has no prefix or postfix.",
+                preset.name
+            ));
+        }
+
+        let marker = format!("{}:{component}", preset.filename_mode);
+        if !markers.insert(marker) {
+            return Err(
+                "Preset collision risk: multiple presets use the same prefix/postfix.".into(),
+            );
+        }
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MagicDirectory {
+    pub id: i64,
+    pub path: String,
+    pub formats: Vec<String>,
+    pub preset_ids: Vec<i64>,
+    pub enabled: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveMagicDirectoryRequest {
+    pub id: Option<i64>,
+    pub path: String,
+    pub formats: Vec<String>,
+    pub preset_ids: Vec<i64>,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MagicDirectoryEvent {
+    pub kind: String,
+    pub message: String,
+    pub path: Option<String>,
+    pub active: bool,
 }
 
 #[derive(Debug, Clone)]

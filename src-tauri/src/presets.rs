@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, time::Duration};
 
 use rusqlite::{params, Connection, Error as SqlError, OptionalExtension};
 use tauri::{AppHandle, Manager};
@@ -79,6 +79,37 @@ const CREATE_STATISTICS_TABLE_SQL: &str = "
 
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         last_conversion_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+";
+const CREATE_MAGIC_DIRECTORIES_TABLES_SQL: &str = "
+    CREATE TABLE IF NOT EXISTS magic_directories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path TEXT NOT NULL UNIQUE
+            CHECK (length(trim(path)) > 0),
+        enabled INTEGER NOT NULL DEFAULT 1
+            CHECK (enabled IN (0, 1)),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS magic_directory_formats (
+        magic_directory_id INTEGER NOT NULL,
+        format TEXT NOT NULL
+            CHECK (format IN ('svg', 'png', 'webp', 'avif')),
+        PRIMARY KEY (magic_directory_id, format),
+        FOREIGN KEY (magic_directory_id) REFERENCES magic_directories(id) ON DELETE CASCADE
+    );
+
+";
+const CREATE_MAGIC_DIRECTORY_PRESETS_TABLE_SQL: &str = "
+    CREATE TABLE IF NOT EXISTS magic_directory_presets (
+        magic_directory_id INTEGER NOT NULL,
+        preset_id INTEGER NOT NULL,
+        position INTEGER NOT NULL CHECK (position >= 0),
+        PRIMARY KEY (magic_directory_id, preset_id),
+        UNIQUE (magic_directory_id, position),
+        FOREIGN KEY (magic_directory_id) REFERENCES magic_directories(id) ON DELETE CASCADE,
+        FOREIGN KEY (preset_id) REFERENCES presets(id) ON DELETE CASCADE
     );
 ";
 
@@ -225,6 +256,21 @@ pub fn find_preset_by_name_for_cli(name: &str) -> Result<ConversionPreset, Prese
     get_preset_by_name(&connection, name)
 }
 
+pub fn get_presets_by_ids(
+    app: &AppHandle,
+    ids: &[i64],
+) -> Result<Vec<ConversionPreset>, PresetError> {
+    let connection = open_connection(app)?;
+    get_presets_by_ids_with_connection(&connection, ids)
+}
+
+pub(crate) fn get_presets_by_ids_with_connection(
+    connection: &Connection,
+    ids: &[i64],
+) -> Result<Vec<ConversionPreset>, PresetError> {
+    ids.iter().map(|id| get_preset(connection, *id)).collect()
+}
+
 pub fn record_conversion_statistics(
     app: &AppHandle,
     format: &ExportFormat,
@@ -306,16 +352,18 @@ pub fn load_statistics_for_cli() -> Result<ConversionStatistics, PresetError> {
         .map_err(PresetError::from)
 }
 
-fn open_connection(app: &AppHandle) -> Result<Connection, PresetError> {
+pub(crate) fn open_connection(app: &AppHandle) -> Result<Connection, PresetError> {
     let database_path = database_path(app)?;
     let mut connection = Connection::open(database_path)?;
+    connection.busy_timeout(Duration::from_secs(5))?;
     initialize_schema(&mut connection)?;
     Ok(connection)
 }
 
-fn open_cli_connection() -> Result<Connection, PresetError> {
+pub(crate) fn open_cli_connection() -> Result<Connection, PresetError> {
     let database_path = cli_database_path()?;
     let mut connection = Connection::open(database_path)?;
+    connection.busy_timeout(Duration::from_secs(5))?;
     initialize_schema(&mut connection)?;
     Ok(connection)
 }
@@ -340,7 +388,8 @@ fn database_path_from_directory(directory: PathBuf) -> Result<PathBuf, PresetErr
     Ok(directory.join(DATABASE_FILE))
 }
 
-fn initialize_schema(connection: &mut Connection) -> Result<(), PresetError> {
+pub(crate) fn initialize_schema(connection: &mut Connection) -> Result<(), PresetError> {
+    connection.execute_batch("PRAGMA foreign_keys = ON;")?;
     let existing_schema: Option<String> = connection
         .query_row(
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'presets'",
@@ -356,6 +405,43 @@ fn initialize_schema(connection: &mut Connection) -> Result<(), PresetError> {
     }
 
     initialize_statistics_schema(connection)?;
+    connection.execute_batch(CREATE_MAGIC_DIRECTORIES_TABLES_SQL)?;
+    connection.execute_batch(CREATE_MAGIC_DIRECTORY_PRESETS_TABLE_SQL)?;
+    migrate_magic_directory_presets_schema(connection)?;
+
+    Ok(())
+}
+
+fn migrate_magic_directory_presets_schema(connection: &mut Connection) -> Result<(), PresetError> {
+    let mut statement = connection.prepare("PRAGMA table_info(magic_directory_presets)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    drop(statement);
+
+    if columns.iter().any(|column| column == "position") {
+        return Ok(());
+    }
+
+    let transaction = connection.transaction()?;
+    transaction.execute_batch(
+        "ALTER TABLE magic_directory_presets RENAME TO magic_directory_presets_legacy;",
+    )?;
+    transaction.execute_batch(CREATE_MAGIC_DIRECTORY_PRESETS_TABLE_SQL)?;
+    transaction.execute(
+        "INSERT INTO magic_directory_presets (magic_directory_id, preset_id, position)
+         SELECT
+            magic_directory_id,
+            preset_id,
+            ROW_NUMBER() OVER (
+                PARTITION BY magic_directory_id
+                ORDER BY preset_id ASC
+            ) - 1
+         FROM magic_directory_presets_legacy",
+        [],
+    )?;
+    transaction.execute_batch("DROP TABLE magic_directory_presets_legacy;")?;
+    transaction.commit()?;
 
     Ok(())
 }
