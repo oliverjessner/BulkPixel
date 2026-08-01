@@ -64,6 +64,7 @@ function renderControls(state, elements) {
     elements.outputPath.textContent = state.outputDirectory || 'Loading your default Downloads folder...';
     elements.outputPath.title = state.outputDirectory;
     elements.chooseFolderButton.disabled = state.isProcessing;
+    elements.showOutputFolderButton.disabled = !state.outputDirectory;
 
     const hasImages = state.images.length > 0;
     elements.addImagesButton.disabled = state.isProcessing;

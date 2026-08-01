@@ -324,8 +324,19 @@ fn record_conversion_statistics_with_connection(
     Ok(())
 }
 
+pub fn load_statistics(app: &AppHandle) -> Result<ConversionStatistics, PresetError> {
+    let connection = open_connection(app)?;
+    load_statistics_with_connection(&connection)
+}
+
 pub fn load_statistics_for_cli() -> Result<ConversionStatistics, PresetError> {
     let connection = open_cli_connection()?;
+    load_statistics_with_connection(&connection)
+}
+
+fn load_statistics_with_connection(
+    connection: &Connection,
+) -> Result<ConversionStatistics, PresetError> {
     connection
         .query_row(
             "SELECT amount, webp, avif, jpeg, png, input_bytes, output_bytes,

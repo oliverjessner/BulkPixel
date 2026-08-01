@@ -1,3 +1,9 @@
+# 2.1.1
+
+- the statistics from the cli bulkpixel stats is now availabe via clicking the top left BulkPixel text
+- "Show in Finder" button next to the output path
+- Bump serde_with from 3.18.0 to 3.21.0
+
 # 2.1.0
 
 - Magic Directories for automatic preset-based conversion

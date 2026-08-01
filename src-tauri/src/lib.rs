@@ -11,15 +11,16 @@ use magic_directories::{
     save_magic_directory as save_magic_directory_to_store, MagicWatcherState,
 };
 use models::{
-    ConversionPreset, ConversionRequest, ConversionResponse, MagicDirectory, ProbeImagesResponse,
-    SaveMagicDirectoryRequest, SavePresetRequest,
+    ConversionPreset, ConversionRequest, ConversionResponse, ConversionStatistics, MagicDirectory,
+    ProbeImagesResponse, SaveMagicDirectoryRequest, SavePresetRequest,
 };
 use presets::{
     delete_preset as delete_preset_from_store, list_presets as list_presets_from_store,
+    load_statistics as load_statistics_from_store,
     record_conversion_statistics as record_conversion_statistics_in_store,
     save_preset as save_preset_to_store,
 };
-use std::{collections::HashSet, sync::Mutex, time::Instant};
+use std::{collections::HashSet, path::PathBuf, sync::Mutex, time::Instant};
 use tauri::menu::Menu;
 #[cfg(target_os = "macos")]
 use tauri::{Emitter, Manager};
@@ -67,6 +68,33 @@ async fn get_default_output_directory() -> Result<String, String> {
 }
 
 #[tauri::command]
+fn show_in_finder(path: String) -> Result<(), String> {
+    let directory = PathBuf::from(path);
+    if !directory.is_dir() {
+        return Err("The output folder does not exist or is not a directory.".into());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("open")
+            .arg(&directory)
+            .status()
+            .map_err(|error| format!("Unable to open Finder: {error}"))?;
+
+        if status.success() {
+            Ok(())
+        } else {
+            Err("Finder could not open the output folder.".into())
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("Showing folders in Finder is only available on macOS.".into())
+    }
+}
+
+#[tauri::command]
 async fn probe_images_command(paths: Vec<String>) -> Result<ProbeImagesResponse, String> {
     tauri::async_runtime::spawn_blocking(move || probe_images(paths))
         .await
@@ -101,6 +129,11 @@ async fn bulk_convert_images(
 #[tauri::command]
 fn list_presets(app: tauri::AppHandle) -> Result<Vec<ConversionPreset>, String> {
     list_presets_from_store(&app).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn get_statistics(app: tauri::AppHandle) -> Result<ConversionStatistics, String> {
+    load_statistics_from_store(&app).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -162,8 +195,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_default_output_directory,
+            show_in_finder,
             probe_images_command,
             bulk_convert_images,
+            get_statistics,
             list_presets,
             save_preset,
             delete_preset,

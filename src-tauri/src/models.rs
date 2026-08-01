@@ -228,7 +228,8 @@ pub struct MagicDirectoryEvent {
     pub active: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConversionStatistics {
     pub amount: i64,
     pub webp: i64,

@@ -1,6 +1,8 @@
 import {
     buildDeletePresetConfirmation,
     formatBytes,
+    formatDate,
+    formatDuration,
     formatPercent,
     pluralize,
     sanitizeNumberInput,
@@ -41,6 +43,9 @@ const state = {
         text: 'Watching starts when BulkPixel opens.',
     },
     magicDirectoryChangeDetected: false,
+    statistics: null,
+    statisticsLoading: false,
+    statisticsError: '',
     selectedPresetId: 'custom',
     presetForm: buildEmptyPresetForm(),
     isProcessing: false,
@@ -73,6 +78,22 @@ function cacheElements() {
     elements.presetsView = document.querySelector('#presets-view');
     elements.magicView = document.querySelector('#magic-view');
     elements.brandTitle = document.querySelector('#brand-title');
+    elements.statisticsTrigger = document.querySelector('#statistics-trigger');
+    elements.statisticsDialog = document.querySelector('#statistics-dialog');
+    elements.statisticsCloseButton = document.querySelector('#statistics-close-button');
+    elements.statisticsMessage = document.querySelector('#statistics-message');
+    elements.statisticsContent = document.querySelector('#statistics-content');
+    elements.statisticsTotal = document.querySelector('#statistics-total');
+    elements.statisticsWebp = document.querySelector('#statistics-webp');
+    elements.statisticsPng = document.querySelector('#statistics-png');
+    elements.statisticsAvif = document.querySelector('#statistics-avif');
+    elements.statisticsJpeg = document.querySelector('#statistics-jpeg');
+    elements.statisticsInput = document.querySelector('#statistics-input');
+    elements.statisticsOutput = document.querySelector('#statistics-output');
+    elements.statisticsSaved = document.querySelector('#statistics-saved');
+    elements.statisticsProcessingTime = document.querySelector('#statistics-processing-time');
+    elements.statisticsFirstConversion = document.querySelector('#statistics-first-conversion');
+    elements.statisticsLastConversion = document.querySelector('#statistics-last-conversion');
     elements.convertActionBar = document.querySelector('#convert-action-bar');
     elements.appModeButtons = [...document.querySelectorAll('.app-mode-button')];
     elements.dropzone = document.querySelector('#dropzone');
@@ -90,6 +111,7 @@ function cacheElements() {
     elements.filenameToggle = document.querySelector('#filename-toggle');
     elements.outputPath = document.querySelector('#output-path');
     elements.chooseFolderButton = document.querySelector('#choose-folder-button');
+    elements.showOutputFolderButton = document.querySelector('#show-output-folder-button');
     elements.addImagesButton = document.querySelector('#add-images-button');
     elements.removeAllButton = document.querySelector('#remove-all-button');
     elements.previewMeta = document.querySelector('#preview-meta');
@@ -130,6 +152,20 @@ function cacheElements() {
 }
 
 function bindEvents() {
+    elements.statisticsTrigger.addEventListener('click', () => {
+        void openStatistics();
+    });
+
+    elements.statisticsCloseButton.addEventListener('click', () => {
+        elements.statisticsDialog.close();
+    });
+
+    elements.statisticsDialog.addEventListener('click', event => {
+        if (event.target === elements.statisticsDialog) {
+            elements.statisticsDialog.close();
+        }
+    });
+
     elements.appModeButtons.forEach(button => {
         button.addEventListener('click', () => {
             state.view = button.dataset.view;
@@ -257,6 +293,10 @@ function bindEvents() {
         void chooseOutputDirectory();
     });
 
+    elements.showOutputFolderButton.addEventListener('click', () => {
+        void showOutputDirectoryInFinder();
+    });
+
     elements.previewList.addEventListener('click', event => {
         const button = event.target.closest('.remove-image-button');
         if (!button || state.isProcessing) {
@@ -278,6 +318,50 @@ function bindEvents() {
     });
 
     bindPresetEvents();
+}
+
+async function openStatistics() {
+    state.statisticsLoading = true;
+    state.statisticsError = '';
+
+    if (!elements.statisticsDialog.open) {
+        elements.statisticsDialog.showModal();
+    }
+    renderStatistics();
+
+    try {
+        state.statistics = await invoke('get_statistics');
+    } catch (error) {
+        state.statisticsError = normaliseError(error, 'Unable to load statistics.');
+    } finally {
+        state.statisticsLoading = false;
+        renderStatistics();
+    }
+}
+
+function renderStatistics() {
+    elements.statisticsMessage.hidden = !state.statisticsLoading && !state.statisticsError;
+    elements.statisticsMessage.dataset.kind = state.statisticsError ? 'error' : 'info';
+    elements.statisticsMessage.textContent = state.statisticsError || 'Loading statistics...';
+    elements.statisticsContent.hidden =
+        state.statisticsLoading || Boolean(state.statisticsError) || !state.statistics;
+
+    if (!state.statistics) {
+        return;
+    }
+
+    const statistics = state.statistics;
+    elements.statisticsTotal.textContent = String(statistics.amount);
+    elements.statisticsWebp.textContent = String(statistics.webp);
+    elements.statisticsPng.textContent = String(statistics.png);
+    elements.statisticsAvif.textContent = String(statistics.avif);
+    elements.statisticsJpeg.textContent = String(statistics.jpeg);
+    elements.statisticsInput.textContent = formatBytes(statistics.inputBytes);
+    elements.statisticsOutput.textContent = formatBytes(statistics.outputBytes);
+    elements.statisticsSaved.textContent = formatBytes(statistics.savedBytes);
+    elements.statisticsProcessingTime.textContent = formatDuration(statistics.processingTimeMs);
+    elements.statisticsFirstConversion.textContent = formatDate(statistics.createdAt);
+    elements.statisticsLastConversion.textContent = formatDate(statistics.lastConversionAt);
 }
 
 function bindPresetEvents() {
@@ -581,6 +665,19 @@ async function chooseOutputDirectory() {
         render();
     } catch (error) {
         setStatus('error', normaliseError(error, 'Unable to choose an output folder.'));
+        render();
+    }
+}
+
+async function showOutputDirectoryInFinder() {
+    if (!state.outputDirectory) {
+        return;
+    }
+
+    try {
+        await invoke('show_in_finder', { path: state.outputDirectory });
+    } catch (error) {
+        setStatus('error', normaliseError(error, 'Unable to show the output folder in Finder.'));
         render();
     }
 }

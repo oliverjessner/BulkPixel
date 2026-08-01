@@ -14,10 +14,10 @@
     <body>
         <div class="app-shell">
             <header class="panel app-header">
-                <div class="brand-group">
+                <button id="statistics-trigger" class="brand-group" type="button" aria-label="BulkPixel">
                     <img class="brand-logo" src="/assets/icons/logo.png" alt="BulkPixel logo" />
                     <h1 id="brand-title">BulkPixel</h1>
-                </div>
+                </button>
                 <nav id="app-mode-toggle" class="app-mode-toggle" aria-label="Main view">
                     <button class="app-mode-button is-active" type="button" data-view="convert" aria-pressed="true">
                         Convert
@@ -179,7 +179,12 @@
                                     Choose Folder
                                 </button>
                             </div>
-                            <div class="path-display" id="output-path" title=""></div>
+                            <div class="output-path-row">
+                                <div class="path-display" id="output-path" title=""></div>
+                                <button id="show-output-folder-button" class="button secondary" type="button">
+                                    Show in Finder
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -418,5 +423,61 @@
                 </div>
             </footer>
         </div>
+
+        <dialog id="statistics-dialog" class="statistics-dialog" aria-labelledby="statistics-title">
+            <div class="statistics-header">
+                <div>
+                    <p class="section-kicker">Secret Menu</p>
+                    <h2 id="statistics-title">BulkPixel Statistics</h2>
+                </div>
+                <button
+                    id="statistics-close-button"
+                    class="icon-button statistics-close-button"
+                    type="button"
+                    aria-label="Close statistics"
+                >
+                    ×
+                </button>
+            </div>
+
+            <p id="statistics-message" class="statistics-message" aria-live="polite">Loading statistics...</p>
+
+            <div id="statistics-content" class="statistics-content" hidden>
+                <section class="statistics-section">
+                    <h3>Conversions</h3>
+                    <div class="statistics-grid statistics-formats">
+                        <div class="statistics-total"><span>Total</span><strong id="statistics-total">0</strong></div>
+                        <div><span>WEBP</span><strong id="statistics-webp">0</strong></div>
+                        <div><span>PNG</span><strong id="statistics-png">0</strong></div>
+                        <div><span>AVIF</span><strong id="statistics-avif">0</strong></div>
+                        <div><span>JPEG</span><strong id="statistics-jpeg">0</strong></div>
+                    </div>
+                </section>
+
+                <section class="statistics-section">
+                    <h3>Storage</h3>
+                    <div class="statistics-grid">
+                        <div><span>Input</span><strong id="statistics-input">0 B</strong></div>
+                        <div><span>Output</span><strong id="statistics-output">0 B</strong></div>
+                        <div class="statistics-saved"><span>Saved</span><strong id="statistics-saved">0 B</strong></div>
+                    </div>
+                </section>
+
+                <section class="statistics-section statistics-section-row">
+                    <div>
+                        <h3>Performance</h3>
+                        <span>Processing Time</span>
+                        <strong id="statistics-processing-time">0sec</strong>
+                    </div>
+                    <div>
+                        <h3>Timeline</h3>
+                        <dl class="statistics-timeline">
+                            <div><dt>First Conversion</dt><dd id="statistics-first-conversion">—</dd></div>
+                            <div><dt>Last Conversion</dt><dd id="statistics-last-conversion">—</dd></div>
+                        </dl>
+                    </div>
+                </section>
+            </div>
+        </dialog>
     </body>
 </html>

@@ -28,6 +28,25 @@ export function formatPercent(value = 0) {
   return `${Math.abs(value).toFixed(1)}%`;
 }
 
+export function formatDuration(milliseconds = 0) {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  return minutes > 0
+    ? `${minutes}min ${remainingSeconds}sec`
+    : `${remainingSeconds}sec`;
+}
+
+export function formatDate(value = "") {
+  const text = String(value);
+  if (text.length < 10) {
+    return text || "—";
+  }
+
+  return `${text.slice(8, 10)}.${text.slice(5, 7)}.${text.slice(0, 4)}`;
+}
+
 export function formatDimensions(width, height) {
   return `${width} × ${height}`;
 }
