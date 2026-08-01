@@ -61,6 +61,14 @@ Magic Directories watch selected folders while BulkPixel is running. Choose one 
 
 Rules are stored alongside presets and statistics in BulkPixel's shared SQLite database. Generated outputs are ignored by the watcher to prevent conversion loops. When multiple presets are selected, each preset must use a unique non-empty prefix or postfix.
 
+![BulkPixel Magic Directories view](/src/assets/mockups/maagic_directory_1920.webp)
+
+## Statistics
+
+Click the BulkPixel brand in the app header to open the hidden statistics panel. It shows the same conversion totals, storage savings, processing time, and timeline as `bulkpixel stats` in the CLI.
+
+![BulkPixel statistics view](/src/assets/mockups/statistics_1920.webp)
+
 ## CLI
 
 BulkPixel also ships a `bulkpixel` command for terminal workflows.
