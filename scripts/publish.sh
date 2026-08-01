@@ -38,6 +38,7 @@ require_command() {
 
 require_command npm
 require_command node
+require_command cargo
 require_command gh
 require_command git
 require_command codesign
@@ -121,6 +122,9 @@ if [ "$VERSION" != "$TAURI_VERSION" ] || [ "$VERSION" != "$CARGO_VERSION" ]; the
 fi
 
 echo "Cleaning previous builds..."
+# Native crates cache Homebrew's versioned Cellar paths. Rebuild the release
+# profile so a Homebrew upgrade cannot leave it pointing at removed dylibs.
+cargo clean --manifest-path src-tauri/Cargo.toml --release
 rm -rf "$BUNDLE_DIR"
 mkdir -p "$BUNDLE_DIR"
 
