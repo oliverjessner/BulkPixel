@@ -13,7 +13,8 @@ use crate::{
     },
     presets::{
         delete_preset_by_name_for_cli, find_preset_by_name_for_cli, list_presets_for_cli,
-        load_statistics_for_cli, record_conversion_statistics_for_cli, save_preset_for_cli,
+        load_statistics_for_cli, record_cli_usage_for_cli, record_conversion_statistics_for_cli,
+        save_preset_for_cli,
     },
 };
 
@@ -207,6 +208,7 @@ fn run_direct_conversion(options: ConvertOptions) -> Result<i32, String> {
     let started_at = Instant::now();
     let response = convert_images(request).map_err(|error| error.to_string())?;
     record_statistics(&format, &response, started_at, options.silent);
+    record_cli_usage(&response, options.silent);
     let has_failures = response.summary.failure_count > 0;
     let report = ConversionReport {
         label: None,
@@ -232,6 +234,7 @@ fn run_preset_conversion(options: ConvertOptions) -> Result<i32, String> {
     }
 
     let mut reports = Vec::with_capacity(presets.len());
+    let mut cli_usage_recorded = false;
 
     for preset in presets {
         let format = parse_format(&preset.format)?;
@@ -252,6 +255,10 @@ fn run_preset_conversion(options: ConvertOptions) -> Result<i32, String> {
         let started_at = Instant::now();
         let response = convert_images(request).map_err(|error| error.to_string())?;
         record_statistics(&format, &response, started_at, options.silent);
+        if !cli_usage_recorded && response.summary.success_count > 0 {
+            record_cli_usage(&response, options.silent);
+            cli_usage_recorded = true;
+        }
 
         reports.push(ConversionReport {
             label: Some(preset.name),
@@ -826,6 +833,18 @@ fn record_statistics(
     }
 }
 
+fn record_cli_usage(response: &ConversionResponse, silent: bool) {
+    if response.summary.success_count == 0 {
+        return;
+    }
+
+    if let Err(error) = record_cli_usage_for_cli() {
+        if !silent {
+            eprintln!("Warning: failed to update CLI usage statistics: {error}");
+        }
+    }
+}
+
 fn input_format_label(inputs: &[String]) -> String {
     let mut labels = HashSet::new();
 
@@ -1030,6 +1049,9 @@ fn print_statistics(statistics: &ConversionStatistics) {
     println!("PNG: {}", statistics.png);
     println!("AVIF: {}", statistics.avif);
     println!("JPEG: {}", statistics.jpeg);
+    println!();
+    println!("Usage");
+    println!("CLI Uses: {}", statistics.cli_uses);
     println!();
     println!("Storage");
     println!("Input: {}", format_bytes_i64(statistics.input_bytes));

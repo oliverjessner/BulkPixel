@@ -88,6 +88,7 @@ function cacheElements() {
     elements.statisticsPng = document.querySelector('#statistics-png');
     elements.statisticsAvif = document.querySelector('#statistics-avif');
     elements.statisticsJpeg = document.querySelector('#statistics-jpeg');
+    elements.statisticsCliUses = document.querySelector('#statistics-cli-uses');
     elements.statisticsInput = document.querySelector('#statistics-input');
     elements.statisticsOutput = document.querySelector('#statistics-output');
     elements.statisticsSaved = document.querySelector('#statistics-saved');
@@ -356,6 +357,7 @@ function renderStatistics() {
     elements.statisticsPng.textContent = String(statistics.png);
     elements.statisticsAvif.textContent = String(statistics.avif);
     elements.statisticsJpeg.textContent = String(statistics.jpeg);
+    elements.statisticsCliUses.textContent = String(statistics.cliUses);
     elements.statisticsInput.textContent = formatBytes(statistics.inputBytes);
     elements.statisticsOutput.textContent = formatBytes(statistics.outputBytes);
     elements.statisticsSaved.textContent = formatBytes(statistics.savedBytes);

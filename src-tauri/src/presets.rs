@@ -53,6 +53,9 @@ const CREATE_STATISTICS_TABLE_SQL: &str = "
             webp + avif + jpeg + png
         ) STORED,
 
+        cli_uses INTEGER NOT NULL DEFAULT 0
+            CHECK (cli_uses >= 0),
+
         webp INTEGER NOT NULL DEFAULT 0
             CHECK (webp >= 0),
 
@@ -290,6 +293,19 @@ pub fn record_conversion_statistics_for_cli(
     record_conversion_statistics_with_connection(&connection, format, summary, processing_time_ms)
 }
 
+pub fn record_cli_usage_for_cli() -> Result<(), PresetError> {
+    let connection = open_cli_connection()?;
+    record_cli_usage_with_connection(&connection)
+}
+
+fn record_cli_usage_with_connection(connection: &Connection) -> Result<(), PresetError> {
+    connection.execute(
+        "UPDATE statistics SET cli_uses = cli_uses + 1 WHERE id = 1",
+        [],
+    )?;
+    Ok(())
+}
+
 fn record_conversion_statistics_with_connection(
     connection: &Connection,
     format: &ExportFormat,
@@ -339,7 +355,7 @@ fn load_statistics_with_connection(
 ) -> Result<ConversionStatistics, PresetError> {
     connection
         .query_row(
-            "SELECT amount, webp, avif, jpeg, png, input_bytes, output_bytes,
+            "SELECT amount, cli_uses, webp, avif, jpeg, png, input_bytes, output_bytes,
                     processing_time_ms, saved_bytes, created_at, last_conversion_at
              FROM statistics
              WHERE id = 1",
@@ -347,16 +363,17 @@ fn load_statistics_with_connection(
             |row| {
                 Ok(ConversionStatistics {
                     amount: row.get(0)?,
-                    webp: row.get(1)?,
-                    avif: row.get(2)?,
-                    jpeg: row.get(3)?,
-                    png: row.get(4)?,
-                    input_bytes: row.get(5)?,
-                    output_bytes: row.get(6)?,
-                    processing_time_ms: row.get(7)?,
-                    saved_bytes: row.get(8)?,
-                    created_at: row.get(9)?,
-                    last_conversion_at: row.get(10)?,
+                    cli_uses: row.get(1)?,
+                    webp: row.get(2)?,
+                    avif: row.get(3)?,
+                    jpeg: row.get(4)?,
+                    png: row.get(5)?,
+                    input_bytes: row.get(6)?,
+                    output_bytes: row.get(7)?,
+                    processing_time_ms: row.get(8)?,
+                    saved_bytes: row.get(9)?,
+                    created_at: row.get(10)?,
+                    last_conversion_at: row.get(11)?,
                 })
             },
         )
@@ -459,6 +476,21 @@ fn migrate_magic_directory_presets_schema(connection: &mut Connection) -> Result
 
 fn initialize_statistics_schema(connection: &Connection) -> Result<(), PresetError> {
     connection.execute_batch(CREATE_STATISTICS_TABLE_SQL)?;
+
+    let mut statement = connection.prepare("PRAGMA table_info(statistics)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    drop(statement);
+
+    if !columns.iter().any(|column| column == "cli_uses") {
+        connection.execute(
+            "ALTER TABLE statistics
+             ADD COLUMN cli_uses INTEGER NOT NULL DEFAULT 0 CHECK (cli_uses >= 0)",
+            [],
+        )?;
+    }
+
     connection.execute("INSERT OR IGNORE INTO statistics (id) VALUES (1)", [])?;
     Ok(())
 }
@@ -644,4 +676,62 @@ fn saturating_i64_from_u128(value: u128) -> i64 {
 
 fn saturating_i64_from_usize(value: usize) -> i64 {
     i64::try_from(value).unwrap_or(i64::MAX)
+}
+
+#[cfg(test)]
+mod tests {
+    use rusqlite::Connection;
+
+    use super::{
+        initialize_statistics_schema, load_statistics_with_connection,
+        record_cli_usage_with_connection,
+    };
+
+    #[test]
+    fn migrates_cli_usage_without_resetting_existing_statistics() {
+        let connection = Connection::open_in_memory().expect("database");
+        connection
+            .execute_batch(
+                "CREATE TABLE statistics (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    amount INTEGER GENERATED ALWAYS AS (
+                        webp + avif + jpeg + png
+                    ) STORED,
+                    webp INTEGER NOT NULL DEFAULT 0 CHECK (webp >= 0),
+                    avif INTEGER NOT NULL DEFAULT 0 CHECK (avif >= 0),
+                    jpeg INTEGER NOT NULL DEFAULT 0 CHECK (jpeg >= 0),
+                    png INTEGER NOT NULL DEFAULT 0 CHECK (png >= 0),
+                    input_bytes INTEGER NOT NULL DEFAULT 0 CHECK (input_bytes >= 0),
+                    output_bytes INTEGER NOT NULL DEFAULT 0 CHECK (output_bytes >= 0),
+                    processing_time_ms INTEGER NOT NULL DEFAULT 0
+                        CHECK (processing_time_ms >= 0),
+                    saved_bytes INTEGER GENERATED ALWAYS AS (
+                        CASE
+                            WHEN input_bytes > output_bytes THEN input_bytes - output_bytes
+                            ELSE 0
+                        END
+                    ) STORED,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    last_conversion_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO statistics (
+                    id, webp, avif, jpeg, png, input_bytes, output_bytes, processing_time_ms
+                ) VALUES (1, 4, 3, 2, 1, 1000, 600, 250);",
+            )
+            .expect("legacy statistics");
+
+        initialize_statistics_schema(&connection).expect("migration");
+        let statistics = load_statistics_with_connection(&connection).expect("statistics");
+
+        assert_eq!(statistics.amount, 10);
+        assert_eq!(statistics.cli_uses, 0);
+        assert_eq!(statistics.saved_bytes, 400);
+
+        record_cli_usage_with_connection(&connection).expect("first CLI use");
+        record_cli_usage_with_connection(&connection).expect("second CLI use");
+
+        let statistics = load_statistics_with_connection(&connection).expect("updated statistics");
+        assert_eq!(statistics.amount, 10);
+        assert_eq!(statistics.cli_uses, 2);
+    }
 }

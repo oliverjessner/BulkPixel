@@ -1,6 +1,7 @@
 # 2.1.1
 
 - the statistics from the cli bulkpixel stats is now availabe via clicking the top left BulkPixel text
+- track successful CLI conversion runs in the shared statistics
 - "Show in Finder" button next to the output path
 - Bump serde_with from 3.18.0 to 3.21.0
 

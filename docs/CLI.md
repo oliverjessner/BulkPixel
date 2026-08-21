@@ -262,6 +262,9 @@ PNG: 12
 AVIF: 1
 JPEG: 12
 
+Usage
+CLI Uses: 18
+
 Storage
 Input: 320.4 MB
 Output: 100.2 MB
@@ -274,3 +277,7 @@ Timeline
 First Conversion: 03.07.2026
 Last Conversion: 05.07.2026
 ```
+
+`CLI Uses` counts successful `bulkpixel convert` command runs. A single command using
+multiple presets counts once, and CLI management commands such as `stats` or `presets list`
+do not increase it.

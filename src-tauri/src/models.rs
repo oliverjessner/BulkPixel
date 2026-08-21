@@ -232,6 +232,7 @@ pub struct MagicDirectoryEvent {
 #[serde(rename_all = "camelCase")]
 pub struct ConversionStatistics {
     pub amount: i64,
+    pub cli_uses: i64,
     pub webp: i64,
     pub avif: i64,
     pub jpeg: i64,

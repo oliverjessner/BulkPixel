@@ -65,7 +65,7 @@ Rules are stored alongside presets and statistics in BulkPixel's shared SQLite d
 
 ## Statistics
 
-Click the BulkPixel brand in the app header to open the hidden statistics panel. It shows the same conversion totals, storage savings, processing time, and timeline as `bulkpixel stats` in the CLI.
+Click the BulkPixel brand in the app header to open the hidden statistics panel. It shows the same conversion totals, CLI usage, storage savings, processing time, and timeline as `bulkpixel stats` in the CLI.
 
 ![BulkPixel statistics view](/src/assets/mockups/statistics_1920.webp)
 

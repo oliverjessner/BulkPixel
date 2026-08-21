@@ -36,8 +36,33 @@ require_command() {
     fi
 }
 
-require_command npm
 require_command node
+
+VERSION=$(node -p 'require("./package.json").version || "0.0.0"')
+
+echo "Syncing Tauri version to $VERSION..."
+node -e '
+const fs = require("node:fs");
+const configPath = "src-tauri/tauri.conf.json";
+const version = process.argv[1];
+const source = fs.readFileSync(configPath, "utf8");
+const config = JSON.parse(source);
+
+if (config.version !== version) {
+    const updated = source.replace(
+        /(\"version\"\s*:\s*\")[^\"]*(\")/,
+        (_match, prefix, suffix) => `${prefix}${version}${suffix}`,
+    );
+
+    if (updated === source) {
+        throw new Error(`${configPath} does not contain a writable version field`);
+    }
+
+    fs.writeFileSync(configPath, updated);
+}
+' "$VERSION"
+
+require_command npm
 require_command cargo
 require_command gh
 require_command git
@@ -106,7 +131,6 @@ EOF
 }
 
 PRODUCT_NAME=$(node -p 'require("./src-tauri/tauri.conf.json").productName')
-VERSION=$(node -p 'require("./package.json").version || "0.0.0"')
 TAURI_VERSION=$(node -p 'require("./src-tauri/tauri.conf.json").version || "0.0.0"')
 CARGO_VERSION=$(awk -F '"' '/^version =/ { print $2; exit }' src-tauri/Cargo.toml)
 TAG="v$VERSION"
