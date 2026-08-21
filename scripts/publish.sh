@@ -40,27 +40,8 @@ require_command node
 
 VERSION=$(node -p 'require("./package.json").version || "0.0.0"')
 
-echo "Syncing Tauri version to $VERSION..."
-node -e '
-const fs = require("node:fs");
-const configPath = "src-tauri/tauri.conf.json";
-const version = process.argv[1];
-const source = fs.readFileSync(configPath, "utf8");
-const config = JSON.parse(source);
-
-if (config.version !== version) {
-    const updated = source.replace(
-        /(\"version\"\s*:\s*\")[^\"]*(\")/,
-        (_match, prefix, suffix) => `${prefix}${version}${suffix}`,
-    );
-
-    if (updated === source) {
-        throw new Error(`${configPath} does not contain a writable version field`);
-    }
-
-    fs.writeFileSync(configPath, updated);
-}
-' "$VERSION"
+echo "Syncing project versions to $VERSION..."
+node scripts/sync-versions.mjs
 
 require_command npm
 require_command cargo
@@ -133,15 +114,24 @@ EOF
 PRODUCT_NAME=$(node -p 'require("./src-tauri/tauri.conf.json").productName')
 TAURI_VERSION=$(node -p 'require("./src-tauri/tauri.conf.json").version || "0.0.0"')
 CARGO_VERSION=$(awk -F '"' '/^version =/ { print $2; exit }' src-tauri/Cargo.toml)
+CARGO_LOCK_VERSION=$(awk '
+    $0 == "name = \"bulkpixel\"" { package_found=1; next }
+    package_found && /^version = / {
+        gsub(/version = |\"/, "")
+        print
+        exit
+    }
+' src-tauri/Cargo.lock)
 TAG="v$VERSION"
 APP="$BUNDLE_DIR/macos/${PRODUCT_NAME}.app"
 OUT="$DMG_DIR/${PRODUCT_NAME}_${VERSION}_aarch64_adhoc.dmg"
 
-if [ "$VERSION" != "$TAURI_VERSION" ] || [ "$VERSION" != "$CARGO_VERSION" ]; then
+if [ "$VERSION" != "$TAURI_VERSION" ] || [ "$VERSION" != "$CARGO_VERSION" ] || [ "$VERSION" != "$CARGO_LOCK_VERSION" ]; then
     echo "Version mismatch:"
     echo "  package.json: $VERSION"
     echo "  src-tauri/tauri.conf.json: $TAURI_VERSION"
     echo "  src-tauri/Cargo.toml: $CARGO_VERSION"
+    echo "  src-tauri/Cargo.lock: $CARGO_LOCK_VERSION"
     exit 1
 fi
 
