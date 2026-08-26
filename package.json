@@ -10,6 +10,14 @@
         "test": "node --test",
         "publish": "sh scripts/publish.sh"
     },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/oliverjessner/bulkpixel.git"
+    },
+    "bugs": {
+        "url": "https://github.com/oliverjessner/bulkpixel/issues"
+    },
+    "homepage": "https://oliverjessner.at/bulkpixel",
     "devDependencies": {
         "@tauri-apps/cli": "^2.11.4"
     }
