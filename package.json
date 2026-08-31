@@ -18,6 +18,10 @@
         "url": "https://github.com/oliverjessner/bulkpixel/issues"
     },
     "homepage": "https://oliverjessner.at/bulkpixel",
+    "author": {
+        "name": "oliverjessner",
+        "url": "https://oliverjessner.at"
+    },
     "devDependencies": {
         "@tauri-apps/cli": "^2.11.4"
     }
