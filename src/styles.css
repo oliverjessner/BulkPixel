@@ -5,7 +5,7 @@
     --bg: #0f1114;
     --bg-elevated: #161a1f;
     --panel: #1b2026;
-    --panel-alt: #171b20;
+    --border-subtle: rgba(255, 255, 255, 0.055);
     --border: #2a3139;
     --border-strong: #39424d;
     --text: #e3e7ec;
@@ -281,15 +281,20 @@ select:focus {
 
 .statistics-content {
     display: grid;
-    gap: 12px;
+    gap: 0;
     margin-top: 20px;
 }
 
 .statistics-section {
-    padding: 14px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--panel-alt);
+    padding: 16px 0;
+}
+
+.statistics-section:first-child {
+    padding-top: 0;
+}
+
+.statistics-section + .statistics-section {
+    border-top: 1px solid var(--border-subtle);
 }
 
 .statistics-section h3 {
@@ -647,7 +652,7 @@ select:focus {
 }
 
 .settings-panel .field-group + .field-group {
-    border-top: 1px solid rgba(255, 255, 255, 0.055);
+    border-top: 1px solid var(--border-subtle);
 }
 
 .settings-section-label {
@@ -663,10 +668,7 @@ select:focus {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--panel-alt);
+    padding: 12px 0;
 }
 
 .field,
@@ -887,10 +889,10 @@ select:focus {
 .preview-card {
     display: grid;
     grid-template-columns: 112px minmax(0, 1fr);
-    border: 1px solid var(--border);
-    border-radius: 11px;
+    border: 1px solid transparent;
+    border-radius: 9px;
     overflow: hidden;
-    background: #151a20;
+    background: rgba(255, 255, 255, 0.018);
     min-height: 0;
     transition:
         border-color 120ms ease,
@@ -899,15 +901,15 @@ select:focus {
 
 .preview-card:hover,
 .preview-card:focus-within {
-    border-color: var(--border-strong);
-    background: #171c22;
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.035);
 }
 
 .thumb-wrap {
     position: relative;
     min-height: 96px;
     background: #0e1216;
-    border-right: 1px solid var(--border);
+    border-right: 1px solid var(--border-subtle);
 }
 
 .thumb-wrap img {
@@ -1040,9 +1042,6 @@ select:focus {
     align-content: center;
     gap: 8px;
     padding: 28px 18px;
-    border: 1px dashed var(--border);
-    border-radius: 14px;
-    background: #151a20;
     text-align: center;
 }
 
@@ -1076,8 +1075,25 @@ select:focus {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 0;
     overflow-y: auto;
+}
+
+.preset-form-header {
+    margin-bottom: 10px;
+}
+
+.preset-form > .field {
+    padding: 6px 0 14px;
+}
+
+.preset-form > .field-group {
+    padding: 14px 0;
+}
+
+.preset-form > .field + .field-group,
+.preset-form > .field-group + .field-group {
+    border-top: 1px solid var(--border-subtle);
 }
 
 .preset-form-header,
@@ -1127,9 +1143,9 @@ select:focus {
     gap: 12px;
     align-items: center;
     padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: #151a20;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.022);
 }
 
 .preset-library-card {
@@ -1145,8 +1161,8 @@ select:focus {
 
 .preset-library-card:hover,
 .preset-library-card:focus-within {
-    border-color: var(--border-strong);
-    background: #171c22;
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .preset-card-body {
@@ -1311,10 +1327,16 @@ select:focus {
     align-items: center;
     gap: 10px;
     padding: 10px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: #12161b;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.025);
     cursor: pointer;
+}
+
+.magic-preset-option:hover,
+.magic-preset-option:focus-within {
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .magic-preset-option:has(input:checked) {
@@ -1422,10 +1444,7 @@ select:focus {
 }
 
 .magic-activity {
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: #13171c;
+    padding: 2px 0 6px;
     color: var(--text-muted);
     font-size: 0.86rem;
     line-height: 1.4;
