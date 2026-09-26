@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-    buildResizeHelperText,
     buildResizeInputState,
     buildResizeReferenceNote,
 } from '../src/ui.js';
@@ -22,7 +21,6 @@ test('shows both original dimensions as read-only inputs', () => {
         heightReadOnly: true,
     });
     assert.equal(buildResizeReferenceNote(state), '');
-    assert.equal(buildResizeHelperText(state), 'Images keep their original size.');
 });
 
 test('shows the calculated reference output for width resizing', () => {
@@ -40,7 +38,6 @@ test('shows the calculated reference output for width resizing', () => {
         heightReadOnly: true,
     });
     assert.equal(buildResizeReferenceNote(state), 'Based on first image');
-    assert.equal(buildResizeHelperText(state), 'Height is calculated automatically.');
 });
 
 test('shows the calculated reference output for height resizing', () => {
@@ -58,5 +55,4 @@ test('shows the calculated reference output for height resizing', () => {
         heightReadOnly: false,
     });
     assert.equal(buildResizeReferenceNote(state), '');
-    assert.equal(buildResizeHelperText(state), 'Width is calculated automatically.');
 });

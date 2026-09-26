@@ -45,8 +45,6 @@ function renderControls(state, elements) {
     const referenceNote = buildResizeReferenceNote(state);
     elements.resizeReferenceNote.textContent = referenceNote;
     elements.resizeReferenceNote.hidden = !referenceNote;
-    elements.resizeHelper.textContent = state.validationMessage || buildResizeHelperText(state);
-    elements.resizeHelper.classList.toggle('is-error', Boolean(state.validationMessage));
 
     elements.qualitySlider.value = String(state.quality);
     elements.qualitySlider.disabled = state.isProcessing || state.format === 'png';
@@ -496,18 +494,6 @@ export function buildResizeInputState(state) {
 
 export function buildResizeReferenceNote(state) {
     return state.resizeReference?.mixedSizes ? 'Based on first image' : '';
-}
-
-export function buildResizeHelperText(state) {
-    if (state.resizeMode === 'width') {
-        return 'Height is calculated automatically.';
-    }
-
-    if (state.resizeMode === 'height') {
-        return 'Width is calculated automatically.';
-    }
-
-    return 'Images keep their original size.';
 }
 
 function buildPresetResolutionText(preset) {

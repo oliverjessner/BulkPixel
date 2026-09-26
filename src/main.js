@@ -109,7 +109,6 @@ function cacheElements() {
     elements.widthInput = document.querySelector('#width-input');
     elements.heightInput = document.querySelector('#height-input');
     elements.resizeReferenceNote = document.querySelector('#resize-reference-note');
-    elements.resizeHelper = document.querySelector('#resize-helper');
     elements.qualitySlider = document.querySelector('#quality-slider');
     elements.qualityValue = document.querySelector('#quality-value');
     elements.qualityHelper = document.querySelector('#quality-helper');
