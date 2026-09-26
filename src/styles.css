@@ -980,9 +980,14 @@ select:focus {
 }
 
 .preset-library-card {
+    position: relative;
     transition:
         border-color 120ms ease,
         background-color 120ms ease;
+}
+
+.preset-library-card.has-open-menu {
+    z-index: 10;
 }
 
 .preset-library-card:hover,
@@ -1065,6 +1070,10 @@ select:focus {
 .preset-action-menu-wrap {
     position: relative;
     z-index: 1;
+}
+
+.preset-action-menu-wrap.is-open {
+    z-index: 30;
 }
 
 .preset-menu-trigger {

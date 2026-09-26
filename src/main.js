@@ -532,6 +532,8 @@ function togglePresetActionMenu(trigger) {
     }
 
     menu.hidden = false;
+    menuWrap.classList.add('is-open');
+    menuWrap.closest('.preset-library-card')?.classList.add('has-open-menu');
     trigger.setAttribute('aria-expanded', 'true');
     menu.classList.remove('is-above');
 
@@ -553,6 +555,8 @@ function closePresetActionMenus(options = {}) {
         const trigger = menuWrap?.querySelector('.preset-menu-trigger');
         menu.hidden = true;
         menu.classList.remove('is-above');
+        menuWrap?.classList.remove('is-open');
+        menuWrap?.closest('.preset-library-card')?.classList.remove('has-open-menu');
         trigger?.setAttribute('aria-expanded', 'false');
         if (returnFocus) {
             trigger?.focus();
