@@ -411,16 +411,23 @@
                             <p class="field-helper">Select one or more presets to run for every matching file.</p>
                         </div>
 
-                        <div class="field-group">
-                            <div class="field-row label-row">
-                                <div>
-                                    <span class="field-label">Watcher Status</span>
-                                    <p class="field-helper">Disabled rules remain saved but do not process files.</p>
-                                </div>
-                                <button id="magic-enabled-button" class="toggle-button magic-enabled-button" type="button" aria-pressed="true">
-                                    Enabled
-                                </button>
+                        <div class="field-group magic-enabled-setting">
+                            <div class="magic-enabled-copy">
+                                <label id="magic-enabled-label" class="field-label" for="magic-enabled-button">
+                                    Enable this rule
+                                </label>
+                                <p class="field-helper">Disabled rules remain saved but do not process files.</p>
                             </div>
+                            <button
+                                id="magic-enabled-button"
+                                class="magic-enabled-switch is-active"
+                                type="button"
+                                role="switch"
+                                aria-checked="true"
+                                aria-labelledby="magic-enabled-label"
+                            >
+                                <span class="magic-enabled-switch-thumb" aria-hidden="true"></span>
+                            </button>
                         </div>
 
                         <button id="magic-save-button" class="button primary preset-save-button" type="submit">

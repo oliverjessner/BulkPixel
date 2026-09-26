@@ -185,8 +185,7 @@ function renderMagicDirectoryForm(state, elements) {
     }
 
     elements.magicEnabledButton.classList.toggle('is-active', form.enabled);
-    elements.magicEnabledButton.setAttribute('aria-pressed', form.enabled ? 'true' : 'false');
-    elements.magicEnabledButton.textContent = form.enabled ? 'Enabled' : 'Disabled';
+    elements.magicEnabledButton.setAttribute('aria-checked', form.enabled ? 'true' : 'false');
     elements.magicEnabledButton.disabled = isSaving;
     elements.magicSaveButton.disabled = isSaving || !state.presets.length;
     elements.magicSaveButton.textContent = isSaving
