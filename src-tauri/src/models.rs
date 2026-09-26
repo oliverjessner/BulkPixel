@@ -201,6 +201,7 @@ pub fn validate_multiple_preset_markers(presets: &[ConversionPreset]) -> Result<
 #[serde(rename_all = "camelCase")]
 pub struct MagicDirectory {
     pub id: i64,
+    pub name: String,
     pub path: String,
     pub formats: Vec<String>,
     pub preset_ids: Vec<i64>,
@@ -213,6 +214,7 @@ pub struct MagicDirectory {
 #[serde(rename_all = "camelCase")]
 pub struct SaveMagicDirectoryRequest {
     pub id: Option<i64>,
+    pub name: String,
     pub path: String,
     pub formats: Vec<String>,
     pub preset_ids: Vec<i64>,
@@ -233,6 +235,7 @@ pub struct MagicDirectoryEvent {
 pub struct ConversionStatistics {
     pub amount: i64,
     pub cli_uses: i64,
+    pub watched_folder_conversions: i64,
     pub webp: i64,
     pub avif: i64,
     pub jpeg: i64,

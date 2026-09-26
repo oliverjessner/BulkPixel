@@ -337,6 +337,10 @@ select:focus {
     grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.statistics-usage {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .statistics-total strong,
 .statistics-saved strong {
     color: #c8f7d9;

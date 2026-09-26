@@ -24,7 +24,7 @@
                     data-kind="idle"
                     aria-live="polite"
                     aria-atomic="true"
-                    title="No Magic Directories are configured."
+                    title="No watched folders are configured."
                 >
                     <span class="watcher-status-dot" aria-hidden="true"></span>
                     <span id="global-watcher-status-label" class="watcher-status-label">No watched folders</span>
@@ -37,7 +37,7 @@
                         Presets
                     </button>
                     <button class="app-mode-button" type="button" data-view="magic" aria-pressed="false">
-                        Magic Directories
+                        Watched Folders
                     </button>
                 </nav>
             </header>
@@ -370,21 +370,31 @@
             </main>
 
             <main id="magic-view" class="magic-workspace app-view" hidden>
-                <section class="panel magic-editor-panel" aria-label="Magic directory editor">
+                <section class="panel magic-editor-panel" aria-label="Watched folder editor">
                     <form id="magic-form" class="preset-form">
                         <div class="preset-form-header">
                             <div>
                                 <p class="section-kicker">Automation</p>
-                                <h3 id="magic-form-title">Add Magic Directory</h3>
+                                <h3 id="magic-form-title">Add Watched Folder</h3>
                             </div>
                             <button id="magic-reset-button" class="button secondary compact" type="button">
                                 Clear
                             </button>
                         </div>
 
+                        <label class="field" for="magic-name-input">
+                            <span class="field-label">Name</span>
+                            <input
+                                id="magic-name-input"
+                                type="text"
+                                spellcheck="false"
+                                placeholder="e.g. Incoming Photos"
+                            />
+                        </label>
+
                         <div class="field-group">
                             <div class="field-row label-row">
-                                <label class="field-label" for="magic-directory-path">Directory</label>
+                                <label class="field-label" for="magic-directory-path">Folder</label>
                                 <button id="magic-choose-directory-button" class="button secondary compact" type="button">
                                     Choose Folder
                                 </button>
@@ -431,7 +441,7 @@
                         </div>
 
                         <button id="magic-save-button" class="button primary preset-save-button" type="submit">
-                            Save Magic Directory
+                            Save Watched Folder
                         </button>
                     </form>
                 </section>
@@ -440,7 +450,7 @@
                     <div class="preset-list-header">
                         <div>
                             <p class="section-kicker">Watcher</p>
-                            <h3 id="magic-directories-title">Magic Directories</h3>
+                            <h3 id="magic-directories-title">Watched Folders</h3>
                         </div>
                         <span id="magic-count" class="value-badge">0</span>
                     </div>
@@ -501,8 +511,12 @@
 
                 <section class="statistics-section">
                     <h3>Usage</h3>
-                    <div class="statistics-grid">
+                    <div class="statistics-grid statistics-usage">
                         <div><span>CLI Uses</span><strong id="statistics-cli-uses">0</strong></div>
+                        <div>
+                            <span>Watched Folder Conversions</span>
+                            <strong id="statistics-watched-folder-conversions">0</strong>
+                        </div>
                     </div>
                 </section>
 

@@ -1,8 +1,8 @@
 # Supported Formats
 
-BulkPixel uses the same conversion pipeline in the desktop app and CLI. The table below also shows which formats can trigger Magic Directory rules.
+BulkPixel uses the same conversion pipeline in the desktop app and CLI. The table below also shows which formats can trigger Watched Folder rules.
 
-| Format | File extensions | Import | Export | Magic Directories |
+| Format | File extensions | Import | Export | Watched Folders |
 | --- | --- | --- | --- | --- |
 | JPEG | `.jpg`, `.jpeg` | Yes | Yes (`.jpg`) | Yes |
 | PNG | `.png` | Yes | Yes | Yes |
@@ -17,4 +17,4 @@ BulkPixel uses the same conversion pipeline in the desktop app and CLI. The tabl
 - PNG exports use lossless compression. If the decoded source contains 16-bit channels, PNG preserves that channel depth, including after resizing.
 - SVG files are rasterized during import at the requested width or height while preserving their aspect ratio.
 - HEIC and HEIF use the native macOS decoder. BulkPixel applies image orientation, converts embedded color profiles such as Display P3 to sRGB, and produces SDR output. For HDR files, it uses the author-provided SDR-compatible base image so highlight detail is preserved instead of clipping the expanded gain map into an 8-bit export.
-- Magic Directories treat `.jpg` and `.jpeg` as JPEG, and `.heic` and `.heif` as HEIC.
+- Watched Folders treat `.jpg` and `.jpeg` as JPEG, and `.heic` and `.heif` as HEIC.

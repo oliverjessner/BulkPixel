@@ -21,7 +21,7 @@ bulkpixel --version
 
 ## Convert Images
 
-See [Supported Formats](FORMATS.md) for the complete import/export matrix, Magic Directory compatibility, and format-specific behavior.
+See [Supported Formats](FORMATS.md) for the complete import/export matrix, Watched Folder compatibility, and format-specific behavior.
 
 Required:
 
@@ -208,16 +208,17 @@ bulkpixel presets delete \
   --name "Blog Header"
 ```
 
-## Magic Directories
+## Watched Folders
 
-Magic Directory rules use the same SQLite database as the desktop app. The desktop app performs the actual watching while it is running. Rules created or changed through the CLI are loaded the next time the desktop app starts.
+Watched Folder rules use the same SQLite database as the desktop app. Every rule has a required name. The desktop app performs the actual watching while it is running, and rules created or changed through the CLI are loaded the next time the desktop app starts.
 
 Supported watched formats are `jpeg` (or its `jpg` alias), `png`, `webp`, `avif`, `svg`, and `heic` (or its `heif` alias). Both `.jpg` and `.jpeg` files match JPEG; both `.heic` and `.heif` files match HEIC. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
 
 Create a rule:
 
 ```sh
-bulkpixel magic-directories create \
+bulkpixel watched-folders create \
+  --name "Incoming Website Images" \
   --path ./incoming-images \
   --formats jpg png webp \
   --presets "Website WEBP" "Archive AVIF"
@@ -226,14 +227,15 @@ bulkpixel magic-directories create \
 List rules and their IDs:
 
 ```sh
-bulkpixel magic-directories list
+bulkpixel watched-folders list
 ```
 
 Update selected settings. Omitted settings keep their existing values:
 
 ```sh
-bulkpixel magic-directories update \
+bulkpixel watched-folders update \
   --id 1 \
+  --name "Paused Website Imports" \
   --formats svg png \
   --disabled
 ```
@@ -241,7 +243,7 @@ bulkpixel magic-directories update \
 Use `--enabled` to reactivate a saved rule. Delete a rule with:
 
 ```sh
-bulkpixel magic-directories delete --id 1
+bulkpixel watched-folders delete --id 1
 ```
 
 ## Statistics
@@ -264,6 +266,7 @@ JPEG: 12
 
 Usage
 CLI Uses: 18
+Watched Folder Conversions: 42
 
 Storage
 Input: 320.4 MB
@@ -281,3 +284,5 @@ Last Conversion: 05.07.2026
 `CLI Uses` counts successful `bulkpixel convert` command runs. A single command using
 multiple presets counts once, and CLI management commands such as `stats` or `presets list`
 do not increase it.
+
+`Watched Folder Conversions` counts successful outputs created automatically by Watched Folder rules.

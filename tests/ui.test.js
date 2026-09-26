@@ -267,7 +267,7 @@ test('labels PNG presets as lossless instead of showing a quality value', () => 
     );
 });
 
-test('distinguishes unconfigured and disabled Magic Directory watchers', () => {
+test('distinguishes unconfigured and disabled watched folders', () => {
     const activity = { kind: 'info', text: 'Watching starts when BulkPixel opens.' };
 
     assert.deepEqual(
@@ -279,7 +279,7 @@ test('distinguishes unconfigured and disabled Magic Directory watchers', () => {
         {
             kind: 'idle',
             label: 'No watched folders',
-            detail: 'No Magic Directories are configured.',
+            detail: 'No watched folders are configured.',
             activeCount: 0,
         },
     );
@@ -293,13 +293,13 @@ test('distinguishes unconfigured and disabled Magic Directory watchers', () => {
         {
             kind: 'idle',
             label: 'No active folders',
-            detail: 'All configured Magic Directories are disabled.',
+            detail: 'All configured watched folders are disabled.',
             activeCount: 0,
         },
     );
 });
 
-test('counts enabled Magic Directories with correct singular and plural labels', () => {
+test('counts enabled watched folders with correct singular and plural labels', () => {
     const activity = { kind: 'success', text: 'Watcher ready.' };
     const oneWatcher = buildGlobalWatcherStatus({
         magicDirectories: [{ enabled: true }, { enabled: false }],
@@ -332,14 +332,14 @@ test('gives watcher errors priority over processing and recovers on later activi
     });
     const recovered = buildGlobalWatcherStatus({
         magicDirectories: directories,
-        magicActivity: { kind: 'success', text: 'Magic directory converted 1 output.' },
+        magicActivity: { kind: 'success', text: 'Watched folder converted 1 output.' },
         magicDirectoryChangeDetected: false,
     });
 
     assert.equal(processing.kind, 'processing');
     assert.equal(processing.label, 'Processing · 2 folders');
     assert.equal(error.kind, 'error');
-    assert.equal(error.label, 'Watcher error');
+    assert.equal(error.label, 'Watched folder error');
     assert.equal(error.detail, 'Unable to watch /tmp/incoming.');
     assert.equal(recovered.kind, 'watching');
     assert.equal(recovered.label, 'Watching 2 folders');

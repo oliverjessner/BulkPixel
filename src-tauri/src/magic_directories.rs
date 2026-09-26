@@ -23,7 +23,8 @@ use crate::{
     },
     presets::{
         get_presets_by_ids, get_presets_by_ids_with_connection, open_cli_connection,
-        open_connection, record_conversion_statistics, PresetError,
+        open_connection, record_conversion_statistics, record_watched_folder_conversions,
+        PresetError,
     },
 };
 
@@ -69,26 +70,28 @@ fn list_magic_directories_with_connection(
     connection: &Connection,
 ) -> Result<Vec<MagicDirectory>, PresetError> {
     let mut statement = connection.prepare(
-        "SELECT id, path, enabled, created_at, updated_at
+        "SELECT id, name, path, enabled, created_at, updated_at
          FROM magic_directories
-         ORDER BY lower(path) ASC, id ASC",
+         ORDER BY lower(name) ASC, id ASC",
     )?;
     let rows = statement
         .query_map([], |row| {
             Ok((
                 row.get::<_, i64>(0)?,
                 row.get::<_, String>(1)?,
-                row.get::<_, bool>(2)?,
-                row.get::<_, String>(3)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, bool>(3)?,
                 row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
             ))
         })?
         .collect::<Result<Vec<_>, _>>()?;
 
     rows.into_iter()
-        .map(|(id, path, enabled, created_at, updated_at)| {
+        .map(|(id, name, path, enabled, created_at, updated_at)| {
             Ok(MagicDirectory {
                 id,
+                name,
                 path,
                 formats: load_formats(connection, id)?,
                 preset_ids: load_preset_ids(connection, id)?,
@@ -126,19 +129,19 @@ fn save_magic_directory_with_connection(
         Some(id) => {
             let changed = transaction.execute(
                 "UPDATE magic_directories
-                 SET path = ?1, enabled = ?2, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?3",
-                params![request.path, request.enabled, id],
+                 SET name = ?1, path = ?2, enabled = ?3, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?4",
+                params![request.name, request.path, request.enabled, id],
             )?;
             if changed == 0 {
-                return Err(PresetError::Validation("Magic directory not found.".into()));
+                return Err(PresetError::Validation("Watched folder not found.".into()));
             }
             id
         }
         None => {
             transaction.execute(
-                "INSERT INTO magic_directories (path, enabled) VALUES (?1, ?2)",
-                params![request.path, request.enabled],
+                "INSERT INTO magic_directories (name, path, enabled) VALUES (?1, ?2, ?3)",
+                params![request.name, request.path, request.enabled],
             )?;
             transaction.last_insert_rowid()
         }
@@ -187,7 +190,7 @@ fn delete_magic_directory_with_connection(
 ) -> Result<(), PresetError> {
     let changed = connection.execute("DELETE FROM magic_directories WHERE id = ?1", params![id])?;
     if changed == 0 {
-        return Err(PresetError::Validation("Magic directory not found.".into()));
+        return Err(PresetError::Validation("Watched folder not found.".into()));
     }
     Ok(())
 }
@@ -195,30 +198,32 @@ fn delete_magic_directory_with_connection(
 fn get_magic_directory(connection: &Connection, id: i64) -> Result<MagicDirectory, PresetError> {
     let row = connection
         .query_row(
-            "SELECT id, path, enabled, created_at, updated_at
+            "SELECT id, name, path, enabled, created_at, updated_at
              FROM magic_directories WHERE id = ?1",
             params![id],
             |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
                     row.get::<_, String>(1)?,
-                    row.get::<_, bool>(2)?,
-                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, bool>(3)?,
                     row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
                 ))
             },
         )
         .optional()?
-        .ok_or_else(|| PresetError::Validation("Magic directory not found.".into()))?;
+        .ok_or_else(|| PresetError::Validation("Watched folder not found.".into()))?;
 
     Ok(MagicDirectory {
         id: row.0,
-        path: row.1,
+        name: row.1,
+        path: row.2,
         formats: load_formats(connection, id)?,
         preset_ids: load_preset_ids(connection, id)?,
-        enabled: row.2,
-        created_at: row.3,
-        updated_at: row.4,
+        enabled: row.3,
+        created_at: row.4,
+        updated_at: row.5,
     })
 }
 
@@ -251,9 +256,16 @@ fn normalize_and_validate_request(
     connection: &Connection,
     request: &mut SaveMagicDirectoryRequest,
 ) -> Result<(), PresetError> {
+    request.name = request.name.trim().to_string();
+    if request.name.is_empty() {
+        return Err(PresetError::Validation(
+            "Enter a name for the watched folder.".into(),
+        ));
+    }
+
     let raw_path = PathBuf::from(request.path.trim());
     let canonical_path = fs::canonicalize(&raw_path).map_err(|error| {
-        PresetError::Validation(format!("Unable to access the magic directory: {error}"))
+        PresetError::Validation(format!("Unable to access the watched folder: {error}"))
     })?;
     if !canonical_path.is_dir() {
         return Err(PresetError::Validation(
@@ -323,7 +335,7 @@ pub fn refresh_watcher(app: &AppHandle, state: &MagicWatcherState) -> Result<(),
             Err(error) => emit_event(
                 &app_handle,
                 "error",
-                format!("Magic directory watcher error: {error}"),
+                format!("Watched folder error: {error}"),
                 None,
                 false,
             ),
@@ -349,7 +361,7 @@ pub fn refresh_watcher(app: &AppHandle, state: &MagicWatcherState) -> Result<(),
     *state
         .watcher
         .lock()
-        .map_err(|_| "Magic watcher state is unavailable.")? = if watched_count == 0 {
+        .map_err(|_| "Watched folder state is unavailable.")? = if watched_count == 0 {
         None
     } else {
         Some(watcher)
@@ -473,7 +485,7 @@ fn process_magic_path(app: &AppHandle, path: &Path, ignored_paths: &IgnoredPaths
         emit_event(
             app,
             "error",
-            "Magic directory has no available presets. Edit the rule before using it.".into(),
+            "Watched folder has no available presets. Edit the rule before using it.".into(),
             path_string(path),
             false,
         );
@@ -518,15 +530,15 @@ fn process_magic_path(app: &AppHandle, path: &Path, ignored_paths: &IgnoredPaths
     let (kind, message) = if failure_count == 0 {
         (
             "success",
-            format!("Magic directory converted {success_count} output(s)."),
+            format!("Watched folder converted {success_count} output(s)."),
         )
     } else if success_count > 0 {
         (
             "warning",
-            format!("Magic directory created {success_count} output(s); {failure_count} failed."),
+            format!("Watched folder created {success_count} output(s); {failure_count} failed."),
         )
     } else {
-        ("error", "Magic directory conversion failed.".into())
+        ("error", "Watched folder conversion failed.".into())
     };
     emit_event(app, kind, message, path_string(path), false);
 }
@@ -582,7 +594,10 @@ fn run_preset(
         &response.summary,
         started_at.elapsed().as_millis(),
     ) {
-        eprintln!("failed to update magic directory statistics: {error}");
+        eprintln!("failed to update watched folder statistics: {error}");
+    }
+    if let Err(error) = record_watched_folder_conversions(app, response.summary.success_count) {
+        eprintln!("failed to update watched folder usage statistics: {error}");
     }
 
     Ok((
@@ -635,7 +650,7 @@ fn emit_event(app: &AppHandle, kind: &str, message: String, path: Option<String>
             active,
         },
     ) {
-        eprintln!("failed to emit magic directory event: {error}");
+        eprintln!("failed to emit watched folder event: {error}");
     }
 }
 
@@ -673,6 +688,7 @@ mod tests {
             &mut connection,
             SaveMagicDirectoryRequest {
                 id: None,
+                name: "Incoming Photos".into(),
                 path: directory.to_string_lossy().to_string(),
                 formats: vec![
                     "SVG".into(),
@@ -689,6 +705,7 @@ mod tests {
         )
         .expect("saved magic directory");
 
+        assert_eq!(saved.name, "Incoming Photos");
         assert_eq!(saved.formats, vec!["svg", "jpeg", "png", "heic"]);
         assert_eq!(saved.preset_ids, vec![preset_id]);
         assert!(saved.enabled);
@@ -699,6 +716,30 @@ mod tests {
             1
         );
 
+        fs::remove_dir_all(directory).expect("remove temporary directory");
+    }
+
+    #[test]
+    fn requires_a_watched_folder_name() {
+        let mut connection = Connection::open_in_memory().expect("in-memory database");
+        initialize_schema(&mut connection).expect("schema");
+        let preset_id = insert_preset(&connection, "Named Watcher", "_named");
+        let directory = temporary_directory("requires-name");
+
+        let error = save_magic_directory_with_connection(
+            &mut connection,
+            SaveMagicDirectoryRequest {
+                id: None,
+                name: "   ".into(),
+                path: directory.to_string_lossy().to_string(),
+                formats: vec!["png".into()],
+                preset_ids: vec![preset_id],
+                enabled: true,
+            },
+        )
+        .expect_err("missing watched folder name");
+
+        assert!(error.to_string().contains("Enter a name"));
         fs::remove_dir_all(directory).expect("remove temporary directory");
     }
 
@@ -811,6 +852,7 @@ mod tests {
             &mut connection,
             SaveMagicDirectoryRequest {
                 id: None,
+                name: "Collision Test".into(),
                 path: directory.to_string_lossy().to_string(),
                 formats: vec!["svg".into()],
                 preset_ids: vec![first_id, second_id],

@@ -194,7 +194,7 @@ pub fn run() {
             let menu = Menu::default(app.handle())?;
             app.set_menu(menu)?;
             if let Err(error) = refresh_watcher(app.handle(), &app.state::<MagicWatcherState>()) {
-                eprintln!("failed to start magic directory watcher: {error}");
+                eprintln!("failed to start watched folder watcher: {error}");
             }
             Ok(())
         })

@@ -95,6 +95,9 @@ function cacheElements() {
     elements.statisticsAvif = document.querySelector('#statistics-avif');
     elements.statisticsJpeg = document.querySelector('#statistics-jpeg');
     elements.statisticsCliUses = document.querySelector('#statistics-cli-uses');
+    elements.statisticsWatchedFolderConversions = document.querySelector(
+        '#statistics-watched-folder-conversions',
+    );
     elements.statisticsInput = document.querySelector('#statistics-input');
     elements.statisticsOutput = document.querySelector('#statistics-output');
     elements.statisticsSaved = document.querySelector('#statistics-saved');
@@ -151,6 +154,7 @@ function cacheElements() {
     elements.magicForm = document.querySelector('#magic-form');
     elements.magicFormTitle = document.querySelector('#magic-form-title');
     elements.magicResetButton = document.querySelector('#magic-reset-button');
+    elements.magicNameInput = document.querySelector('#magic-name-input');
     elements.magicDirectoryPath = document.querySelector('#magic-directory-path');
     elements.magicChooseDirectoryButton = document.querySelector('#magic-choose-directory-button');
     elements.magicFormatOptions = [...document.querySelectorAll('.magic-format-option')];
@@ -362,6 +366,9 @@ function renderStatistics() {
     elements.statisticsAvif.textContent = String(statistics.avif);
     elements.statisticsJpeg.textContent = String(statistics.jpeg);
     elements.statisticsCliUses.textContent = String(statistics.cliUses);
+    elements.statisticsWatchedFolderConversions.textContent = String(
+        statistics.watchedFolderConversions,
+    );
     elements.statisticsInput.textContent = formatBytes(statistics.inputBytes);
     elements.statisticsOutput.textContent = formatBytes(statistics.outputBytes);
     elements.statisticsSaved.textContent = formatBytes(statistics.savedBytes);
@@ -479,6 +486,11 @@ function bindPresetEvents() {
 
     elements.magicResetButton.addEventListener('click', () => {
         state.magicDirectoryForm = buildEmptyMagicDirectoryForm();
+        render();
+    });
+
+    elements.magicNameInput.addEventListener('input', event => {
+        state.magicDirectoryForm.name = event.target.value;
         render();
     });
 
@@ -634,7 +646,7 @@ async function loadMagicDirectories(options = {}) {
     try {
         state.magicDirectories = await invoke('list_magic_directories');
     } catch (error) {
-        setMagicActivity('error', normaliseError(error, 'Unable to load magic directories.'));
+        setMagicActivity('error', normaliseError(error, 'Unable to load watched folders.'));
     } finally {
         state.magicDirectoriesLoading = false;
         render();
@@ -649,12 +661,12 @@ async function bindMagicDirectoryEvents() {
     try {
         await eventApi.listen('magic-directory-event', event => {
             const payload = event.payload ?? {};
-            setMagicActivity(payload.kind ?? 'info', payload.message ?? 'Magic directory activity updated.');
+            setMagicActivity(payload.kind ?? 'info', payload.message ?? 'Watched folder activity updated.');
             state.magicDirectoryChangeDetected = Boolean(payload.active);
             render();
         });
     } catch (error) {
-        setMagicActivity('error', normaliseError(error, 'Magic directory activity is unavailable.'));
+        setMagicActivity('error', normaliseError(error, 'Watched folder activity is unavailable.'));
         render();
     }
 }
@@ -817,7 +829,7 @@ async function chooseMagicDirectory() {
         state.magicDirectoryForm.path = path;
         render();
     } catch (error) {
-        setMagicActivity('error', normaliseError(error, 'Unable to choose a magic directory.'));
+        setMagicActivity('error', normaliseError(error, 'Unable to choose a watched folder.'));
         render();
     }
 }
@@ -902,11 +914,11 @@ async function saveMagicDirectoryForm() {
         setMagicActivity(
             'success',
             saved.enabled
-                ? `Magic directory "${saved.path}" saved and watching.`
-                : `Magic directory "${saved.path}" saved as disabled.`,
+                ? `Watched folder "${saved.name}" saved and watching.`
+                : `Watched folder "${saved.name}" saved as disabled.`,
         );
     } catch (error) {
-        setMagicActivity('error', normaliseError(error, 'Unable to save the magic directory.'));
+        setMagicActivity('error', normaliseError(error, 'Unable to save the watched folder.'));
     } finally {
         state.isMagicDirectorySaving = false;
         render();
@@ -918,7 +930,7 @@ async function deleteMagicDirectoryById(id) {
     if (!directory) {
         return;
     }
-    const message = ['Delete magic directory "', directory.path, '"?'].join('');
+    const message = ['Delete watched folder "', directory.name, '"?'].join('');
     if (!window.confirm(message)) {
         return;
     }
@@ -929,10 +941,10 @@ async function deleteMagicDirectoryById(id) {
         if (String(state.magicDirectoryForm.id) === String(id)) {
             state.magicDirectoryForm = buildEmptyMagicDirectoryForm();
         }
-        setMagicActivity('success', `Magic directory "${directory.path}" deleted.`);
+        setMagicActivity('success', `Watched folder "${directory.name}" deleted.`);
         render();
     } catch (error) {
-        setMagicActivity('error', normaliseError(error, 'Unable to delete the magic directory.'));
+        setMagicActivity('error', normaliseError(error, 'Unable to delete the watched folder.'));
         render();
     }
 }
@@ -1198,6 +1210,7 @@ function buildEmptyPresetForm(overrides = {}) {
 function buildEmptyMagicDirectoryForm(overrides = {}) {
     return {
         id: null,
+        name: '',
         path: '',
         formats: [],
         presetIds: [],
@@ -1209,6 +1222,7 @@ function buildEmptyMagicDirectoryForm(overrides = {}) {
 function buildMagicDirectoryFormFromDirectory(directory) {
     return buildEmptyMagicDirectoryForm({
         id: directory.id,
+        name: directory.name,
         path: directory.path,
         formats: [...directory.formats],
         presetIds: [...directory.presetIds],
@@ -1220,6 +1234,7 @@ function buildMagicDirectoryRequest() {
     const form = state.magicDirectoryForm;
     return {
         id: form.id,
+        name: form.name.trim(),
         path: form.path,
         formats: [...form.formats],
         presetIds: [...form.presetIds],
@@ -1229,8 +1244,11 @@ function buildMagicDirectoryRequest() {
 
 function validateMagicDirectoryForm() {
     const form = state.magicDirectoryForm;
+    if (!form.name.trim()) {
+        return 'Enter a name for the watched folder.';
+    }
     if (!form.path.trim()) {
-        return 'Choose a directory to watch.';
+        return 'Choose a folder to watch.';
     }
     if (!form.formats.length) {
         return 'Choose at least one file format to watch.';

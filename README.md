@@ -40,8 +40,8 @@ It is local-first, fast, and intentionally restrained.
 - Optional filename prefix or postfix (toggle between modes)
 - Output folder selection
 - Presets for saving reusable conversion settings
-- Magic Directories for automatically running presets when new JPEG, PNG, WEBP, AVIF, SVG, or HEIC files arrive
-- Terminal CLI for scripted conversion, preset and Magic Directory management, and statistics
+- Watched Folders for automatically running presets when new JPEG, PNG, WEBP, AVIF, SVG, or HEIC files arrive
+- Terminal CLI for scripted conversion, preset and Watched Folder management, and statistics
 - Collision-safe saving with `_1`, `_2`, and so on
 - Per-image and total savings analysis
 - Clear success, partial-success, and error feedback
@@ -57,17 +57,17 @@ Use `Convert` for normal batch conversion. Use `Presets` to create, edit, duplic
 
 ![BulkPixel presets view](/src/assets/mockups/presets_1920.webp)
 
-## Magic Directories
+## Watched Folders
 
-Magic Directories watch selected folders while BulkPixel is running. Choose one or more input formats and one or more presets. When a matching file is added directly to the folder, BulkPixel waits for the write to finish and applies every selected preset automatically.
+Watched Folders monitor selected folders while BulkPixel is running. Give each rule a name, choose one or more input formats and presets, and BulkPixel automatically applies those presets when a matching file arrives directly in the folder.
 
 Rules are stored alongside presets and statistics in BulkPixel's shared SQLite database. Generated outputs are ignored by the watcher to prevent conversion loops. When multiple presets are selected, each preset must use a unique non-empty prefix or postfix.
 
-![BulkPixel Magic Directories view](/src/assets/mockups/maagic_directory_1920.webp)
+![BulkPixel Watched Folders view](/src/assets/mockups/maagic_directory_1920.webp)
 
 ## Statistics
 
-Click the BulkPixel brand in the app header to open the hidden statistics panel. It shows the same conversion totals, CLI usage, storage savings, processing time, and timeline as `bulkpixel stats` in the CLI.
+Click the BulkPixel brand in the app header to open the hidden statistics panel. It shows the same conversion totals, CLI usage, Watched Folder conversions, storage savings, processing time, and timeline as `bulkpixel stats` in the CLI.
 
 ![BulkPixel statistics view](/src/assets/mockups/statistics_1920.webp)
 

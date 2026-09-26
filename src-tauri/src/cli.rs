@@ -30,10 +30,10 @@ Usage:
   bulkpixel presets create --name <name> --output-dir <dir> --format <format> [options]
   bulkpixel presets update --name <name> [options]
   bulkpixel presets delete --name <name>
-  bulkpixel magic-directories list
-  bulkpixel magic-directories create --path <dir> --formats <format...> --presets <name...>
-  bulkpixel magic-directories update --id <id> [options]
-  bulkpixel magic-directories delete --id <id>
+  bulkpixel watched-folders list
+  bulkpixel watched-folders create --name <name> --path <dir> --formats <format...> --presets <name...>
+  bulkpixel watched-folders update --id <id> [options]
+  bulkpixel watched-folders delete --id <id>
   bulkpixel stats
   bulkpixel --help
   bulkpixel --version
@@ -79,6 +79,7 @@ struct PresetOptions {
 #[derive(Debug, Default)]
 struct MagicDirectoryOptions {
     id: Option<String>,
+    name: Option<String>,
     path: Option<String>,
     formats: Vec<String>,
     preset_names: Vec<String>,
@@ -120,7 +121,7 @@ fn execute(args: Vec<String>) -> Result<i32, String> {
     match args[0].as_str() {
         "convert" => handle_convert(&args[1..]),
         "presets" => handle_presets(&args[1..]),
-        "magic-directories" => handle_magic_directories(&args[1..]),
+        "watched-folders" | "magic-directories" => handle_magic_directories(&args[1..]),
         "stats" => handle_stats(&args[1..]),
         command => Err(format!("Unknown command: {command}")),
     }
@@ -128,7 +129,7 @@ fn execute(args: Vec<String>) -> Result<i32, String> {
 
 fn handle_magic_directories(args: &[String]) -> Result<i32, String> {
     let Some(command) = args.first() else {
-        return Err("Missing magic-directories command.".into());
+        return Err("Missing watched-folders command.".into());
     };
     if command == "--help" || command == "-h" {
         println!("{HELP_TEXT}");
@@ -147,7 +148,7 @@ fn handle_magic_directories(args: &[String]) -> Result<i32, String> {
             let request = build_create_magic_directory_request(options)?;
             let directory =
                 save_magic_directory_for_cli(request).map_err(|error| error.to_string())?;
-            println!("Magic directory created: {}", directory.path);
+            println!("Watched folder created: {}", directory.name);
             Ok(0)
         }
         "update" => {
@@ -155,17 +156,17 @@ fn handle_magic_directories(args: &[String]) -> Result<i32, String> {
             let request = build_update_magic_directory_request(options)?;
             let directory =
                 save_magic_directory_for_cli(request).map_err(|error| error.to_string())?;
-            println!("Magic directory updated: {}", directory.path);
+            println!("Watched folder updated: {}", directory.name);
             Ok(0)
         }
         "delete" => {
             let options = parse_magic_directory_options(&args[1..])?;
             let id = parse_magic_directory_id(options.id.as_deref())?;
             delete_magic_directory_for_cli(id).map_err(|error| error.to_string())?;
-            println!("Magic directory deleted: {id}");
+            println!("Watched folder deleted: {id}");
             Ok(0)
         }
-        other => Err(format!("Unknown magic-directories command: {other}")),
+        other => Err(format!("Unknown watched-folders command: {other}")),
     }
 }
 
@@ -481,6 +482,11 @@ fn parse_magic_directory_options(args: &[String]) -> Result<MagicDirectoryOption
                 options.id = Some(value);
                 index = next_index;
             }
+            "--name" => {
+                let (value, next_index) = take_one_value(args, index)?;
+                options.name = Some(value);
+                index = next_index;
+            }
             "--path" => {
                 let (value, next_index) = take_one_value(args, index)?;
                 options.path = Some(value);
@@ -510,7 +516,7 @@ fn parse_magic_directory_options(args: &[String]) -> Result<MagicDirectoryOption
                 options.enabled = Some(false);
                 index += 1;
             }
-            flag => return Err(format!("Unknown magic-directories flag: {flag}")),
+            flag => return Err(format!("Unknown watched-folders flag: {flag}")),
         }
     }
 
@@ -520,6 +526,9 @@ fn parse_magic_directory_options(args: &[String]) -> Result<MagicDirectoryOption
 fn build_create_magic_directory_request(
     options: MagicDirectoryOptions,
 ) -> Result<SaveMagicDirectoryRequest, String> {
+    let name = options
+        .name
+        .ok_or_else(|| "--name is required.".to_string())?;
     let path = options
         .path
         .ok_or_else(|| "--path is required.".to_string())?;
@@ -533,6 +542,7 @@ fn build_create_magic_directory_request(
 
     Ok(SaveMagicDirectoryRequest {
         id: None,
+        name,
         path,
         formats: options.formats,
         preset_ids: presets.into_iter().map(|preset| preset.id).collect(),
@@ -548,7 +558,7 @@ fn build_update_magic_directory_request(
         .map_err(|error| error.to_string())?
         .into_iter()
         .find(|directory| directory.id == id)
-        .ok_or_else(|| "Magic directory not found.".to_string())?;
+        .ok_or_else(|| "Watched folder not found.".to_string())?;
     let preset_ids = if options.preset_names.is_empty() {
         existing.preset_ids
     } else {
@@ -561,6 +571,7 @@ fn build_update_magic_directory_request(
 
     Ok(SaveMagicDirectoryRequest {
         id: Some(id),
+        name: options.name.unwrap_or(existing.name),
         path: options.path.unwrap_or(existing.path),
         formats: if options.formats.is_empty() {
             existing.formats
@@ -1009,7 +1020,7 @@ fn print_presets(presets: &[ConversionPreset]) {
 }
 
 fn print_magic_directories(directories: &[MagicDirectory]) {
-    println!("BulkPixel Magic Directories ({})", directories.len());
+    println!("BulkPixel Watched Folders ({})", directories.len());
     println!("-----------------------------");
 
     for (index, directory) in directories.iter().enumerate() {
@@ -1017,6 +1028,7 @@ fn print_magic_directories(directories: &[MagicDirectory]) {
             println!();
         }
         println!("ID: {}", directory.id);
+        println!("Name: {}", directory.name);
         println!("Path: {}", directory.path);
         println!(
             "Status: {}",
@@ -1063,6 +1075,10 @@ fn print_statistics(statistics: &ConversionStatistics) {
     println!();
     println!("Usage");
     println!("CLI Uses: {}", statistics.cli_uses);
+    println!(
+        "Watched Folder Conversions: {}",
+        statistics.watched_folder_conversions
+    );
     println!();
     println!("Storage");
     println!("Input: {}", format_bytes_i64(statistics.input_bytes));
@@ -1162,5 +1178,12 @@ mod tests {
     #[test]
     fn help_includes_the_package_version() {
         assert!(HELP_TEXT.starts_with(&format!("BulkPixel CLI {}", env!("CARGO_PKG_VERSION"))));
+    }
+
+    #[test]
+    fn help_documents_watched_folder_names() {
+        assert!(HELP_TEXT.contains("bulkpixel watched-folders list"));
+        assert!(HELP_TEXT.contains("watched-folders create --name <name>"));
+        assert!(!HELP_TEXT.contains("Magic Directories"));
     }
 }

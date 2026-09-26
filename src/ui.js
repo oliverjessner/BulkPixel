@@ -39,8 +39,8 @@ export function buildGlobalWatcherStatus(state) {
     if (activity.kind === 'error') {
         return {
             kind: 'error',
-            label: 'Watcher error',
-            detail: activity.text || 'Magic Directory watcher error.',
+            label: 'Watched folder error',
+            detail: activity.text || 'Watched folder error.',
             activeCount,
         };
     }
@@ -49,7 +49,7 @@ export function buildGlobalWatcherStatus(state) {
         return {
             kind: 'processing',
             label: activeCount ? `Processing · ${pluralize('folder', activeCount)}` : 'Processing',
-            detail: activity.text || 'Processing files from Magic Directories.',
+            detail: activity.text || 'Processing files from watched folders.',
             activeCount,
         };
     }
@@ -58,7 +58,7 @@ export function buildGlobalWatcherStatus(state) {
         return {
             kind: 'watching',
             label: `Watching ${pluralize('folder', activeCount)}`,
-            detail: 'Magic Directories are active while BulkPixel is open.',
+            detail: 'Watched folders are active while BulkPixel is open.',
             activeCount,
         };
     }
@@ -67,7 +67,7 @@ export function buildGlobalWatcherStatus(state) {
         return {
             kind: 'idle',
             label: 'No active folders',
-            detail: 'All configured Magic Directories are disabled.',
+            detail: 'All configured watched folders are disabled.',
             activeCount,
         };
     }
@@ -75,7 +75,7 @@ export function buildGlobalWatcherStatus(state) {
     return {
         kind: 'idle',
         label: 'No watched folders',
-        detail: 'No Magic Directories are configured.',
+        detail: 'No watched folders are configured.',
         activeCount,
     };
 }
@@ -159,7 +159,9 @@ function renderMagicDirectoryForm(state, elements) {
     const form = state.magicDirectoryForm;
     const isSaving = state.isMagicDirectorySaving;
 
-    elements.magicFormTitle.textContent = form.id ? 'Edit Magic Directory' : 'Add Magic Directory';
+    elements.magicFormTitle.textContent = form.id ? 'Edit Watched Folder' : 'Add Watched Folder';
+    elements.magicNameInput.value = form.name;
+    elements.magicNameInput.disabled = isSaving;
     elements.magicDirectoryPath.textContent = form.path || 'Choose a directory to watch...';
     elements.magicDirectoryPath.title = form.path;
     elements.magicChooseDirectoryButton.disabled = isSaving;
@@ -174,7 +176,7 @@ function renderMagicDirectoryForm(state, elements) {
 
     if (!state.presets.length) {
         elements.magicPresetOptions.replaceChildren(
-            buildPresetEmptyState('Create a preset before adding a magic directory.'),
+            buildPresetEmptyState('Create a preset before adding a watched folder.'),
         );
     } else {
         elements.magicPresetOptions.replaceChildren(
@@ -189,10 +191,10 @@ function renderMagicDirectoryForm(state, elements) {
     elements.magicEnabledButton.disabled = isSaving;
     elements.magicSaveButton.disabled = isSaving || !state.presets.length;
     elements.magicSaveButton.textContent = isSaving
-        ? 'Saving Magic Directory...'
+        ? 'Saving Watched Folder...'
         : form.id
-          ? 'Update Magic Directory'
-          : 'Save Magic Directory';
+          ? 'Update Watched Folder'
+          : 'Save Watched Folder';
 }
 
 function renderMagicDirectoryList(state, elements) {
@@ -201,11 +203,11 @@ function renderMagicDirectoryList(state, elements) {
     elements.magicActivity.dataset.kind = state.magicActivity.kind;
 
     if (state.magicDirectoriesLoading) {
-        elements.magicList.replaceChildren(buildPresetEmptyState('Loading magic directories...'));
+        elements.magicList.replaceChildren(buildPresetEmptyState('Loading watched folders...'));
         return;
     }
     if (!state.magicDirectories.length) {
-        elements.magicList.replaceChildren(buildPresetEmptyState('No magic directories saved yet.'));
+        elements.magicList.replaceChildren(buildPresetEmptyState('No watched folders saved yet.'));
         return;
     }
     elements.magicList.replaceChildren(
@@ -660,7 +662,7 @@ function buildMagicDirectoryCard(directory, presets) {
     const body = document.createElement('div');
     body.className = 'preset-card-body';
     const title = document.createElement('h4');
-    title.textContent = directoryName(directory.path);
+    title.textContent = directory.name;
     const status = document.createElement('p');
     status.className = directory.enabled ? 'magic-status-enabled' : 'magic-status-disabled';
     status.textContent = directory.enabled ? 'Watching' : 'Disabled';
@@ -697,10 +699,6 @@ function buildMagicActionButton(action, id, label) {
     button.dataset.magicDirectoryId = String(id);
     button.textContent = label;
     return button;
-}
-
-function directoryName(path) {
-    return path.split(/[\\/]/).filter(Boolean).pop() || path;
 }
 
 function buildPresetEmptyState(message) {

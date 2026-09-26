@@ -1,14 +1,15 @@
 # 3.0.0
 
 - Resolve Dependabot security alerts by updating affected Rust and Tauri dependencies.
-- Add JPEG and JPG support to Magic Directories, including migration of existing watcher configurations.
-- Add native HEIC and HEIF import across the desktop app, CLI, Finder integration, and Magic Directories, with orientation handling, sRGB color management, and highlight-preserving SDR output for HDR source images.
+- Add JPEG and JPG support to Watched Folders, including migration of existing watcher configurations.
+- Add native HEIC and HEIF import across the desktop app, CLI, Finder integration, and Watched Folders, with orientation handling, sRGB color management, and highlight-preserving SDR output for HDR source images.
 - Preserve 16-bit channel depth when exporting PNG files, including resized images, instead of always reducing them to 8-bit RGBA.
-- Document import, export, and Magic Directory compatibility in a central supported-formats matrix.
+- Document import, export, and Watched Folder compatibility in a central supported-formats matrix.
 - the command --help shows the version
 - screenshots are automated
 - click on the image opens a modal window for infos like exif
-- statistics tracks the magic directory convertions
+- Rename the automatic-folder feature to Watched Folders and add required names to every rule.
+- Track successful Watched Folder conversions in shared statistics.
 
 ## UX overhaul
 
@@ -36,9 +37,9 @@ to
 
 # 2.1.0
 
-- Magic Directories for automatic preset-based conversion
-- show Magic Directory activity in the app header
-- migrate early Magic Directory database schemas without losing preset links
+- Watched Folders for automatic preset-based conversion
+- show Watched Folder activity in the app header
+- migrate early Watched Folder database schemas without losing preset links
 - SVG import support
 - itworksbut fix
 

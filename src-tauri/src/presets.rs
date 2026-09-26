@@ -56,6 +56,9 @@ const CREATE_STATISTICS_TABLE_SQL: &str = "
         cli_uses INTEGER NOT NULL DEFAULT 0
             CHECK (cli_uses >= 0),
 
+        watched_folder_conversions INTEGER NOT NULL DEFAULT 0
+            CHECK (watched_folder_conversions >= 0),
+
         webp INTEGER NOT NULL DEFAULT 0
             CHECK (webp >= 0),
 
@@ -87,6 +90,8 @@ const CREATE_STATISTICS_TABLE_SQL: &str = "
 const CREATE_MAGIC_DIRECTORIES_TABLE_SQL: &str = "
     CREATE TABLE IF NOT EXISTS magic_directories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL DEFAULT 'Watched Folder'
+            CHECK (length(trim(name)) > 0),
         path TEXT NOT NULL UNIQUE
             CHECK (length(trim(path)) > 0),
         enabled INTEGER NOT NULL DEFAULT 1
@@ -299,10 +304,35 @@ pub fn record_cli_usage_for_cli() -> Result<(), PresetError> {
     record_cli_usage_with_connection(&connection)
 }
 
+pub fn record_watched_folder_conversions(
+    app: &AppHandle,
+    conversion_count: usize,
+) -> Result<(), PresetError> {
+    if conversion_count == 0 {
+        return Ok(());
+    }
+
+    let connection = open_connection(app)?;
+    record_watched_folder_conversions_with_connection(&connection, conversion_count)
+}
+
 fn record_cli_usage_with_connection(connection: &Connection) -> Result<(), PresetError> {
     connection.execute(
         "UPDATE statistics SET cli_uses = cli_uses + 1 WHERE id = 1",
         [],
+    )?;
+    Ok(())
+}
+
+fn record_watched_folder_conversions_with_connection(
+    connection: &Connection,
+    conversion_count: usize,
+) -> Result<(), PresetError> {
+    connection.execute(
+        "UPDATE statistics
+         SET watched_folder_conversions = watched_folder_conversions + ?1
+         WHERE id = 1",
+        params![saturating_i64_from_usize(conversion_count)],
     )?;
     Ok(())
 }
@@ -356,7 +386,8 @@ fn load_statistics_with_connection(
 ) -> Result<ConversionStatistics, PresetError> {
     connection
         .query_row(
-            "SELECT amount, cli_uses, webp, avif, jpeg, png, input_bytes, output_bytes,
+            "SELECT amount, cli_uses, watched_folder_conversions,
+                    webp, avif, jpeg, png, input_bytes, output_bytes,
                     processing_time_ms, saved_bytes, created_at, last_conversion_at
              FROM statistics
              WHERE id = 1",
@@ -365,16 +396,17 @@ fn load_statistics_with_connection(
                 Ok(ConversionStatistics {
                     amount: row.get(0)?,
                     cli_uses: row.get(1)?,
-                    webp: row.get(2)?,
-                    avif: row.get(3)?,
-                    jpeg: row.get(4)?,
-                    png: row.get(5)?,
-                    input_bytes: row.get(6)?,
-                    output_bytes: row.get(7)?,
-                    processing_time_ms: row.get(8)?,
-                    saved_bytes: row.get(9)?,
-                    created_at: row.get(10)?,
-                    last_conversion_at: row.get(11)?,
+                    watched_folder_conversions: row.get(2)?,
+                    webp: row.get(3)?,
+                    avif: row.get(4)?,
+                    jpeg: row.get(5)?,
+                    png: row.get(6)?,
+                    input_bytes: row.get(7)?,
+                    output_bytes: row.get(8)?,
+                    processing_time_ms: row.get(9)?,
+                    saved_bytes: row.get(10)?,
+                    created_at: row.get(11)?,
+                    last_conversion_at: row.get(12)?,
                 })
             },
         )
@@ -435,10 +467,34 @@ pub(crate) fn initialize_schema(connection: &mut Connection) -> Result<(), Prese
 
     initialize_statistics_schema(connection)?;
     connection.execute_batch(CREATE_MAGIC_DIRECTORIES_TABLE_SQL)?;
+    migrate_magic_directories_schema(connection)?;
     connection.execute_batch(CREATE_MAGIC_DIRECTORY_FORMATS_TABLE_SQL)?;
     connection.execute_batch(CREATE_MAGIC_DIRECTORY_PRESETS_TABLE_SQL)?;
     migrate_magic_directory_formats_schema(connection)?;
     migrate_magic_directory_presets_schema(connection)?;
+
+    Ok(())
+}
+
+fn migrate_magic_directories_schema(connection: &Connection) -> Result<(), PresetError> {
+    let mut statement = connection.prepare("PRAGMA table_info(magic_directories)")?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+    drop(statement);
+
+    if !columns.iter().any(|column| column == "name") {
+        connection.execute(
+            "ALTER TABLE magic_directories
+             ADD COLUMN name TEXT NOT NULL DEFAULT 'Watched Folder'
+             CHECK (length(trim(name)) > 0)",
+            [],
+        )?;
+        connection.execute(
+            "UPDATE magic_directories SET name = 'Watched Folder ' || id",
+            [],
+        )?;
+    }
 
     Ok(())
 }
@@ -523,6 +579,18 @@ fn initialize_statistics_schema(connection: &Connection) -> Result<(), PresetErr
         connection.execute(
             "ALTER TABLE statistics
              ADD COLUMN cli_uses INTEGER NOT NULL DEFAULT 0 CHECK (cli_uses >= 0)",
+            [],
+        )?;
+    }
+
+    if !columns
+        .iter()
+        .any(|column| column == "watched_folder_conversions")
+    {
+        connection.execute(
+            "ALTER TABLE statistics
+             ADD COLUMN watched_folder_conversions INTEGER NOT NULL DEFAULT 0
+             CHECK (watched_folder_conversions >= 0)",
             [],
         )?;
     }
@@ -719,9 +787,38 @@ mod tests {
     use rusqlite::Connection;
 
     use super::{
-        initialize_statistics_schema, load_statistics_with_connection,
-        record_cli_usage_with_connection,
+        initialize_schema, initialize_statistics_schema, load_statistics_with_connection,
+        record_cli_usage_with_connection, record_watched_folder_conversions_with_connection,
     };
+
+    #[test]
+    fn adds_names_to_existing_watched_folders() {
+        let mut connection = Connection::open_in_memory().expect("database");
+        connection
+            .execute_batch(
+                "CREATE TABLE magic_directories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    path TEXT NOT NULL UNIQUE CHECK (length(trim(path)) > 0),
+                    enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO magic_directories (path, enabled)
+                VALUES ('/tmp/legacy-watched-folder', 1);",
+            )
+            .expect("legacy watched folder schema");
+
+        initialize_schema(&mut connection).expect("migration");
+
+        let name: String = connection
+            .query_row(
+                "SELECT name FROM magic_directories WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .expect("migrated name");
+        assert_eq!(name, "Watched Folder 1");
+    }
 
     #[test]
     fn migrates_cli_usage_without_resetting_existing_statistics() {
@@ -761,13 +858,17 @@ mod tests {
 
         assert_eq!(statistics.amount, 10);
         assert_eq!(statistics.cli_uses, 0);
+        assert_eq!(statistics.watched_folder_conversions, 0);
         assert_eq!(statistics.saved_bytes, 400);
 
         record_cli_usage_with_connection(&connection).expect("first CLI use");
         record_cli_usage_with_connection(&connection).expect("second CLI use");
+        record_watched_folder_conversions_with_connection(&connection, 3)
+            .expect("watched folder conversions");
 
         let statistics = load_statistics_with_connection(&connection).expect("updated statistics");
         assert_eq!(statistics.amount, 10);
         assert_eq!(statistics.cli_uses, 2);
+        assert_eq!(statistics.watched_folder_conversions, 3);
     }
 }
