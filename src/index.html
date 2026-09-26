@@ -97,20 +97,34 @@
 
                         <div class="field-group">
                             <span class="settings-section-label">Size</span>
-                            <div class="field-row label-row">
-                                <span class="field-label">Original Resolution</span>
-                                <button
-                                    id="resize-reference"
-                                    class="value-badge reference-reset-button"
-                                    type="button"
-                                    aria-label="Reset dimensions to reference resolution"
-                                >
-                                    Waiting for images
+                            <div
+                                id="resize-mode-toggle"
+                                class="filename-toggle-group resize-mode-toggle"
+                                role="radiogroup"
+                                aria-label="Resize mode"
+                            >
+                                <button type="button" class="toggle-button" data-mode="none" aria-pressed="true">
+                                    Original
+                                </button>
+                                <button type="button" class="toggle-button" data-mode="width" aria-pressed="false">
+                                    Width
+                                </button>
+                                <button type="button" class="toggle-button" data-mode="height" aria-pressed="false">
+                                    Height
                                 </button>
                             </div>
-                            <div class="field-row split">
-                                <label class="field" for="width-input">
-                                    <span class="field-label">Width</span>
+
+                            <div id="resize-original-state" class="resize-information">
+                                <div class="resize-information-row">
+                                    <span class="field-label">Original size</span>
+                                    <strong id="resize-reference" class="resize-dimension-value">Waiting for images</strong>
+                                </div>
+                                <p id="resize-reference-note" class="resize-context-note" hidden></p>
+                            </div>
+
+                            <label id="width-control" class="field resize-dimension-control" for="width-input" hidden>
+                                <span class="field-label">Width</span>
+                                <span class="resize-input-row">
                                     <input
                                         id="width-input"
                                         type="number"
@@ -120,9 +134,13 @@
                                         step="1"
                                         placeholder="Leave empty"
                                     />
-                                </label>
-                                <label class="field" for="height-input">
-                                    <span class="field-label">Height</span>
+                                    <span class="resize-unit" aria-hidden="true">px</span>
+                                </span>
+                            </label>
+
+                            <label id="height-control" class="field resize-dimension-control" for="height-input" hidden>
+                                <span class="field-label">Height</span>
+                                <span class="resize-input-row">
                                     <input
                                         id="height-input"
                                         type="number"
@@ -132,9 +150,18 @@
                                         step="1"
                                         placeholder="Leave empty"
                                     />
-                                </label>
+                                    <span class="resize-unit" aria-hidden="true">px</span>
+                                </span>
+                            </label>
+
+                            <div id="resize-output-preview" class="resize-information" hidden>
+                                <div class="resize-information-row">
+                                    <span class="field-label">Output size</span>
+                                    <strong id="resize-output-value" class="resize-dimension-value"></strong>
+                                </div>
+                                <p id="resize-output-note" class="resize-context-note" hidden></p>
                             </div>
-                            <p id="resize-helper" class="field-helper">Aspect ratio is preserved automatically</p>
+                            <p id="resize-helper" class="field-helper">Images keep their original size.</p>
                         </div>
 
                         <div class="field-group">
@@ -205,7 +232,7 @@
                                     <h3 id="preset-form-title">Create Preset</h3>
                                 </div>
                                 <button id="preset-reset-button" class="button secondary compact" type="button">
-                                    Clear
+                                    New preset
                                 </button>
                             </div>
 

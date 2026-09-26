@@ -105,9 +105,17 @@ function cacheElements() {
     elements.dropzoneTitle = document.querySelector('#dropzone-title');
     elements.presetSelect = document.querySelector('#preset-select');
     elements.formatOptions = [...document.querySelectorAll('#format-toggle .format-option')];
+    elements.resizeModeOptions = [...document.querySelectorAll('#resize-mode-toggle .toggle-button')];
+    elements.resizeOriginalState = document.querySelector('#resize-original-state');
     elements.widthInput = document.querySelector('#width-input');
+    elements.widthControl = document.querySelector('#width-control');
     elements.heightInput = document.querySelector('#height-input');
+    elements.heightControl = document.querySelector('#height-control');
     elements.resizeReference = document.querySelector('#resize-reference');
+    elements.resizeReferenceNote = document.querySelector('#resize-reference-note');
+    elements.resizeOutputPreview = document.querySelector('#resize-output-preview');
+    elements.resizeOutputValue = document.querySelector('#resize-output-value');
+    elements.resizeOutputNote = document.querySelector('#resize-output-note');
     elements.resizeHelper = document.querySelector('#resize-helper');
     elements.qualitySlider = document.querySelector('#quality-slider');
     elements.qualityValue = document.querySelector('#quality-value');
@@ -219,30 +227,17 @@ function bindEvents() {
         applyPresetSelection(event.target.value);
     });
 
-    elements.resizeReference.addEventListener('click', () => {
-        if (state.isProcessing || !state.resizeReference) {
-            return;
-        }
-
-        state.resizeMode = 'none';
-        syncResizeReference();
-        markPresetCustom();
-        clearResults();
-        validateState();
-        render();
+    elements.resizeModeOptions.forEach(button => {
+        button.addEventListener('click', () => {
+            selectResizeMode(button.dataset.mode);
+        });
     });
 
     elements.widthInput.addEventListener('input', event => {
         const nextValue = sanitizeNumberInput(event.target.value);
-
-        if (!nextValue) {
-            state.resizeMode = 'none';
-            syncResizeReference();
-        } else {
-            state.resizeMode = 'width';
-            state.width = nextValue;
-            state.height = derivePairedDimension('width', nextValue);
-        }
+        state.resizeMode = 'width';
+        state.width = nextValue;
+        state.height = nextValue ? derivePairedDimension('width', nextValue) : '';
 
         markPresetCustom();
         clearResults();
@@ -252,15 +247,9 @@ function bindEvents() {
 
     elements.heightInput.addEventListener('input', event => {
         const nextValue = sanitizeNumberInput(event.target.value);
-
-        if (!nextValue) {
-            state.resizeMode = 'none';
-            syncResizeReference();
-        } else {
-            state.resizeMode = 'height';
-            state.height = nextValue;
-            state.width = derivePairedDimension('height', nextValue);
-        }
+        state.resizeMode = 'height';
+        state.height = nextValue;
+        state.width = nextValue ? derivePairedDimension('height', nextValue) : '';
 
         markPresetCustom();
         clearResults();
@@ -1343,6 +1332,45 @@ function clearResults() {
     state.results = [];
     state.summary = null;
     state.images = state.images.map(image => ({ ...image, result: null }));
+}
+
+function selectResizeMode(value) {
+    if (state.isProcessing) {
+        return;
+    }
+
+    const nextMode = normalizeResizeMode(value);
+    if (nextMode === state.resizeMode) {
+        return;
+    }
+
+    if (nextMode === 'none') {
+        state.resizeMode = 'none';
+        syncResizeReference();
+    } else if (nextMode === 'width') {
+        const nextWidth = resizeStartingValue(state.width, state.resizeReference?.width);
+        state.resizeMode = 'width';
+        state.width = nextWidth;
+        state.height = nextWidth ? derivePairedDimension('width', nextWidth) : '';
+    } else {
+        const nextHeight = resizeStartingValue(state.height, state.resizeReference?.height);
+        state.resizeMode = 'height';
+        state.height = nextHeight;
+        state.width = nextHeight ? derivePairedDimension('height', nextHeight) : '';
+    }
+
+    markPresetCustom();
+    clearResults();
+    validateState();
+    render();
+}
+
+function resizeStartingValue(currentValue, referenceValue) {
+    if (isValidResizeDimension(currentValue)) {
+        return String(currentValue);
+    }
+
+    return isValidResizeDimension(referenceValue) ? String(referenceValue) : '';
 }
 
 function syncResizeReference() {

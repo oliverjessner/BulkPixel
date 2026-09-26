@@ -29,14 +29,32 @@ function renderControls(state, elements) {
         option.disabled = state.isProcessing;
     }
 
-    elements.widthInput.value = state.width;
-    elements.heightInput.value = state.height;
-    elements.widthInput.disabled = state.isProcessing;
-    elements.heightInput.disabled = state.isProcessing;
-    elements.widthInput.classList.toggle('is-reference-value', state.resizeMode === 'none');
-    elements.heightInput.classList.toggle('is-reference-value', state.resizeMode === 'none');
+    for (const option of elements.resizeModeOptions) {
+        const isActive = option.dataset.mode === state.resizeMode;
+        option.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        option.disabled = state.isProcessing;
+    }
+
+    const isOriginalSize = state.resizeMode === 'none';
+    const isWidthResize = state.resizeMode === 'width';
+    const isHeightResize = state.resizeMode === 'height';
+    elements.resizeOriginalState.hidden = !isOriginalSize;
+    elements.widthControl.hidden = !isWidthResize;
+    elements.heightControl.hidden = !isHeightResize;
+    elements.widthInput.value = isWidthResize ? state.width : '';
+    elements.heightInput.value = isHeightResize ? state.height : '';
+    elements.widthInput.disabled = state.isProcessing || !isWidthResize;
+    elements.heightInput.disabled = state.isProcessing || !isHeightResize;
     elements.resizeReference.textContent = buildResizeReferenceText(state);
-    elements.resizeReference.disabled = state.isProcessing || !state.resizeReference;
+    const referenceNote = buildResizeReferenceNote(state);
+    elements.resizeReferenceNote.textContent = referenceNote;
+    elements.resizeReferenceNote.hidden = !referenceNote;
+    const outputSize = buildResizeOutputText(state);
+    elements.resizeOutputPreview.hidden = isOriginalSize || !outputSize;
+    elements.resizeOutputValue.textContent = outputSize;
+    const outputNote = state.resizeReference?.mixedSizes ? 'Reference based on first image' : '';
+    elements.resizeOutputNote.textContent = outputNote;
+    elements.resizeOutputNote.hidden = !outputNote;
     elements.resizeHelper.textContent = state.validationMessage || buildResizeHelperText(state);
     elements.resizeHelper.classList.toggle('is-error', Boolean(state.validationMessage));
 
@@ -477,31 +495,36 @@ function buildPreviewResult(result) {
     return resultElement;
 }
 
-function buildResizeReferenceText(state) {
+export function buildResizeReferenceText(state) {
     if (!state.resizeReference) {
         return 'Waiting for images';
     }
 
-    const base = formatDimensions(state.resizeReference.width, state.resizeReference.height);
-    return state.resizeReference.mixedSizes ? `${base} from first image` : `${base} reference`;
+    return formatDimensions(state.resizeReference.width, state.resizeReference.height);
 }
 
-function buildResizeHelperText(state) {
-    if (!state.images.length) {
-        return 'Aspect ratio is preserved automatically';
+export function buildResizeReferenceNote(state) {
+    return state.resizeReference?.mixedSizes ? 'Based on first image' : '';
+}
+
+export function buildResizeOutputText(state) {
+    if (!state.resizeReference || state.resizeMode === 'none' || !state.width || !state.height) {
+        return '';
     }
 
+    return formatDimensions(state.width, state.height);
+}
+
+export function buildResizeHelperText(state) {
     if (state.resizeMode === 'width') {
-        return 'Height is calculated automatically for every image.';
+        return 'Height is calculated automatically.';
     }
 
     if (state.resizeMode === 'height') {
-        return 'Width is calculated automatically for every image.';
+        return 'Width is calculated automatically.';
     }
 
-    return state.resizeReference?.mixedSizes
-        ? 'Original values are loaded from the first image. Edit either width or height to resize.'
-        : 'Original values are loaded. Edit either width or height to resize.';
+    return 'Images keep their original size.';
 }
 
 function buildPresetResolutionText(preset) {
