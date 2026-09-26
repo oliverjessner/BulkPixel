@@ -5,12 +5,28 @@ import {
     buildConversionActionBar,
     buildConversionJobSummary,
     buildGlobalWatcherStatus,
+    buildImageLibraryMeta,
     buildInputFormatSummary,
     buildPresetLibrarySummary,
     buildResizeInputState,
     buildResizeSummary,
     getTotalInputSize,
 } from '../src/ui.js';
+
+test('summarizes the loaded image count and total input size', () => {
+    assert.equal(
+        buildImageLibraryMeta([{ fileSize: 1024 * 1024 }]),
+        '1 Image · 1.0 MB total',
+    );
+    assert.equal(
+        buildImageLibraryMeta([{ fileSize: 1024 }, { fileSize: 2 * 1024 }]),
+        '2 Images · 3.0 KB total',
+    );
+    assert.equal(
+        buildImageLibraryMeta([{ fileSize: 1024 }, { fileSize: undefined }]),
+        '2 Images',
+    );
+});
 
 function buildActionBarState(overrides = {}) {
     return {

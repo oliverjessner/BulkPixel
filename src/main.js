@@ -105,6 +105,8 @@ function cacheElements() {
     elements.appModeButtons = [...document.querySelectorAll('.app-mode-button')];
     elements.dropzone = document.querySelector('#dropzone');
     elements.dropzoneTitle = document.querySelector('#dropzone-title');
+    elements.imagesView = document.querySelector('#images-view');
+    elements.loadedDropOverlay = document.querySelector('#loaded-drop-overlay');
     elements.presetSelect = document.querySelector('#preset-select');
     elements.formatOptions = [...document.querySelectorAll('#format-toggle .format-option')];
     elements.resizeModeOptions = [...document.querySelectorAll('#resize-mode-toggle .toggle-button')];

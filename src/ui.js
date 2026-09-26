@@ -81,9 +81,13 @@ export function buildGlobalWatcherStatus(state) {
 }
 
 function renderControls(state, elements) {
+    const hasImages = state.images.length > 0;
+    elements.dropzone.hidden = hasImages;
+    elements.imagesView.hidden = !hasImages;
+    elements.loadedDropOverlay.hidden = !hasImages || !state.dragActive;
     elements.dropzone.classList.toggle('is-active', state.dragActive);
     elements.dropzone.disabled = state.isProcessing || state.isImporting;
-    elements.dropzoneTitle.textContent = state.images.length ? 'Drop more images here' : 'Drop images here';
+    elements.dropzoneTitle.textContent = state.dragActive ? 'Drop images to add them' : 'Drop images here';
 
     for (const option of elements.formatOptions) {
         const isActive = option.dataset.format === state.format;
@@ -132,11 +136,8 @@ function renderControls(state, elements) {
     elements.chooseFolderButton.disabled = state.isProcessing;
     elements.showOutputFolderButton.disabled = !state.outputDirectory;
 
-    const hasImages = state.images.length > 0;
-    elements.addImagesButton.disabled = state.isProcessing;
-    elements.previewMeta.textContent = hasImages
-        ? `${pluralize('image', state.images.length)} loaded`
-        : 'No images added yet';
+    elements.addImagesButton.disabled = state.isProcessing || state.isImporting;
+    elements.previewMeta.textContent = hasImages ? buildImageLibraryMeta(state.images) : '';
 }
 
 function renderView(state, elements) {
@@ -304,7 +305,7 @@ function renderConversionActionBar(state, elements) {
     elements.statusSpinner.classList.toggle('is-visible', actionBar.showSpinner);
 
     elements.removeAllButton.hidden = !actionBar.showClear;
-    elements.removeAllButton.disabled = state.isProcessing;
+    elements.removeAllButton.disabled = state.isProcessing || state.isImporting;
     elements.actionShowOutputButton.hidden = !actionBar.showFinder;
     elements.actionShowOutputButton.disabled = state.isProcessing || !state.outputDirectory;
     elements.convertButton.textContent = actionBar.convertLabel;
@@ -482,6 +483,12 @@ export function getTotalInputSize(images) {
     return sizes.reduce((total, size) => total + size, 0);
 }
 
+export function buildImageLibraryMeta(images) {
+    const count = pluralize('Image', images.length);
+    const totalSize = getTotalInputSize(images);
+    return totalSize === null ? count : `${count} · ${formatBytes(totalSize)} total`;
+}
+
 export function buildResizeSummary(state) {
     if (state.resizeMode === 'width') {
         return `Width ${state.width} px`;
@@ -511,7 +518,7 @@ function buildSizeComparison(summary) {
 
 function renderPreview(state, elements) {
     if (!state.images.length) {
-        elements.previewList.replaceChildren(buildEmptyState());
+        elements.previewList.replaceChildren();
         return;
     }
 
@@ -709,26 +716,8 @@ function buildPresetEmptyState(message) {
     return emptyState;
 }
 
-function buildEmptyState() {
-    const emptyState = document.createElement('div');
-    emptyState.className = 'empty-state';
-
-    const title = document.createElement('p');
-    title.className = 'empty-title';
-    title.textContent = 'No images added yet';
-
-    const copy = document.createElement('p');
-    copy.className = 'empty-copy';
-    copy.textContent = 'Drop JPG, PNG, WEBP, AVIF, SVG, or HEIC files into the upload area to start.';
-
-    emptyState.append(title, copy);
-    return emptyState;
-}
-
 function buildPreviewCard(image) {
     const result = image.result;
-    const displayFileType = buildDisplayFileType(image, result);
-    const displayDimensions = buildDisplayDimensions(image, result);
 
     const card = document.createElement('article');
     card.className = 'preview-card';
@@ -768,27 +757,27 @@ function buildPreviewCard(image) {
 
     const subtitle = document.createElement('p');
     subtitle.className = 'preview-subtitle';
-    subtitle.textContent = `${displayFileType} · ${displayDimensions}`;
+    subtitle.textContent = `${image.fileType} · ${formatDimensions(image.width, image.height)} · ${formatBytes(image.fileSize)}`;
 
     titleContent.append(name, subtitle);
     titleRow.append(titleContent);
     body.append(titleRow);
 
     if (result) {
-        body.append(buildPreviewResult(result));
+        body.append(buildPreviewResult(image, result));
     }
 
     card.append(thumbWrap, body);
     return card;
 }
 
-function buildPreviewResult(result) {
+function buildPreviewResult(image, result) {
     const resultElement = document.createElement('div');
     resultElement.className = `preview-result tone-${buildResultTone(result)}`;
 
     const chip = document.createElement('span');
     chip.className = 'result-chip';
-    chip.textContent = result.success ? buildResultChipText(result) : result.message;
+    chip.textContent = result.success ? buildResultChipText(image, result) : result.message;
 
     resultElement.append(chip);
     return resultElement;
@@ -868,11 +857,15 @@ function buildDisplayFileType(image, result) {
     }
 }
 
-function buildResultChipText(result) {
+function buildResultChipText(image, result) {
     if (!result?.success) {
         return result?.message ?? '';
     }
 
-    const outputSize = formatBytes(result.convertedSize);
-    return `${outputSize} · ${result.message}`;
+    const output = [
+        buildDisplayFileType(image, result),
+        buildDisplayDimensions(image, result),
+        formatBytes(result.convertedSize),
+    ].join(' · ');
+    return `${output} · ${result.message}`;
 }

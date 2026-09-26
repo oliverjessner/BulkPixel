@@ -437,6 +437,7 @@ select:focus {
 
 .upload-panel {
     grid-area: upload;
+    position: relative;
     overflow: hidden;
 }
 
@@ -478,20 +479,16 @@ select:focus {
     margin-bottom: 2px;
 }
 
-.section-actions {
-    display: flex;
-    gap: 10px;
-}
-
 .section-meta {
-    margin: -2px 0 10px;
+    margin: 5px 0 0;
     color: var(--text-muted);
+    font-size: 0.84rem;
 }
 
 .dropzone {
     width: 100%;
-    min-height: 170px;
-    flex: 0 0 auto;
+    min-height: 300px;
+    flex: 1 1 auto;
     border-radius: calc(var(--radius) - 2px);
     border: 1px dashed var(--border-strong);
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)) #14191f;
@@ -504,6 +501,11 @@ select:focus {
         border-color 140ms ease,
         transform 140ms ease,
         background-color 140ms ease;
+}
+
+.dropzone:focus-visible {
+    outline: 2px solid rgba(34, 197, 94, 0.5);
+    outline-offset: -3px;
 }
 
 .dropzone:hover:not(:disabled),
@@ -537,6 +539,9 @@ select:focus {
 }
 
 .dropzone-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
 }
 
@@ -548,23 +553,82 @@ select:focus {
 
 .dropzone-helper,
 .dropzone-meta {
-    margin: 6px 0 0;
+    margin: 8px 0 0;
     color: var(--text-muted);
 }
 
-.preview-block {
+.dropzone-helper {
+    color: var(--text-soft);
+    font-size: 0.8rem;
+}
+
+.dropzone-meta {
+    font-size: 0.84rem;
+}
+
+.dropzone-choose {
+    min-height: 36px;
+    margin-top: 18px;
+    padding: 8px 14px;
+    border: 1px solid rgba(34, 197, 94, 0.38);
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: #b9f3ce;
+    font-size: 0.86rem;
+    font-weight: 600;
+}
+
+.dropzone:hover:not(:disabled) .dropzone-choose,
+.dropzone.is-active .dropzone-choose {
+    border-color: rgba(34, 197, 94, 0.62);
+    background: rgba(34, 197, 94, 0.19);
+}
+
+.images-view {
+    position: relative;
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border);
     overflow: hidden;
 }
 
-.preview-header {
-    margin-bottom: 8px;
+.images-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.images-header h2 {
+    margin: 0;
+    font-size: 1.08rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.images-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.loaded-drop-overlay {
+    position: absolute;
+    z-index: 10;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border: 1px dashed rgba(34, 197, 94, 0.62);
+    border-radius: 12px;
+    background: rgba(15, 20, 17, 0.82);
+    color: #c8f7d9;
+    font-size: 0.95rem;
+    font-weight: 600;
+    pointer-events: none;
 }
 
 .settings-stack {
@@ -811,9 +875,9 @@ select:focus {
     overflow-x: hidden;
     overflow-y: auto;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     grid-auto-rows: max-content;
-    gap: 12px;
+    gap: 8px;
     align-items: start;
     align-content: start;
     padding-right: 2px;
@@ -821,20 +885,29 @@ select:focus {
 }
 
 .preview-card {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 11px;
     overflow: hidden;
     background: #151a20;
     min-height: 0;
+    transition:
+        border-color 120ms ease,
+        background-color 120ms ease;
+}
+
+.preview-card:hover,
+.preview-card:focus-within {
+    border-color: var(--border-strong);
+    background: #171c22;
 }
 
 .thumb-wrap {
     position: relative;
-    aspect-ratio: 16 / 10;
-    min-height: 132px;
-    max-height: clamp(132px, 22vh, 190px);
+    min-height: 96px;
     background: #0e1216;
-    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
 }
 
 .thumb-wrap img {
@@ -845,7 +918,8 @@ select:focus {
 }
 
 .preview-body {
-    padding: 14px;
+    min-width: 0;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -898,10 +972,10 @@ select:focus {
 
 .thumb-remove-button {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 30px;
-    height: 30px;
+    top: 8px;
+    right: 8px;
+    width: 27px;
+    height: 27px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -910,13 +984,26 @@ select:focus {
     background: rgba(15, 17, 20, 0.86);
     color: var(--text);
     cursor: pointer;
-    font-size: 1.15rem;
+    font-size: 1rem;
     line-height: 1;
+    opacity: 0.68;
+    transition:
+        opacity 120ms ease,
+        background-color 120ms ease,
+        border-color 120ms ease;
 }
 
+.preview-card:hover .thumb-remove-button,
+.thumb-remove-button:focus-visible,
 .thumb-remove-button:hover:not(:disabled) {
+    opacity: 1;
     background: rgba(27, 32, 38, 0.98);
     border-color: rgba(34, 197, 94, 0.45);
+}
+
+.thumb-remove-button:focus-visible {
+    outline: 2px solid rgba(34, 197, 94, 0.5);
+    outline-offset: 2px;
 }
 
 .preview-result {
@@ -963,13 +1050,6 @@ select:focus {
     margin: 0;
     font-size: 1rem;
     font-weight: 600;
-}
-
-.empty-copy {
-    margin: 0;
-    max-width: 38ch;
-    color: var(--text-muted);
-    line-height: 1.5;
 }
 
 .presets-workspace,
@@ -1491,14 +1571,6 @@ select:focus {
         flex: 1;
     }
 
-    .section-actions {
-        width: 100%;
-    }
-
-    .section-actions .button {
-        flex: 1;
-    }
-
     .action-buttons {
         width: 100%;
         flex-direction: column;
@@ -1537,6 +1609,29 @@ select:focus {
 
     body {
         overflow: auto;
+    }
+}
+
+@media (max-width: 520px) {
+    .images-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .images-header-actions {
+        justify-content: stretch;
+    }
+
+    .images-header-actions .button {
+        flex: 1;
+    }
+
+    .preview-card {
+        grid-template-columns: 88px minmax(0, 1fr);
+    }
+
+    .preview-body {
+        padding: 10px 12px;
     }
 }
 

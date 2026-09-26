@@ -43,40 +43,44 @@
             </header>
 
             <main id="convert-view" class="workspace app-view">
-                <section class="panel upload-panel" aria-labelledby="upload-title">
-                    <div class="section-header">
-                        <div>
-                            <p class="section-kicker">Upload Area</p>
-                            <h2 id="upload-title">Drop images here</h2>
-                        </div>
-                    </div>
-
-                    <button id="dropzone" class="dropzone" type="button">
+                <section class="panel upload-panel" aria-label="Image import and preview">
+                    <button id="dropzone" class="dropzone" type="button" aria-labelledby="dropzone-title">
                         <div class="dropzone-icon" aria-hidden="true">
                             <span></span>
                             <span></span>
                         </div>
                         <div class="dropzone-copy">
                             <p id="dropzone-title" class="dropzone-title">Drop images here</p>
-                            <p class="dropzone-helper">or click to browse files</p>
-                            <p class="dropzone-meta">Supported formats: JPG, JPEG, PNG, WEBP, AVIF, SVG, HEIC</p>
+                            <p class="dropzone-meta">JPG · JPEG · PNG · WEBP · AVIF · SVG · HEIC</p>
+                            <span class="dropzone-choose">Choose Images</span>
+                            <p class="dropzone-helper">or drag files from Finder</p>
                         </div>
                     </button>
 
-                    <div class="preview-block">
-                        <div class="section-header preview-header">
+                    <div id="images-view" class="images-view" hidden>
+                        <div class="images-header">
                             <div>
-                                <p class="section-kicker">Preview</p>
-                                <h2 id="preview-title">Uploaded Images</h2>
+                                <h2>Images</h2>
+                                <p id="preview-meta" class="section-meta"></p>
                             </div>
-                            <div class="section-actions">
+                            <div class="images-header-actions">
+                                <button
+                                    id="remove-all-button"
+                                    class="button secondary quiet compact"
+                                    type="button"
+                                    hidden
+                                >
+                                    Clear All
+                                </button>
                                 <button id="add-images-button" class="button secondary compact" type="button">
                                     Add Images
                                 </button>
                             </div>
                         </div>
-                        <p id="preview-meta" class="section-meta">No images added yet</p>
                         <div id="preview-list" class="preview-list" aria-live="polite"></div>
+                        <div id="loaded-drop-overlay" class="loaded-drop-overlay" hidden aria-hidden="true">
+                            <span>Drop to add images</span>
+                        </div>
                     </div>
                 </section>
 
@@ -453,7 +457,6 @@
                     <button id="action-show-output-button" class="button secondary" type="button" hidden>
                         Show in Finder
                     </button>
-                    <button id="remove-all-button" class="button secondary quiet" type="button" hidden>Clear</button>
                     <button id="convert-button" class="button primary" type="button" disabled>Convert</button>
                 </div>
             </footer>
