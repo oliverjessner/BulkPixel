@@ -1,9 +1,10 @@
 # 2.2.0
 
-- security fixes from dependalert
-- JPEG in magic directories
-- native macOS HEIC/HEIF input with orientation, sRGB color management, and HDR-to-SDR handling
-- preserve 16-bit channel depth for PNG exports, including resized images
+- Resolve Dependabot security alerts by updating affected Rust and Tauri dependencies.
+- Add JPEG and JPG support to Magic Directories, including migration of existing watcher configurations.
+- Add native HEIC and HEIF import across the desktop app, CLI, Finder integration, and Magic Directories, with orientation handling, sRGB color management, and HDR-to-SDR conversion.
+- Preserve 16-bit channel depth when exporting PNG files, including resized images, instead of always reducing them to 8-bit RGBA.
+- Document import, export, and Magic Directory compatibility in a central supported-formats matrix.
 
 # 2.1.1
 

@@ -21,9 +21,7 @@ bulkpixel --version
 
 ## Convert Images
 
-Supported input formats are JPEG, PNG, WEBP, AVIF, SVG, and HEIC/HEIF. SVG files are rasterized at the requested width or height while preserving their aspect ratio. HEIC orientation metadata is applied during decoding. Embedded color profiles, including Display P3, are converted to sRGB. HDR HEIC images are tone-mapped to SDR on macOS 15 and later; older macOS versions use the file's SDR-compatible representation. Export formats remain JPEG, PNG, WEBP, and AVIF.
-
-PNG export uses lossless compression. When the decoded source contains 16-bit channels, PNG output preserves that channel depth, including after resizing. Exporting to JPEG, WEBP, or AVIF still converts through their supported 8-bit pixel formats.
+See [Supported Formats](FORMATS.md) for the complete import/export matrix, Magic Directory compatibility, and format-specific behavior.
 
 Required:
 

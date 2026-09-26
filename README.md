@@ -46,6 +46,8 @@ It is local-first, fast, and intentionally restrained.
 - Per-image and total savings analysis
 - Clear success, partial-success, and error feedback
 
+See the [supported import and export formats](docs/FORMATS.md) for the complete compatibility matrix and format-specific behavior.
+
 ## Presets
 
 Presets let you save complete conversion setups and reuse them later.  
@@ -80,7 +82,7 @@ brew tap oliverjessner/tap
 brew install --cask bulkpixel
 ```
 
-See [docs/CLI.md](docs/CLI.md) for commands, flags, preset usage, overwrite rules, and statistics output.
+See [docs/CLI.md](docs/CLI.md) for commands, flags, preset usage, overwrite rules, and statistics output. The [supported formats matrix](docs/FORMATS.md) covers imports, exports, and Magic Directory compatibility.
 
 ## macOS Open With test cases
 
