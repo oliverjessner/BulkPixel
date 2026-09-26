@@ -6,6 +6,7 @@
 - Preserve 16-bit channel depth when exporting PNG files, including resized images, instead of always reducing them to 8-bit RGBA.
 - Document import, export, and Magic Directory compatibility in a central supported-formats matrix.
 - the command --help shows the version
+- screenshots are automated
 - click on the image opens a modal window for infos like exif
 - statistics tracks the magic directory convertions
 

@@ -272,7 +272,7 @@ export function buildConversionActionBar(state) {
         secondary: '',
         symbol: '',
         showSpinner: false,
-        showClear: false,
+        showClear: hasImages,
         showFinder: false,
         convertLabel,
         convertDisabled:
@@ -318,7 +318,6 @@ export function buildConversionActionBar(state) {
             primary: state.status.text,
             secondary: hasImages ? 'Review the current settings or image results.' : '',
             symbol: '×',
-            showClear: hasImages && !state.summary,
         };
     }
 

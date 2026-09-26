@@ -151,6 +151,7 @@ test('summarizes a successful conversion using real summary sizes', () => {
     assert.equal(actionBar.tone, 'success');
     assert.equal(actionBar.primary, '12 images converted · 18.0 MB saved (75.0%)');
     assert.equal(actionBar.secondary, '24.0 MB → 6.0 MB');
+    assert.equal(actionBar.showClear, true);
     assert.equal(actionBar.showFinder, true);
 });
 
@@ -207,8 +208,10 @@ test('distinguishes partial success from complete failure', () => {
 
     assert.equal(partial.tone, 'warning');
     assert.equal(partial.primary, '2 of 3 images converted · 1 failed');
+    assert.equal(partial.showClear, true);
     assert.equal(partial.showFinder, true);
     assert.equal(failure.tone, 'error');
     assert.equal(failure.primary, 'No images were converted.');
+    assert.equal(failure.showClear, true);
     assert.equal(failure.showFinder, false);
 });
