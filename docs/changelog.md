@@ -1,4 +1,4 @@
-# 2.2.0
+# 3.0.0
 
 - Resolve Dependabot security alerts by updating affected Rust and Tauri dependencies.
 - Add JPEG and JPG support to Magic Directories, including migration of existing watcher configurations.
@@ -6,6 +6,7 @@
 - Preserve 16-bit channel depth when exporting PNG files, including resized images, instead of always reducing them to 8-bit RGBA.
 - Document import, export, and Magic Directory compatibility in a central supported-formats matrix.
 - the command --help shows the version
+- UX overhaul
 - click on the image opens a modal window for infos like exif
 
 # 2.1.1

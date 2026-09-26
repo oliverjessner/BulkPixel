@@ -75,17 +75,18 @@
                             <p class="section-kicker">Settings</p>
                             <h2 id="settings-title">Conversion Settings</h2>
                         </div>
-                        <label class="preset-picker" for="preset-select">
-                            <span>Preset:</span>
-                            <select id="preset-select" class="preset-select" aria-label="Conversion preset">
-                                <option value="custom">Custom</option>
-                            </select>
-                        </label>
                     </div>
+
+                    <label class="preset-picker settings-preset" for="preset-select">
+                        <span class="settings-section-label">Preset</span>
+                        <select id="preset-select" class="preset-select" aria-label="Conversion preset">
+                            <option value="custom">Custom</option>
+                        </select>
+                    </label>
 
                     <div class="settings-stack">
                         <div class="field-group">
-                            <label class="field-label">Export Format</label>
+                            <span class="settings-section-label">Export Format</span>
                             <div class="format-toggle" id="format-toggle" role="radiogroup" aria-label="Export format">
                                 <button type="button" class="format-option" data-format="jpeg">JPEG</button>
                                 <button type="button" class="format-option" data-format="png">PNG</button>
@@ -95,8 +96,9 @@
                         </div>
 
                         <div class="field-group">
+                            <span class="settings-section-label">Size</span>
                             <div class="field-row label-row">
-                                <label class="field-label">Original Resolution</label>
+                                <span class="field-label">Original Resolution</span>
                                 <button
                                     id="resize-reference"
                                     class="value-badge reference-reset-button"
@@ -137,7 +139,7 @@
 
                         <div class="field-group">
                             <div class="field-row label-row">
-                                <label class="field-label" for="quality-slider">Quality</label>
+                                <label class="settings-section-label" for="quality-slider">Quality</label>
                                 <span id="quality-value" class="value-badge">90</span>
                             </div>
                             <input
@@ -155,7 +157,7 @@
                         </div>
 
                         <div class="field-group">
-                            <label class="field-label">Filename Component</label>
+                            <span class="settings-section-label">Filename</span>
                             <div class="filename-toggle-group" id="filename-toggle">
                                 <button type="button" class="toggle-button" data-mode="prefix" aria-pressed="true">
                                     Prefix
@@ -173,17 +175,21 @@
                         </div>
 
                         <div class="field-group">
-                            <div class="field-row label-row">
-                                <label class="field-label" for="output-path">Output Folder</label>
-                                <button id="choose-folder-button" class="button secondary compact" type="button">
-                                    Choose Folder
-                                </button>
-                            </div>
+                            <span class="settings-section-label">Output</span>
                             <div class="output-path-row">
                                 <div class="path-display" id="output-path" title=""></div>
-                                <button id="show-output-folder-button" class="button secondary" type="button">
-                                    Show in Finder
-                                </button>
+                                <div class="output-folder-actions">
+                                    <button id="choose-folder-button" class="button secondary compact" type="button">
+                                        Choose Folder
+                                    </button>
+                                    <button
+                                        id="show-output-folder-button"
+                                        class="button secondary compact"
+                                        type="button"
+                                    >
+                                        Show in Finder
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
