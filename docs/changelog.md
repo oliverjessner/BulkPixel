@@ -1,6 +1,9 @@
 # 2.2.0
 
 - security fixes
+- JPEG in magic directories
+- HEIC support
+- PNG no without lost
 
 # 2.1.1
 
