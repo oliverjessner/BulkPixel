@@ -108,7 +108,6 @@ function cacheElements() {
     elements.resizeModeOptions = [...document.querySelectorAll('#resize-mode-toggle .toggle-button')];
     elements.widthInput = document.querySelector('#width-input');
     elements.heightInput = document.querySelector('#height-input');
-    elements.resizeReferenceNote = document.querySelector('#resize-reference-note');
     elements.qualitySlider = document.querySelector('#quality-slider');
     elements.qualityValue = document.querySelector('#quality-value');
     elements.qualityHelper = document.querySelector('#quality-helper');
@@ -446,12 +445,27 @@ function bindPresetEvents() {
     });
 
     elements.presetList.addEventListener('click', event => {
+        const menuTrigger = event.target.closest('.preset-menu-trigger');
+        if (menuTrigger) {
+            togglePresetActionMenu(menuTrigger);
+            return;
+        }
+
         const button = event.target.closest('.preset-action-button');
         if (!button) {
             return;
         }
 
+        closePresetActionMenus();
         handlePresetAction(button.dataset.action, button.dataset.presetId);
+    });
+
+    elements.presetList.addEventListener('keydown', handlePresetMenuKeydown);
+
+    document.addEventListener('click', event => {
+        if (!event.target.closest('.preset-action-menu-wrap')) {
+            closePresetActionMenus();
+        }
     });
 
     elements.magicForm.addEventListener('submit', event => {
@@ -502,6 +516,80 @@ function bindPresetEvents() {
         }
         handleMagicDirectoryAction(button.dataset.action, button.dataset.magicDirectoryId);
     });
+}
+
+function togglePresetActionMenu(trigger) {
+    const menuWrap = trigger.closest('.preset-action-menu-wrap');
+    const menu = menuWrap?.querySelector('.preset-action-menu');
+    if (!menu) {
+        return;
+    }
+
+    const shouldOpen = menu.hidden;
+    closePresetActionMenus();
+    if (!shouldOpen) {
+        return;
+    }
+
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    menu.classList.remove('is-above');
+
+    const listBounds = elements.presetList.getBoundingClientRect();
+    const triggerBounds = trigger.getBoundingClientRect();
+    const menuBounds = menu.getBoundingClientRect();
+    const fitsAbove = triggerBounds.top - menuBounds.height - 6 >= listBounds.top;
+    if (menuBounds.bottom > listBounds.bottom && fitsAbove) {
+        menu.classList.add('is-above');
+    }
+
+    menu.querySelector('.preset-menu-item')?.focus();
+}
+
+function closePresetActionMenus(options = {}) {
+    const { returnFocus = false } = options;
+    for (const menu of elements.presetList.querySelectorAll('.preset-action-menu:not([hidden])')) {
+        const menuWrap = menu.closest('.preset-action-menu-wrap');
+        const trigger = menuWrap?.querySelector('.preset-menu-trigger');
+        menu.hidden = true;
+        menu.classList.remove('is-above');
+        trigger?.setAttribute('aria-expanded', 'false');
+        if (returnFocus) {
+            trigger?.focus();
+        }
+    }
+}
+
+function handlePresetMenuKeydown(event) {
+    const menu = event.target.closest('.preset-action-menu');
+    if (!menu || menu.hidden) {
+        return;
+    }
+
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closePresetActionMenus({ returnFocus: true });
+        return;
+    }
+
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+        return;
+    }
+
+    event.preventDefault();
+    const items = [...menu.querySelectorAll('.preset-menu-item')];
+    const currentIndex = items.indexOf(document.activeElement);
+    let nextIndex;
+    if (event.key === 'Home') {
+        nextIndex = 0;
+    } else if (event.key === 'End') {
+        nextIndex = items.length - 1;
+    } else if (event.key === 'ArrowDown') {
+        nextIndex = (currentIndex + 1) % items.length;
+    } else {
+        nextIndex = (currentIndex - 1 + items.length) % items.length;
+    }
+    items[nextIndex]?.focus();
 }
 
 async function hydrateDefaultOutputDirectory() {

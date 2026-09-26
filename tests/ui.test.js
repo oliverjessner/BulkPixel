@@ -5,8 +5,8 @@ import {
     buildConversionActionBar,
     buildConversionJobSummary,
     buildInputFormatSummary,
+    buildPresetLibrarySummary,
     buildResizeInputState,
-    buildResizeReferenceNote,
     buildResizeSummary,
     getTotalInputSize,
 } from '../src/ui.js';
@@ -42,7 +42,6 @@ test('shows both original dimensions as read-only inputs', () => {
         widthReadOnly: true,
         heightReadOnly: true,
     });
-    assert.equal(buildResizeReferenceNote(state), '');
 });
 
 test('shows the calculated reference output for width resizing', () => {
@@ -59,7 +58,6 @@ test('shows the calculated reference output for width resizing', () => {
         widthReadOnly: false,
         heightReadOnly: true,
     });
-    assert.equal(buildResizeReferenceNote(state), 'Based on first image');
 });
 
 test('shows the calculated reference output for height resizing', () => {
@@ -76,7 +74,6 @@ test('shows the calculated reference output for height resizing', () => {
         widthReadOnly: true,
         heightReadOnly: false,
     });
-    assert.equal(buildResizeReferenceNote(state), '');
 });
 
 test('builds a ready job summary from image metadata and resize settings', () => {
@@ -214,4 +211,41 @@ test('distinguishes partial success from complete failure', () => {
     assert.equal(failure.primary, 'No images were converted.');
     assert.equal(failure.showClear, true);
     assert.equal(failure.showFinder, false);
+});
+
+test('builds compact preset library metadata', () => {
+    assert.equal(
+        buildPresetLibrarySummary({
+            format: 'webp',
+            resizeMode: 'width',
+            width: 1200,
+            height: null,
+            quality: 90,
+        }),
+        'WEBP · Width 1200 px · Q90',
+    );
+
+    assert.equal(
+        buildPresetLibrarySummary({
+            format: 'avif',
+            resizeMode: 'height',
+            width: null,
+            height: 1080,
+            quality: 82,
+        }),
+        'AVIF · Height 1080 px · Q82',
+    );
+});
+
+test('labels PNG presets as lossless instead of showing a quality value', () => {
+    assert.equal(
+        buildPresetLibrarySummary({
+            format: 'png',
+            resizeMode: 'none',
+            width: null,
+            height: null,
+            quality: 100,
+        }),
+        'PNG · Original size · Lossless',
+    );
 });

@@ -49,9 +49,6 @@ function renderControls(state, elements) {
     elements.heightInput.readOnly = resizeInputs.heightReadOnly;
     elements.widthInput.disabled = state.isProcessing;
     elements.heightInput.disabled = state.isProcessing;
-    const referenceNote = buildResizeReferenceNote(state);
-    elements.resizeReferenceNote.textContent = referenceNote;
-    elements.resizeReferenceNote.hidden = !referenceNote;
 
     elements.qualitySlider.value = String(state.quality);
     elements.qualitySlider.disabled = state.isProcessing || state.format === 'png';
@@ -486,7 +483,7 @@ function buildPresetSelectValue(state) {
 
 function buildPresetCard(preset) {
     const card = document.createElement('article');
-    card.className = 'preset-card';
+    card.className = 'preset-card preset-library-card';
 
     const body = document.createElement('div');
     body.className = 'preset-card-body';
@@ -495,37 +492,81 @@ function buildPresetCard(preset) {
     name.textContent = preset.name;
 
     const summary = document.createElement('p');
-    summary.textContent = `${preset.format.toUpperCase()} · ${buildPresetResolutionText(preset)} · Quality ${preset.quality}`;
+    summary.className = 'preset-card-summary';
+    summary.textContent = buildPresetLibrarySummary(preset);
 
     const filename = document.createElement('p');
+    filename.className = 'preset-card-filename';
     filename.textContent = buildPresetFilenameText(preset);
 
-    const output = document.createElement('p');
+    const output = document.createElement('span');
     output.className = 'preset-card-path';
     output.title = preset.outputDirectory;
     output.textContent = preset.outputDirectory;
 
-    body.append(name, summary, filename, output);
+    const details = document.createElement('div');
+    details.className = 'preset-card-details';
+
+    const separator = document.createElement('span');
+    separator.className = 'preset-card-detail-separator';
+    separator.setAttribute('aria-hidden', 'true');
+    separator.textContent = '·';
+
+    details.append(filename, separator, output);
+    body.append(name, summary, details);
 
     const actions = document.createElement('div');
     actions.className = 'preset-card-actions';
-    actions.append(
-        buildPresetActionButton('apply', preset.id, 'Apply', 'primary'),
-        buildPresetActionButton('edit', preset.id, 'Edit', 'secondary'),
-        buildPresetActionButton('duplicate', preset.id, 'Duplicate', 'secondary'),
-        buildPresetActionButton('delete', preset.id, 'Delete', 'secondary'),
+    actions.append(buildPresetActionButton('apply', preset.id, 'Use', 'preset-use-button'));
+
+    const menuWrap = document.createElement('div');
+    menuWrap.className = 'preset-action-menu-wrap';
+
+    const menuId = `preset-actions-${String(preset.id).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    const menuTrigger = document.createElement('button');
+    menuTrigger.className = 'button secondary compact preset-menu-trigger';
+    menuTrigger.type = 'button';
+    menuTrigger.setAttribute('aria-label', `More actions for ${preset.name}`);
+    menuTrigger.setAttribute('aria-haspopup', 'menu');
+    menuTrigger.setAttribute('aria-expanded', 'false');
+    menuTrigger.setAttribute('aria-controls', menuId);
+    menuTrigger.textContent = '···';
+
+    const menu = document.createElement('div');
+    menu.id = menuId;
+    menu.className = 'preset-action-menu';
+    menu.setAttribute('role', 'menu');
+    menu.hidden = true;
+    menu.append(
+        buildPresetMenuItem('edit', preset.id, 'Edit'),
+        buildPresetMenuItem('duplicate', preset.id, 'Duplicate'),
+        buildPresetMenuItem('delete', preset.id, 'Delete', true),
     );
+
+    menuWrap.append(menuTrigger, menu);
+    actions.append(menuWrap);
 
     card.append(body, actions);
     return card;
 }
 
-function buildPresetActionButton(action, presetId, label, tone) {
+function buildPresetActionButton(action, presetId, label, className) {
     const button = document.createElement('button');
-    button.className = `button ${tone} compact preset-action-button`;
+    button.className = `button compact preset-action-button ${className}`;
     button.type = 'button';
     button.dataset.action = action;
     button.dataset.presetId = String(presetId);
+    button.textContent = label;
+    return button;
+}
+
+function buildPresetMenuItem(action, presetId, label, destructive = false) {
+    const button = document.createElement('button');
+    button.className = `preset-action-button preset-menu-item${destructive ? ' is-destructive' : ''}`;
+    button.type = 'button';
+    button.dataset.action = action;
+    button.dataset.presetId = String(presetId);
+    button.setAttribute('role', 'menuitem');
     button.textContent = label;
     return button;
 }
@@ -706,10 +747,6 @@ export function buildResizeInputState(state) {
     };
 }
 
-export function buildResizeReferenceNote(state) {
-    return state.resizeReference?.mixedSizes ? 'Based on first image' : '';
-}
-
 function buildPresetResolutionText(preset) {
     if (preset.resizeMode === 'width' && preset.width) {
         return `Width ${preset.width}px`;
@@ -722,6 +759,19 @@ function buildPresetResolutionText(preset) {
     return 'Original resolution';
 }
 
+export function buildPresetLibrarySummary(preset) {
+    const format = preset.format.toUpperCase();
+    let resolution = 'Original size';
+    if (preset.resizeMode === 'width' && preset.width) {
+        resolution = `Width ${preset.width} px`;
+    } else if (preset.resizeMode === 'height' && preset.height) {
+        resolution = `Height ${preset.height} px`;
+    }
+
+    const quality = format === 'PNG' ? 'Lossless' : `Q${preset.quality}`;
+    return `${format} · ${resolution} · ${quality}`;
+}
+
 function buildPresetFilenameText(preset) {
     const component = preset.filenameComponent?.trim();
     if (!component) {
@@ -729,7 +779,7 @@ function buildPresetFilenameText(preset) {
     }
 
     const label = preset.filenameMode === 'postfix' ? 'Postfix' : 'Prefix';
-    return `${label}: ${component}`;
+    return `${label} ${component}`;
 }
 
 function buildDisplayDimensions(image, result) {
