@@ -21,7 +21,9 @@ bulkpixel --version
 
 ## Convert Images
 
-Supported input formats are JPEG, PNG, WEBP, AVIF, and SVG. SVG files are rasterized at the requested width or height while preserving their aspect ratio. Export formats remain JPEG, PNG, WEBP, and AVIF.
+Supported input formats are JPEG, PNG, WEBP, AVIF, SVG, and HEIC/HEIF. SVG files are rasterized at the requested width or height while preserving their aspect ratio. HEIC orientation metadata is applied during decoding. Embedded color profiles, including Display P3, are converted to sRGB. HDR HEIC images are tone-mapped to SDR on macOS 15 and later; older macOS versions use the file's SDR-compatible representation. Export formats remain JPEG, PNG, WEBP, and AVIF.
+
+PNG export uses lossless compression. When the decoded source contains 16-bit channels, PNG output preserves that channel depth, including after resizing. Exporting to JPEG, WEBP, or AVIF still converts through their supported 8-bit pixel formats.
 
 Required:
 
@@ -212,7 +214,7 @@ bulkpixel presets delete \
 
 Magic Directory rules use the same SQLite database as the desktop app. The desktop app performs the actual watching while it is running. Rules created or changed through the CLI are loaded the next time the desktop app starts.
 
-Supported watched formats are `jpeg` (or its `jpg` alias), `png`, `webp`, `avif`, and `svg`. Both `.jpg` and `.jpeg` files match the JPEG format. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
+Supported watched formats are `jpeg` (or its `jpg` alias), `png`, `webp`, `avif`, `svg`, and `heic` (or its `heif` alias). Both `.jpg` and `.jpeg` files match JPEG; both `.heic` and `.heif` files match HEIC. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
 
 Create a rule:
 

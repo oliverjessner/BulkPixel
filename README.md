@@ -31,16 +31,16 @@ It is local-first, fast, and intentionally restrained.
 - Drag and drop images into the app
 - Native file picker support
 - Batch conversion for multiple images at once
-- Input support for `jpg`, `jpeg`, `png`, `avif`, `webp` and `svg`
+- Input support for `jpg`, `jpeg`, `png`, `avif`, `webp`, `svg`, `heic`, and `heif`
 - Export to `jpg`, `png`, `avif` or `webp`
 - Resize by width or height
 - Automatic aspect-ratio preservation
 - Quality control for JPEG, WEBP and AVIF
-- Honest PNG handling without fake "compression" promises
+- Lossless PNG encoding that preserves 16-bit source channels, including when resizing
 - Optional filename prefix or postfix (toggle between modes)
 - Output folder selection
 - Presets for saving reusable conversion settings
-- Magic Directories for automatically running presets when new JPEG, PNG, WEBP, AVIF, or SVG files arrive
+- Magic Directories for automatically running presets when new JPEG, PNG, WEBP, AVIF, SVG, or HEIC files arrive
 - Terminal CLI for scripted conversion, preset and Magic Directory management, and statistics
 - Collision-safe saving with `_1`, `_2`, and so on
 - Per-image and total savings analysis
@@ -90,7 +90,7 @@ See [docs/CLI.md](docs/CLI.md) for commands, flags, preset usage, overwrite rule
     - Expected: BulkPixel starts and the image appears in the queue
 
 2. BulkPixel is already running:
-    - Select multiple JPG, PNG, or WEBP files in Finder
+    - Select multiple JPG, PNG, WEBP, or HEIC files in Finder
     - Right-click -> Open With -> BulkPixel
     - Expected: The existing app receives the files and adds them to the queue
 

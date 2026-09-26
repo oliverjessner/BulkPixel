@@ -1,6 +1,6 @@
 [package]
 name = "bulkpixel"
-version = "2.1.2"
+version = "2.2.0"
 description = "BulkPixel desktop app"
 authors = ["oli"]
 edition = "2021"
@@ -25,3 +25,9 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 thiserror = "2"
 webp = "0.3"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["CGColorSpace", "std"] }
+objc2-core-image = { version = "0.3", default-features = false, features = ["CIContext", "CIFilter", "CIFilterBuiltins", "CIImage", "CoreImageDefines", "objc2-core-foundation", "objc2-core-graphics", "std"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["NSDictionary", "NSObject", "NSString", "NSURL", "NSValue", "std"] }

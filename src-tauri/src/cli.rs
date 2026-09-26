@@ -36,11 +36,14 @@ Usage:
   bulkpixel --help
   bulkpixel --version
 
+Input formats:
+  jpeg (jpg), png, webp, avif, svg, heic (heif)
+
 Export formats:
   jpeg, png, webp, avif
 
 Watched formats:
-  jpeg (jpg), png, webp, avif, svg
+  jpeg (jpg), png, webp, avif, svg, heic (heif)
 ";
 
 #[derive(Debug, Default)]
@@ -874,6 +877,7 @@ fn format_label_from_path(path: &str) -> String {
         Some("webp") => "WEBP".into(),
         Some("avif") => "AVIF".into(),
         Some("svg") => "SVG".into(),
+        Some("heic") | Some("heif") => "HEIC".into(),
         _ => "IMAGE".into(),
     }
 }

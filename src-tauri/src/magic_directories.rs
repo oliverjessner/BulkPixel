@@ -27,7 +27,7 @@ use crate::{
     },
 };
 
-const VALID_WATCH_FORMATS: &[&str] = &["svg", "jpeg", "png", "webp", "avif"];
+const VALID_WATCH_FORMATS: &[&str] = &["svg", "jpeg", "png", "webp", "avif", "heic"];
 const EVENT_DEBOUNCE: Duration = Duration::from_millis(800);
 const FILE_READY_POLL: Duration = Duration::from_millis(250);
 const FILE_READY_ATTEMPTS: usize = 40;
@@ -228,7 +228,7 @@ fn load_formats(connection: &Connection, id: i64) -> Result<Vec<String>, PresetE
          WHERE magic_directory_id = ?1
          ORDER BY CASE format
             WHEN 'svg' THEN 1 WHEN 'jpeg' THEN 2 WHEN 'png' THEN 3
-            WHEN 'webp' THEN 4 WHEN 'avif' THEN 5 END",
+            WHEN 'webp' THEN 4 WHEN 'avif' THEN 5 WHEN 'heic' THEN 6 END",
     )?;
     let formats = statement
         .query_map(params![id], |row| row.get(0))?
@@ -280,7 +280,8 @@ fn normalize_and_validate_request(
         .any(|format| !VALID_WATCH_FORMATS.contains(&format.as_str()))
     {
         return Err(PresetError::Validation(
-            "Choose only SVG, JPEG (JPG), PNG, WEBP, or AVIF as watched formats.".into(),
+            "Choose only SVG, JPEG (JPG), PNG, WEBP, AVIF, or HEIC (HEIF) as watched formats."
+                .into(),
         ));
     }
 
@@ -601,6 +602,7 @@ fn watched_extension(path: &Path) -> Option<String> {
 fn normalize_watch_format(format: &str) -> String {
     match format.trim().to_ascii_lowercase().as_str() {
         "jpg" | "jpeg" => "jpeg".into(),
+        "heic" | "heif" => "heic".into(),
         format => format.into(),
     }
 }
@@ -677,6 +679,8 @@ mod tests {
                     "JPG".into(),
                     "jpeg".into(),
                     "png".into(),
+                    "HEIF".into(),
+                    "heic".into(),
                     "svg".into(),
                 ],
                 preset_ids: vec![preset_id, preset_id],
@@ -685,7 +689,7 @@ mod tests {
         )
         .expect("saved magic directory");
 
-        assert_eq!(saved.formats, vec!["svg", "jpeg", "png"]);
+        assert_eq!(saved.formats, vec!["svg", "jpeg", "png", "heic"]);
         assert_eq!(saved.preset_ids, vec![preset_id]);
         assert!(saved.enabled);
         assert_eq!(
@@ -699,7 +703,7 @@ mod tests {
     }
 
     #[test]
-    fn recognizes_jpg_and_jpeg_watched_extensions() {
+    fn recognizes_watched_extension_aliases() {
         assert_eq!(
             watched_extension(Path::new("photo.jpg")).as_deref(),
             Some("jpeg")
@@ -707,6 +711,14 @@ mod tests {
         assert_eq!(
             watched_extension(Path::new("photo.JPEG")).as_deref(),
             Some("jpeg")
+        );
+        assert_eq!(
+            watched_extension(Path::new("photo.heif")).as_deref(),
+            Some("heic")
+        );
+        assert_eq!(
+            watched_extension(Path::new("photo.HEIC")).as_deref(),
+            Some("heic")
         );
         assert_eq!(watched_extension(Path::new("photo.txt")), None);
     }
@@ -746,7 +758,7 @@ mod tests {
     }
 
     #[test]
-    fn migrates_watched_formats_schema_to_accept_jpeg() {
+    fn migrates_watched_formats_schema_to_accept_heic() {
         let mut connection = Connection::open_in_memory().expect("in-memory database");
         initialize_schema(&mut connection).expect("initial schema");
         connection
@@ -755,7 +767,7 @@ mod tests {
                  CREATE TABLE magic_directory_formats (
                     magic_directory_id INTEGER NOT NULL,
                     format TEXT NOT NULL
-                        CHECK (format IN ('svg', 'png', 'webp', 'avif')),
+                        CHECK (format IN ('svg', 'jpeg', 'png', 'webp', 'avif')),
                     PRIMARY KEY (magic_directory_id, format),
                     FOREIGN KEY (magic_directory_id)
                         REFERENCES magic_directories(id) ON DELETE CASCADE
@@ -781,10 +793,10 @@ mod tests {
         connection
             .execute(
                 "INSERT INTO magic_directory_formats (magic_directory_id, format)
-                 VALUES (1, 'jpeg')",
+                 VALUES (1, 'heic')",
                 [],
             )
-            .expect("JPEG watched format");
+            .expect("HEIC watched format");
     }
 
     #[test]

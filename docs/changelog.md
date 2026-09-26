@@ -2,8 +2,8 @@
 
 - security fixes from dependalert
 - JPEG in magic directories
-- HEIC support
-- PNG no without lost
+- native macOS HEIC/HEIF input with orientation, sRGB color management, and HDR-to-SDR handling
+- preserve 16-bit channel depth for PNG exports, including resized images
 
 # 2.1.1
 

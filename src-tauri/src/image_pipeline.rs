@@ -18,7 +18,8 @@ use crate::models::{
     ExportFormat, LoadedImage, ProbeImagesResponse, RejectedImage,
 };
 
-const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp", "avif", "svg"];
+const SUPPORTED_EXTENSIONS: &[&str] =
+    &["jpg", "jpeg", "png", "webp", "avif", "svg", "heic", "heif"];
 const THUMBNAIL_WIDTH: u32 = 220;
 const THUMBNAIL_HEIGHT: u32 = 140;
 const MAX_RESIZE_DIMENSION: u32 = 9999;
@@ -189,7 +190,7 @@ fn load_single_image(path: &Path) -> Result<LoadedImage, AppError> {
         let preview_data_url = build_preview_data_url(&preview)?;
         (width, height, preview_data_url)
     } else {
-        let image = image::open(path)?;
+        let image = load_raster_image(path)?;
         let (width, height) = image.dimensions();
         let preview_data_url = build_preview_data_url(&image)?;
         (width, height, preview_data_url)
@@ -235,7 +236,7 @@ fn convert_single_image(
         );
         rasterize_svg(&tree, target_width, target_height)?
     } else {
-        let image = image::open(input_path)?;
+        let image = load_raster_image(input_path)?;
         resize_image(&image, request.resize.width, request.resize.height)
     };
     let (converted_width, converted_height) = resized.dimensions();
@@ -293,6 +294,26 @@ fn resize_image(image: &DynamicImage, width: Option<u32>, height: Option<u32>) -
             image::imageops::FilterType::Lanczos3,
         )
     }
+}
+
+fn load_raster_image(path: &Path) -> Result<DynamicImage, AppError> {
+    if is_heic(path) {
+        return load_heic_image(path);
+    }
+
+    Ok(image::open(path)?)
+}
+
+#[cfg(target_os = "macos")]
+fn load_heic_image(path: &Path) -> Result<DynamicImage, AppError> {
+    macos_heic::decode(path).map_err(AppError::Validation)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn load_heic_image(_path: &Path) -> Result<DynamicImage, AppError> {
+    Err(AppError::Validation(
+        "HEIC input is available only on macOS.".into(),
+    ))
 }
 
 fn resize_dimensions(
@@ -393,14 +414,8 @@ fn encode_image(
             )?;
         }
         ExportFormat::Png => {
-            let rgba = image.to_rgba8();
             let encoder = PngEncoder::new(&mut buffer);
-            encoder.write_image(
-                rgba.as_raw(),
-                rgba.width(),
-                rgba.height(),
-                ColorType::Rgba8.into(),
-            )?;
+            image.write_with_encoder(encoder)?;
         }
         ExportFormat::Webp => {
             let rgba = image.to_rgba8();
@@ -486,6 +501,12 @@ fn is_svg(path: &Path) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
 }
 
+fn is_heic(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("heic") || ext.eq_ignore_ascii_case("heif"))
+}
+
 fn format_label_from_extension(path: &Path) -> String {
     match path
         .extension()
@@ -498,7 +519,104 @@ fn format_label_from_extension(path: &Path) -> String {
         Some("webp") => "WEBP".into(),
         Some("avif") => "AVIF".into(),
         Some("svg") => "SVG".into(),
+        Some("heic") | Some("heif") => "HEIC".into(),
         _ => "Image".into(),
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod macos_heic {
+    use std::{path::Path, ptr::NonNull};
+
+    use image::{DynamicImage, RgbaImage};
+    use objc2::{available, msg_send, rc::autoreleasepool, runtime::AnyObject};
+    use objc2_core_graphics::{kCGColorSpaceSRGB, CGColorSpace};
+    use objc2_core_image::{
+        kCIContextOutputPremultiplied, kCIFormatRGBA8, kCIImageExpandToHDR, CIContext, CIFilter,
+        CIImage,
+    };
+    use objc2_foundation::{NSDictionary, NSNumber, NSString, NSURL};
+
+    pub(super) fn decode(path: &Path) -> Result<DynamicImage, String> {
+        autoreleasepool(|_| unsafe { decode_inner(path) })
+    }
+
+    unsafe fn decode_inner(path: &Path) -> Result<DynamicImage, String> {
+        let path = NSString::from_str(&path.to_string_lossy());
+        let url = NSURL::fileURLWithPath(&path);
+        let true_value = NSNumber::new_bool(true);
+        let true_object: &AnyObject = &true_value;
+        let image = if available!(macos = 15.0) {
+            let options = NSDictionary::from_slices(&[kCIImageExpandToHDR], &[true_object]);
+            CIImage::imageWithContentsOfURL_options(&url, Some(&options))
+        } else {
+            CIImage::imageWithContentsOfURL(&url)
+        }
+        .ok_or_else(|| "Unable to decode the HEIC image with macOS Core Image.".to_string())?;
+
+        // Read the CGImage/TIFF orientation property and transform it exactly once
+        // so probing, previews, and exports share the same logical dimensions.
+        let orientation_key = NSString::from_str("Orientation");
+        let orientation = image
+            .properties()
+            .objectForKey(&orientation_key)
+            .and_then(|value| value.downcast_ref::<NSNumber>().map(NSNumber::as_u32))
+            .unwrap_or(1);
+        let image = if (2..=8).contains(&orientation) {
+            image.imageByApplyingOrientation(orientation as i32)
+        } else {
+            image
+        };
+
+        let image = if available!(macos = 15.0) {
+            let filter = CIFilter::toneMapHeadroomFilter();
+            let _: () = msg_send![&*filter, setInputImage: Some(&*image)];
+            let _: () = msg_send![&*filter, setTargetHeadroom: 1.0_f32];
+            filter
+                .outputImage()
+                .ok_or_else(|| "Unable to tone-map the HDR HEIC image to SDR.".to_string())?
+        } else {
+            image
+        };
+
+        let extent = image.extent();
+        let width = dimension(extent.size.width, "width")?;
+        let height = dimension(extent.size.height, "height")?;
+        let row_bytes = (width as usize)
+            .checked_mul(4)
+            .ok_or_else(|| "The HEIC image is too wide to decode.".to_string())?;
+        let buffer_len = row_bytes
+            .checked_mul(height as usize)
+            .ok_or_else(|| "The HEIC image is too large to decode.".to_string())?;
+        let mut pixels = vec![0_u8; buffer_len];
+
+        let false_value = NSNumber::new_bool(false);
+        let false_object: &AnyObject = &false_value;
+        let context_options =
+            NSDictionary::from_slices(&[kCIContextOutputPremultiplied], &[false_object]);
+        let context = CIContext::contextWithOptions(Some(&context_options));
+        let color_space = CGColorSpace::with_name(Some(kCGColorSpaceSRGB))
+            .ok_or_else(|| "Unable to create the sRGB output color space.".to_string())?;
+        context.render_toBitmap_rowBytes_bounds_format_colorSpace(
+            &image,
+            NonNull::new(pixels.as_mut_ptr().cast()).expect("non-empty HEIC pixel buffer"),
+            isize::try_from(row_bytes)
+                .map_err(|_| "The HEIC row size is too large to decode.".to_string())?,
+            extent,
+            kCIFormatRGBA8,
+            Some(&color_space),
+        );
+
+        let pixels = RgbaImage::from_raw(width, height, pixels)
+            .ok_or_else(|| "Core Image returned an invalid HEIC pixel buffer.".to_string())?;
+        Ok(DynamicImage::ImageRgba8(pixels))
+    }
+
+    fn dimension(value: f64, label: &str) -> Result<u32, String> {
+        if !value.is_finite() || value < 1.0 || value > u32::MAX as f64 {
+            return Err(format!("The HEIC image has an invalid {label}."));
+        }
+        Ok(value.round() as u32)
     }
 }
 
@@ -650,11 +768,19 @@ fn human_size(bytes: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{next_available_output_path, rasterize_svg, resize_dimensions, sanitize_component};
-    use crate::models::CollisionMode;
-    use image::GenericImageView;
+    use super::{
+        encode_image, next_available_output_path, rasterize_svg, resize_dimensions, resize_image,
+        sanitize_component,
+    };
+    use crate::models::{
+        CollisionMode, ConversionImageInput, ConversionRequest, ExportFormat, ResizeOptions,
+    };
+    use image::{ColorType, DynamicImage, GenericImageView, ImageBuffer, Rgba};
     use resvg::usvg;
     use std::{collections::HashSet, path::Path};
+
+    #[cfg(target_os = "macos")]
+    use std::{fs, process::Command};
 
     #[test]
     fn sanitizes_file_components() {
@@ -678,6 +804,148 @@ mod tests {
     fn preserves_aspect_ratio_for_svg_resize_dimensions() {
         assert_eq!(resize_dimensions(100, 50, Some(350), None), (350, 175));
         assert_eq!(resize_dimensions(100, 50, None, Some(175)), (350, 175));
+    }
+
+    #[test]
+    fn preserves_16_bit_channels_for_png_exports() {
+        let pixels = ImageBuffer::from_fn(2, 2, |x, y| {
+            Rgba([
+                (x * 20_000 + y * 5_000) as u16,
+                (x * 10_000 + y * 15_000) as u16,
+                45_000,
+                65_535,
+            ])
+        });
+        let image = DynamicImage::ImageRgba16(pixels.clone());
+
+        let encoded = encode_image(&image, &ExportFormat::Png, 100).expect("encode 16-bit PNG");
+        let decoded = image::load_from_memory_with_format(&encoded, image::ImageFormat::Png)
+            .expect("decode 16-bit PNG");
+        assert_eq!(decoded.color(), ColorType::Rgba16);
+        assert_eq!(decoded.to_rgba16(), pixels);
+
+        let resized = resize_image(&image, Some(4), None);
+        assert_eq!(resized.color(), ColorType::Rgba16);
+        let resized_encoded =
+            encode_image(&resized, &ExportFormat::Png, 100).expect("encode resized 16-bit PNG");
+        let resized_decoded =
+            image::load_from_memory_with_format(&resized_encoded, image::ImageFormat::Png)
+                .expect("decode resized 16-bit PNG");
+        assert_eq!(resized_decoded.color(), ColorType::Rgba16);
+        assert_eq!(resized_decoded.dimensions(), (4, 4));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "requires native macOS HEIC codec services"]
+    fn decodes_heic_with_native_srgb_rendering() {
+        let directory = std::env::temp_dir().join(format!(
+            "bulkpixel-heic-native-decode-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir_all(&directory).expect("create HEIC test directory");
+        let png_path = directory.join("source.png");
+        let heic_path = directory.join("source.heic");
+        let source = ImageBuffer::from_fn(64, 32, |_x, y| {
+            if y < 16 {
+                Rgba([240_u8, 16, 16, 255])
+            } else {
+                Rgba([16_u8, 16, 240, 255])
+            }
+        });
+        source.save(&png_path).expect("write HEIC test source");
+        let output = Command::new("/usr/bin/sips")
+            .args(["-s", "format", "heic"])
+            .arg(&png_path)
+            .arg("--out")
+            .arg(&heic_path)
+            .output()
+            .expect("run macOS HEIC encoder");
+        assert!(
+            output.status.success(),
+            "sips failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let decoded = super::load_raster_image(&heic_path).expect("decode native HEIC");
+        assert_eq!(decoded.dimensions(), (64, 32));
+        assert_eq!(decoded.color(), ColorType::Rgba8);
+        let decoded = decoded.to_rgba8();
+        let top = decoded.get_pixel(32, 4);
+        let bottom = decoded.get_pixel(32, 27);
+        assert!(top[0] > 180 && top[2] < 80, "unexpected top pixel: {top:?}");
+        assert!(
+            bottom[2] > 180 && bottom[0] < 80,
+            "unexpected bottom pixel: {bottom:?}"
+        );
+
+        let output_directory = directory.join("converted");
+        let response = super::convert_images(ConversionRequest {
+            images: vec![ConversionImageInput {
+                path: heic_path.to_string_lossy().to_string(),
+            }],
+            format: ExportFormat::Png,
+            resize: ResizeOptions {
+                width: Some(32),
+                height: None,
+            },
+            quality: 100,
+            filename_component: String::new(),
+            filename_mode: "prefix".into(),
+            output_dir: output_directory.to_string_lossy().to_string(),
+            collision_mode: CollisionMode::Rename,
+        })
+        .expect("convert native HEIC through shared pipeline");
+        assert_eq!(response.summary.success_count, 1);
+        assert_eq!(response.summary.failure_count, 0);
+        let converted =
+            image::open(output_directory.join("source.png")).expect("open converted HEIC output");
+        assert_eq!(converted.dimensions(), (32, 16));
+
+        if let Some(fixture) = std::env::var_os("BULKPIXEL_HEIC_FIXTURE") {
+            let fixture_path = Path::new(&fixture);
+            let fixture =
+                super::load_raster_image(fixture_path).expect("decode external HEIC fixture");
+            assert!(fixture.width() > 0 && fixture.height() > 0);
+            assert_eq!(fixture.color(), ColorType::Rgba8);
+            if let (Ok(expected_width), Ok(expected_height)) = (
+                std::env::var("BULKPIXEL_HEIC_EXPECTED_WIDTH"),
+                std::env::var("BULKPIXEL_HEIC_EXPECTED_HEIGHT"),
+            ) {
+                assert_eq!(
+                    fixture.dimensions(),
+                    (
+                        expected_width.parse().expect("numeric expected HEIC width"),
+                        expected_height
+                            .parse()
+                            .expect("numeric expected HEIC height"),
+                    )
+                );
+            }
+
+            let fixture_output_directory = directory.join("fixture-converted");
+            let fixture_response = super::convert_images(ConversionRequest {
+                images: vec![ConversionImageInput {
+                    path: fixture_path.to_string_lossy().to_string(),
+                }],
+                format: ExportFormat::Jpeg,
+                resize: ResizeOptions {
+                    width: Some(64),
+                    height: None,
+                },
+                quality: 90,
+                filename_component: String::new(),
+                filename_mode: "prefix".into(),
+                output_dir: fixture_output_directory.to_string_lossy().to_string(),
+                collision_mode: CollisionMode::Rename,
+            })
+            .expect("convert external HEIC fixture");
+            assert_eq!(fixture_response.summary.success_count, 1);
+            assert_eq!(fixture_response.summary.failure_count, 0);
+        }
+
+        fs::remove_dir_all(directory).expect("remove HEIC test directory");
     }
 
     #[test]

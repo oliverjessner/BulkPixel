@@ -48,7 +48,7 @@
                         <div class="dropzone-copy">
                             <p id="dropzone-title" class="dropzone-title">Drop images here</p>
                             <p class="dropzone-helper">or click to browse files</p>
-                            <p class="dropzone-meta">Supported formats: JPG, JPEG, PNG, WEBP, AVIF, SVG</p>
+                            <p class="dropzone-meta">Supported formats: JPG, JPEG, PNG, WEBP, AVIF, SVG, HEIC</p>
                         </div>
                     </button>
 
@@ -150,7 +150,7 @@
                                 value="100"
                             />
                             <p id="quality-helper" class="field-helper">
-                                JPEG, WEBP and AVIF respect this setting. PNG stays lossless.
+                                JPEG, WEBP and AVIF respect this setting. PNG uses lossless compression and preserves 16-bit source channels.
                             </p>
                         </div>
 
@@ -367,6 +367,7 @@
                                 <button type="button" class="format-option magic-format-option" data-format="png" aria-pressed="false">PNG</button>
                                 <button type="button" class="format-option magic-format-option" data-format="webp" aria-pressed="false">WEBP</button>
                                 <button type="button" class="format-option magic-format-option" data-format="avif" aria-pressed="false">AVIF</button>
+                                <button type="button" class="format-option magic-format-option" data-format="heic" aria-pressed="false">HEIC</button>
                             </div>
                             <p class="field-helper">Select one or more formats. Files in subfolders are ignored.</p>
                         </div>

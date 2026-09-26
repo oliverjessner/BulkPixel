@@ -45,8 +45,8 @@ function renderControls(state, elements) {
     elements.qualityValue.textContent = state.format === 'png' ? 'Lossless' : String(state.quality);
     elements.qualityHelper.textContent =
         state.format === 'png'
-            ? 'PNG is lossless. Quality disabled.'
-            : 'JPEG, WEBP and AVIF respect this setting. PNG stays lossless.';
+            ? 'PNG uses lossless compression and preserves 16-bit source channels. Quality disabled.'
+            : 'JPEG, WEBP and AVIF respect this setting. PNG uses lossless compression.';
 
     elements.prefixInput.value = state.filenameComponent;
     elements.prefixInput.disabled = state.isProcessing;
@@ -402,7 +402,7 @@ function buildEmptyState() {
 
     const copy = document.createElement('p');
     copy.className = 'empty-copy';
-    copy.textContent = 'Drop JPG, PNG, or WEBP files into the upload area to start.';
+    copy.textContent = 'Drop JPG, PNG, WEBP, AVIF, SVG, or HEIC files into the upload area to start.';
 
     emptyState.append(title, copy);
     return emptyState;

@@ -64,6 +64,20 @@
                 "name": "BulkPixel SVG Image",
                 "role": "Editor",
                 "rank": "Alternate"
+            },
+            {
+                "ext": ["heic"],
+                "mimeType": "image/heic",
+                "name": "BulkPixel HEIC Image",
+                "role": "Editor",
+                "rank": "Alternate"
+            },
+            {
+                "ext": ["heif"],
+                "mimeType": "image/heif",
+                "name": "BulkPixel HEIF Image",
+                "role": "Editor",
+                "rank": "Alternate"
             }
         ]
     }

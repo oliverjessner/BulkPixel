@@ -630,7 +630,7 @@ async function pickImages() {
             filters: [
                 {
                     name: 'Images',
-                    extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg'],
+                    extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg', 'heic', 'heif'],
                 },
             ],
         });
