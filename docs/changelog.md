@@ -5,6 +5,7 @@
 - Add native HEIC and HEIF import across the desktop app, CLI, Finder integration, and Magic Directories, with orientation handling, sRGB color management, and highlight-preserving SDR output for HDR source images.
 - Preserve 16-bit channel depth when exporting PNG files, including resized images, instead of always reducing them to 8-bit RGBA.
 - Document import, export, and Magic Directory compatibility in a central supported-formats matrix.
+- the command --help shows the version
 
 # 2.1.1
 
