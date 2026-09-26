@@ -18,8 +18,10 @@ use crate::{
     },
 };
 
-const HELP_TEXT: &str = "\
-BulkPixel CLI
+const HELP_TEXT: &str = concat!(
+    "BulkPixel CLI ",
+    env!("CARGO_PKG_VERSION"),
+    "
 
 Usage:
   bulkpixel convert --input <file...> --output-dir <dir> [options]
@@ -44,7 +46,8 @@ Export formats:
 
 Watched formats:
   jpeg (jpg), png, webp, avif, svg, heic (heif)
-";
+"
+);
 
 #[derive(Debug, Default)]
 struct ConvertOptions {
@@ -1149,4 +1152,14 @@ fn format_date(value: &str) -> String {
 
 fn format_arrow() -> &'static str {
     "\u{2192}"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::HELP_TEXT;
+
+    #[test]
+    fn help_includes_the_package_version() {
+        assert!(HELP_TEXT.starts_with(&format!("BulkPixel CLI {}", env!("CARGO_PKG_VERSION"))));
+    }
 }
