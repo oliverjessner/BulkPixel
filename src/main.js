@@ -25,7 +25,7 @@ const state = {
     format: 'jpeg',
     width: '',
     height: '',
-    resizeMode: 'none',
+    resizeMode: 'width',
     resizeReference: null,
     quality: 100,
     filenameComponent: '',
@@ -1369,7 +1369,7 @@ function resizeStartingValue(currentValue, referenceValue) {
 function syncResizeReference() {
     if (!state.images.length) {
         state.resizeReference = null;
-        state.resizeMode = 'none';
+        state.resizeMode = 'width';
         state.width = '';
         state.height = '';
         return;
@@ -1389,7 +1389,8 @@ function syncResizeReference() {
     if (state.resizeMode === 'none') {
         state.width = String(firstImage.width);
         state.height = String(firstImage.height);
-    } else if (state.resizeMode === 'width' && state.width) {
+    } else if (state.resizeMode === 'width') {
+        state.width ||= String(firstImage.width);
         state.height = derivePairedDimension('width', state.width);
     } else if (state.resizeMode === 'height' && state.height) {
         state.width = derivePairedDimension('height', state.height);
