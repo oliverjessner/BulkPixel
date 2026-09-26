@@ -35,26 +35,16 @@ function renderControls(state, elements) {
         option.disabled = state.isProcessing;
     }
 
-    const isOriginalSize = state.resizeMode === 'none';
-    const isWidthResize = state.resizeMode === 'width';
-    const isHeightResize = state.resizeMode === 'height';
-    elements.resizeOriginalState.hidden = !isOriginalSize;
-    elements.widthControl.hidden = !isWidthResize;
-    elements.heightControl.hidden = !isHeightResize;
-    elements.widthInput.value = isWidthResize ? state.width : '';
-    elements.heightInput.value = isHeightResize ? state.height : '';
-    elements.widthInput.disabled = state.isProcessing || !isWidthResize;
-    elements.heightInput.disabled = state.isProcessing || !isHeightResize;
-    elements.resizeReference.textContent = buildResizeReferenceText(state);
+    const resizeInputs = buildResizeInputState(state);
+    elements.widthInput.value = resizeInputs.widthValue;
+    elements.heightInput.value = resizeInputs.heightValue;
+    elements.widthInput.readOnly = resizeInputs.widthReadOnly;
+    elements.heightInput.readOnly = resizeInputs.heightReadOnly;
+    elements.widthInput.disabled = state.isProcessing;
+    elements.heightInput.disabled = state.isProcessing;
     const referenceNote = buildResizeReferenceNote(state);
     elements.resizeReferenceNote.textContent = referenceNote;
     elements.resizeReferenceNote.hidden = !referenceNote;
-    const outputSize = buildResizeOutputText(state);
-    elements.resizeOutputPreview.hidden = isOriginalSize || !outputSize;
-    elements.resizeOutputValue.textContent = outputSize;
-    const outputNote = state.resizeReference?.mixedSizes ? 'Reference based on first image' : '';
-    elements.resizeOutputNote.textContent = outputNote;
-    elements.resizeOutputNote.hidden = !outputNote;
     elements.resizeHelper.textContent = state.validationMessage || buildResizeHelperText(state);
     elements.resizeHelper.classList.toggle('is-error', Boolean(state.validationMessage));
 
@@ -495,24 +485,17 @@ function buildPreviewResult(result) {
     return resultElement;
 }
 
-export function buildResizeReferenceText(state) {
-    if (!state.resizeReference) {
-        return 'Waiting for images';
-    }
-
-    return formatDimensions(state.resizeReference.width, state.resizeReference.height);
+export function buildResizeInputState(state) {
+    return {
+        widthValue: state.width || '',
+        heightValue: state.height || '',
+        widthReadOnly: state.resizeMode !== 'width',
+        heightReadOnly: state.resizeMode !== 'height',
+    };
 }
 
 export function buildResizeReferenceNote(state) {
     return state.resizeReference?.mixedSizes ? 'Based on first image' : '';
-}
-
-export function buildResizeOutputText(state) {
-    if (!state.resizeReference || state.resizeMode === 'none' || !state.width || !state.height) {
-        return '';
-    }
-
-    return formatDimensions(state.width, state.height);
 }
 
 export function buildResizeHelperText(state) {

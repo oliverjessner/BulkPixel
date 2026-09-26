@@ -106,16 +106,9 @@ function cacheElements() {
     elements.presetSelect = document.querySelector('#preset-select');
     elements.formatOptions = [...document.querySelectorAll('#format-toggle .format-option')];
     elements.resizeModeOptions = [...document.querySelectorAll('#resize-mode-toggle .toggle-button')];
-    elements.resizeOriginalState = document.querySelector('#resize-original-state');
     elements.widthInput = document.querySelector('#width-input');
-    elements.widthControl = document.querySelector('#width-control');
     elements.heightInput = document.querySelector('#height-input');
-    elements.heightControl = document.querySelector('#height-control');
-    elements.resizeReference = document.querySelector('#resize-reference');
     elements.resizeReferenceNote = document.querySelector('#resize-reference-note');
-    elements.resizeOutputPreview = document.querySelector('#resize-output-preview');
-    elements.resizeOutputValue = document.querySelector('#resize-output-value');
-    elements.resizeOutputNote = document.querySelector('#resize-output-note');
     elements.resizeHelper = document.querySelector('#resize-helper');
     elements.qualitySlider = document.querySelector('#quality-slider');
     elements.qualityValue = document.querySelector('#quality-value');

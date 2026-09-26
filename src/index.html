@@ -114,53 +114,40 @@
                                 </button>
                             </div>
 
-                            <div id="resize-original-state" class="resize-information">
-                                <div class="resize-information-row">
-                                    <span class="field-label">Original size</span>
-                                    <strong id="resize-reference" class="resize-dimension-value">Waiting for images</strong>
-                                </div>
-                                <p id="resize-reference-note" class="resize-context-note" hidden></p>
+                            <div class="field-row split">
+                                <label id="width-control" class="field resize-dimension-control" for="width-input">
+                                    <span class="field-label">Width</span>
+                                    <span class="resize-input-row">
+                                        <input
+                                            id="width-input"
+                                            type="number"
+                                            inputmode="numeric"
+                                            min="1"
+                                            max="9999"
+                                            step="1"
+                                            placeholder="Waiting for images"
+                                        />
+                                        <span class="resize-unit" aria-hidden="true">px</span>
+                                    </span>
+                                </label>
+
+                                <label id="height-control" class="field resize-dimension-control" for="height-input">
+                                    <span class="field-label">Height</span>
+                                    <span class="resize-input-row">
+                                        <input
+                                            id="height-input"
+                                            type="number"
+                                            inputmode="numeric"
+                                            min="1"
+                                            max="9999"
+                                            step="1"
+                                            placeholder="Waiting for images"
+                                        />
+                                        <span class="resize-unit" aria-hidden="true">px</span>
+                                    </span>
+                                </label>
                             </div>
-
-                            <label id="width-control" class="field resize-dimension-control" for="width-input" hidden>
-                                <span class="field-label">Width</span>
-                                <span class="resize-input-row">
-                                    <input
-                                        id="width-input"
-                                        type="number"
-                                        inputmode="numeric"
-                                        min="1"
-                                        max="9999"
-                                        step="1"
-                                        placeholder="Leave empty"
-                                    />
-                                    <span class="resize-unit" aria-hidden="true">px</span>
-                                </span>
-                            </label>
-
-                            <label id="height-control" class="field resize-dimension-control" for="height-input" hidden>
-                                <span class="field-label">Height</span>
-                                <span class="resize-input-row">
-                                    <input
-                                        id="height-input"
-                                        type="number"
-                                        inputmode="numeric"
-                                        min="1"
-                                        max="9999"
-                                        step="1"
-                                        placeholder="Leave empty"
-                                    />
-                                    <span class="resize-unit" aria-hidden="true">px</span>
-                                </span>
-                            </label>
-
-                            <div id="resize-output-preview" class="resize-information" hidden>
-                                <div class="resize-information-row">
-                                    <span class="field-label">Output size</span>
-                                    <strong id="resize-output-value" class="resize-dimension-value"></strong>
-                                </div>
-                                <p id="resize-output-note" class="resize-context-note" hidden></p>
-                            </div>
+                            <p id="resize-reference-note" class="resize-context-note" hidden></p>
                             <p id="resize-helper" class="field-helper">Images keep their original size.</p>
                         </div>
 

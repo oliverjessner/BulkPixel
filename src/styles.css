@@ -570,37 +570,10 @@ select:focus {
     color: var(--negative);
 }
 
-.resize-information {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
-}
-
-.resize-information-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 16px;
-    min-width: 0;
-}
-
-.resize-dimension-value {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 0.9rem;
-    font-weight: 500;
-    text-align: right;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .resize-context-note {
     margin: 0;
     color: var(--text-soft);
     font-size: 0.78rem;
-    text-align: right;
 }
 
 .resize-dimension-control {
@@ -617,6 +590,11 @@ select:focus {
 
 .resize-input-row input {
     min-width: 0;
+}
+
+.resize-input-row input[readonly] {
+    color: var(--text-muted);
+    cursor: default;
 }
 
 .resize-unit {

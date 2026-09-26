@@ -3,22 +3,25 @@ import test from 'node:test';
 
 import {
     buildResizeHelperText,
-    buildResizeOutputText,
+    buildResizeInputState,
     buildResizeReferenceNote,
-    buildResizeReferenceText,
 } from '../src/ui.js';
 
-test('describes the original resize state without editable dimensions', () => {
+test('shows both original dimensions as read-only inputs', () => {
     const state = {
         resizeMode: 'none',
-        resizeReference: null,
-        width: '',
-        height: '',
+        resizeReference: { width: 1920, height: 1080, mixedSizes: false },
+        width: '1920',
+        height: '1080',
     };
 
-    assert.equal(buildResizeReferenceText(state), 'Waiting for images');
+    assert.deepEqual(buildResizeInputState(state), {
+        widthValue: '1920',
+        heightValue: '1080',
+        widthReadOnly: true,
+        heightReadOnly: true,
+    });
     assert.equal(buildResizeReferenceNote(state), '');
-    assert.equal(buildResizeOutputText(state), '');
     assert.equal(buildResizeHelperText(state), 'Images keep their original size.');
 });
 
@@ -30,9 +33,13 @@ test('shows the calculated reference output for width resizing', () => {
         height: '675',
     };
 
-    assert.equal(buildResizeReferenceText(state), '1920 × 1080');
+    assert.deepEqual(buildResizeInputState(state), {
+        widthValue: '1200',
+        heightValue: '675',
+        widthReadOnly: false,
+        heightReadOnly: true,
+    });
     assert.equal(buildResizeReferenceNote(state), 'Based on first image');
-    assert.equal(buildResizeOutputText(state), '1200 × 675');
     assert.equal(buildResizeHelperText(state), 'Height is calculated automatically.');
 });
 
@@ -44,7 +51,12 @@ test('shows the calculated reference output for height resizing', () => {
         height: '800',
     };
 
+    assert.deepEqual(buildResizeInputState(state), {
+        widthValue: '1422',
+        heightValue: '800',
+        widthReadOnly: true,
+        heightReadOnly: false,
+    });
     assert.equal(buildResizeReferenceNote(state), '');
-    assert.equal(buildResizeOutputText(state), '1422 × 800');
     assert.equal(buildResizeHelperText(state), 'Width is calculated automatically.');
 });
