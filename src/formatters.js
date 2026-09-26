@@ -70,6 +70,13 @@ export function buildBrandTitle(magicDirectoryChangeDetected) {
     : "BulkPixel";
 }
 
+export function buildStatisticsTitle(version) {
+  const normalizedVersion = String(version ?? "").trim();
+  return normalizedVersion
+    ? `BulkPixel ${normalizedVersion} Statistics`
+    : "BulkPixel Statistics";
+}
+
 export function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")

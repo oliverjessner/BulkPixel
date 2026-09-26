@@ -68,6 +68,11 @@ async fn get_default_output_directory() -> Result<String, String> {
 }
 
 #[tauri::command]
+fn get_app_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+#[tauri::command]
 fn show_in_finder(path: String) -> Result<(), String> {
     let directory = PathBuf::from(path);
     if !directory.is_dir() {
@@ -195,6 +200,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_default_output_directory,
+            get_app_version,
             show_in_finder,
             probe_images_command,
             bulk_convert_images,

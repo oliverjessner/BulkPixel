@@ -1051,8 +1051,9 @@ fn preset_dimension_label(value: Option<u32>, is_original: bool) -> String {
 }
 
 fn print_statistics(statistics: &ConversionStatistics) {
-    println!("BulkPixel Statistics");
-    println!("--------------------");
+    let title = format!("BulkPixel {} Statistics", env!("CARGO_PKG_VERSION"));
+    println!("{title}");
+    println!("{}", "-".repeat(title.len()));
     println!("Conversions");
     println!("Total: {}", statistics.amount);
     println!("WEBP: {}", statistics.webp);

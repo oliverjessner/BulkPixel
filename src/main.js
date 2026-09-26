@@ -1,5 +1,6 @@
 import {
     buildDeletePresetConfirmation,
+    buildStatisticsTitle,
     formatBytes,
     formatDate,
     formatDuration,
@@ -44,6 +45,7 @@ const state = {
     },
     magicDirectoryChangeDetected: false,
     statistics: null,
+    appVersion: '',
     statisticsLoading: false,
     statisticsError: '',
     selectedPresetId: 'custom',
@@ -64,6 +66,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     cacheElements();
     bindEvents();
     render();
+    await hydrateAppVersion();
     await bindOpenedFiles();
     await hydrateDefaultOutputDirectory();
     resetPresetFormToCurrentSettings();
@@ -80,6 +83,7 @@ function cacheElements() {
     elements.brandTitle = document.querySelector('#brand-title');
     elements.statisticsTrigger = document.querySelector('#statistics-trigger');
     elements.statisticsDialog = document.querySelector('#statistics-dialog');
+    elements.statisticsTitle = document.querySelector('#statistics-title');
     elements.statisticsCloseButton = document.querySelector('#statistics-close-button');
     elements.statisticsMessage = document.querySelector('#statistics-message');
     elements.statisticsContent = document.querySelector('#statistics-content');
@@ -340,7 +344,16 @@ async function openStatistics() {
     }
 }
 
+async function hydrateAppVersion() {
+    try {
+        state.appVersion = await invoke('get_app_version');
+    } catch {
+        state.appVersion = '';
+    }
+}
+
 function renderStatistics() {
+    elements.statisticsTitle.textContent = buildStatisticsTitle(state.appVersion);
     elements.statisticsMessage.hidden = !state.statisticsLoading && !state.statisticsError;
     elements.statisticsMessage.dataset.kind = state.statisticsError ? 'error' : 'info';
     elements.statisticsMessage.textContent = state.statisticsError || 'Loading statistics...';

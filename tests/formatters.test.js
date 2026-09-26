@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
     buildBrandTitle,
     buildDeletePresetConfirmation,
+    buildStatisticsTitle,
     formatDate,
     formatDuration,
 } from '../src/formatters.js';
@@ -20,6 +21,11 @@ test('builds the preset deletion prompt as display text', () => {
 test('shows Magic Directory activity in the brand title only while active', () => {
     assert.equal(buildBrandTitle(true), 'BulkPixel - Magic Directory change detected');
     assert.equal(buildBrandTitle(false), 'BulkPixel');
+});
+
+test('shows the app version in the statistics title', () => {
+    assert.equal(buildStatisticsTitle('2.2.0'), 'BulkPixel 2.2.0 Statistics');
+    assert.equal(buildStatisticsTitle(''), 'BulkPixel Statistics');
 });
 
 test('formats statistics durations like the CLI', () => {
