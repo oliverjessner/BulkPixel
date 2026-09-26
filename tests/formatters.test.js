@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-    buildBrandTitle,
     buildDeletePresetConfirmation,
     buildSummaryDeltaText,
     buildStatisticsTitle,
@@ -17,11 +16,6 @@ test('builds the preset deletion prompt as display text', () => {
         buildDeletePresetConfirmation(name),
         'Delete preset "Demo"); DROP TABLE presets; --"?',
     );
-});
-
-test('shows Magic Directory activity in the brand title only while active', () => {
-    assert.equal(buildBrandTitle(true), 'BulkPixel - Magic Directory change detected');
-    assert.equal(buildBrandTitle(false), 'BulkPixel');
 });
 
 test('shows the app version in the statistics title', () => {

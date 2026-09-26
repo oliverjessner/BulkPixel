@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
     buildConversionActionBar,
     buildConversionJobSummary,
+    buildGlobalWatcherStatus,
     buildInputFormatSummary,
     buildPresetLibrarySummary,
     buildResizeInputState,
@@ -248,4 +249,82 @@ test('labels PNG presets as lossless instead of showing a quality value', () => 
         }),
         'PNG · Original size · Lossless',
     );
+});
+
+test('distinguishes unconfigured and disabled Magic Directory watchers', () => {
+    const activity = { kind: 'info', text: 'Watching starts when BulkPixel opens.' };
+
+    assert.deepEqual(
+        buildGlobalWatcherStatus({
+            magicDirectories: [],
+            magicActivity: activity,
+            magicDirectoryChangeDetected: false,
+        }),
+        {
+            kind: 'idle',
+            label: 'No watched folders',
+            detail: 'No Magic Directories are configured.',
+            activeCount: 0,
+        },
+    );
+
+    assert.deepEqual(
+        buildGlobalWatcherStatus({
+            magicDirectories: [{ enabled: false }, { enabled: false }],
+            magicActivity: activity,
+            magicDirectoryChangeDetected: false,
+        }),
+        {
+            kind: 'idle',
+            label: 'No active folders',
+            detail: 'All configured Magic Directories are disabled.',
+            activeCount: 0,
+        },
+    );
+});
+
+test('counts enabled Magic Directories with correct singular and plural labels', () => {
+    const activity = { kind: 'success', text: 'Watcher ready.' };
+    const oneWatcher = buildGlobalWatcherStatus({
+        magicDirectories: [{ enabled: true }, { enabled: false }],
+        magicActivity: activity,
+        magicDirectoryChangeDetected: false,
+    });
+    const threeWatchers = buildGlobalWatcherStatus({
+        magicDirectories: [{ enabled: true }, { enabled: true }, { enabled: true }],
+        magicActivity: activity,
+        magicDirectoryChangeDetected: false,
+    });
+
+    assert.equal(oneWatcher.label, 'Watching 1 folder');
+    assert.equal(oneWatcher.activeCount, 1);
+    assert.equal(threeWatchers.label, 'Watching 3 folders');
+    assert.equal(threeWatchers.activeCount, 3);
+});
+
+test('gives watcher errors priority over processing and recovers on later activity', () => {
+    const directories = [{ enabled: true }, { enabled: true }];
+    const processing = buildGlobalWatcherStatus({
+        magicDirectories: directories,
+        magicActivity: { kind: 'info', text: 'Processing image.heic...' },
+        magicDirectoryChangeDetected: true,
+    });
+    const error = buildGlobalWatcherStatus({
+        magicDirectories: directories,
+        magicActivity: { kind: 'error', text: 'Unable to watch /tmp/incoming.' },
+        magicDirectoryChangeDetected: true,
+    });
+    const recovered = buildGlobalWatcherStatus({
+        magicDirectories: directories,
+        magicActivity: { kind: 'success', text: 'Magic directory converted 1 output.' },
+        magicDirectoryChangeDetected: false,
+    });
+
+    assert.equal(processing.kind, 'processing');
+    assert.equal(processing.label, 'Processing · 2 folders');
+    assert.equal(error.kind, 'error');
+    assert.equal(error.label, 'Watcher error');
+    assert.equal(error.detail, 'Unable to watch /tmp/incoming.');
+    assert.equal(recovered.kind, 'watching');
+    assert.equal(recovered.label, 'Watching 2 folders');
 });

@@ -81,6 +81,8 @@ function cacheElements() {
     elements.presetsView = document.querySelector('#presets-view');
     elements.magicView = document.querySelector('#magic-view');
     elements.brandTitle = document.querySelector('#brand-title');
+    elements.globalWatcherStatus = document.querySelector('#global-watcher-status');
+    elements.globalWatcherStatusLabel = document.querySelector('#global-watcher-status-label');
     elements.statisticsTrigger = document.querySelector('#statistics-trigger');
     elements.statisticsDialog = document.querySelector('#statistics-dialog');
     elements.statisticsTitle = document.querySelector('#statistics-title');

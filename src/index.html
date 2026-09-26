@@ -18,6 +18,17 @@
                     <img class="brand-logo" src="/assets/icons/logo.png" alt="BulkPixel logo" />
                     <h1 id="brand-title">BulkPixel</h1>
                 </button>
+                <div
+                    id="global-watcher-status"
+                    class="global-watcher-status"
+                    data-kind="idle"
+                    aria-live="polite"
+                    aria-atomic="true"
+                    title="No Magic Directories are configured."
+                >
+                    <span class="watcher-status-dot" aria-hidden="true"></span>
+                    <span id="global-watcher-status-label" class="watcher-status-label">No watched folders</span>
+                </div>
                 <nav id="app-mode-toggle" class="app-mode-toggle" aria-label="Main view">
                     <button class="app-mode-button is-active" type="button" data-view="convert" aria-pressed="true">
                         Convert

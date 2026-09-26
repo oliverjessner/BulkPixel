@@ -1,5 +1,4 @@
 import {
-    buildBrandTitle,
     buildResultTone,
     buildSummaryDeltaText,
     formatBytes,
@@ -8,7 +7,8 @@ import {
 } from './formatters.js';
 
 export function renderApp(state, elements) {
-    renderBrand(state, elements);
+    renderBrand(elements);
+    renderGlobalWatcherStatus(state, elements);
     renderView(state, elements);
     renderControls(state, elements);
     renderPresetPicker(state, elements);
@@ -20,8 +20,64 @@ export function renderApp(state, elements) {
     renderPreview(state, elements);
 }
 
-function renderBrand(state, elements) {
-    elements.brandTitle.textContent = buildBrandTitle(state.magicDirectoryChangeDetected);
+function renderBrand(elements) {
+    elements.brandTitle.textContent = 'BulkPixel';
+}
+
+function renderGlobalWatcherStatus(state, elements) {
+    const watcherStatus = buildGlobalWatcherStatus(state);
+    elements.globalWatcherStatus.dataset.kind = watcherStatus.kind;
+    elements.globalWatcherStatus.title = watcherStatus.detail;
+    elements.globalWatcherStatusLabel.textContent = watcherStatus.label;
+}
+
+export function buildGlobalWatcherStatus(state) {
+    const directories = state.magicDirectories ?? [];
+    const activeCount = directories.filter(directory => directory.enabled).length;
+    const activity = state.magicActivity ?? { kind: 'info', text: '' };
+
+    if (activity.kind === 'error') {
+        return {
+            kind: 'error',
+            label: 'Watcher error',
+            detail: activity.text || 'Magic Directory watcher error.',
+            activeCount,
+        };
+    }
+
+    if (state.magicDirectoryChangeDetected) {
+        return {
+            kind: 'processing',
+            label: activeCount ? `Processing · ${pluralize('folder', activeCount)}` : 'Processing',
+            detail: activity.text || 'Processing files from Magic Directories.',
+            activeCount,
+        };
+    }
+
+    if (activeCount > 0) {
+        return {
+            kind: 'watching',
+            label: `Watching ${pluralize('folder', activeCount)}`,
+            detail: 'Magic Directories are active while BulkPixel is open.',
+            activeCount,
+        };
+    }
+
+    if (directories.length > 0) {
+        return {
+            kind: 'idle',
+            label: 'No active folders',
+            detail: 'All configured Magic Directories are disabled.',
+            activeCount,
+        };
+    }
+
+    return {
+        kind: 'idle',
+        label: 'No watched folders',
+        detail: 'No Magic Directories are configured.',
+        activeCount,
+    };
 }
 
 function renderControls(state, elements) {

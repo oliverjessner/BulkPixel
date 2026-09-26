@@ -64,12 +64,6 @@ export function buildDeletePresetConfirmation(name) {
   return ['Delete preset "', name, '"?'].join("");
 }
 
-export function buildBrandTitle(magicDirectoryChangeDetected) {
-  return magicDirectoryChangeDetected
-    ? "BulkPixel - Magic Directory change detected"
-    : "BulkPixel";
-}
-
 export function buildStatisticsTitle(version) {
   const normalizedVersion = String(version ?? "").trim();
   return normalizedVersion
