@@ -1,4 +1,11 @@
-import { buildBrandTitle, buildResultTone, formatBytes, formatDimensions, pluralize } from './formatters.js';
+import {
+    buildBrandTitle,
+    buildResultTone,
+    buildSummaryDeltaText,
+    formatBytes,
+    formatDimensions,
+    pluralize,
+} from './formatters.js';
 
 export function renderApp(state, elements) {
     renderBrand(state, elements);
@@ -9,7 +16,7 @@ export function renderApp(state, elements) {
     renderPresetList(state, elements);
     renderMagicDirectoryForm(state, elements);
     renderMagicDirectoryList(state, elements);
-    renderStatus(state, elements);
+    renderConversionActionBar(state, elements);
     renderPreview(state, elements);
 }
 
@@ -74,15 +81,9 @@ function renderControls(state, elements) {
 
     const hasImages = state.images.length > 0;
     elements.addImagesButton.disabled = state.isProcessing;
-    elements.removeAllButton.disabled = state.isProcessing || !hasImages;
     elements.previewMeta.textContent = hasImages
         ? `${pluralize('image', state.images.length)} loaded`
         : 'No images added yet';
-
-    elements.convertButton.disabled = state.isProcessing || !hasImages || Boolean(state.validationMessage);
-    elements.convertButton.textContent = state.isProcessing ? 'Converting images...' : 'Bulk Convert';
-
-    elements.statusSpinner.classList.toggle('is-visible', state.isImporting || state.isProcessing);
 }
 
 function renderView(state, elements) {
@@ -237,9 +238,223 @@ function renderPresetList(state, elements) {
     elements.presetList.replaceChildren(...state.presets.map(buildPresetCard));
 }
 
-function renderStatus(state, elements) {
-    elements.statusText.textContent = state.status.text;
-    elements.statusText.dataset.kind = state.status.kind;
+function renderConversionActionBar(state, elements) {
+    const actionBar = buildConversionActionBar(state);
+
+    elements.statusText.textContent = actionBar.primary;
+    elements.statusText.dataset.kind = actionBar.tone;
+    elements.statusMeta.textContent = actionBar.secondary;
+    elements.statusMeta.hidden = !actionBar.secondary;
+    elements.statusSymbol.textContent = actionBar.symbol;
+    elements.statusSymbol.dataset.kind = actionBar.tone;
+    elements.statusSymbol.hidden = !actionBar.symbol;
+    elements.statusSpinner.classList.toggle('is-visible', actionBar.showSpinner);
+
+    elements.removeAllButton.hidden = !actionBar.showClear;
+    elements.removeAllButton.disabled = state.isProcessing;
+    elements.actionShowOutputButton.hidden = !actionBar.showFinder;
+    elements.actionShowOutputButton.disabled = state.isProcessing || !state.outputDirectory;
+    elements.convertButton.textContent = actionBar.convertLabel;
+    elements.convertButton.disabled = actionBar.convertDisabled;
+}
+
+export function buildConversionActionBar(state) {
+    const imageCount = state.images.length;
+    const hasImages = imageCount > 0;
+    const convertLabel = state.isProcessing
+        ? 'Converting...'
+        : hasImages
+          ? `Convert ${pluralize('Image', imageCount)}`
+          : 'Convert';
+    const base = {
+        tone: 'info',
+        primary: '',
+        secondary: '',
+        symbol: '',
+        showSpinner: false,
+        showClear: false,
+        showFinder: false,
+        convertLabel,
+        convertDisabled:
+            state.isProcessing || state.isImporting || !hasImages || Boolean(state.validationMessage),
+    };
+
+    if (state.isProcessing) {
+        return {
+            ...base,
+            primary: `Converting ${pluralize('image', imageCount)}...`,
+            secondary: 'Please keep BulkPixel open.',
+            showSpinner: true,
+        };
+    }
+
+    if (state.isImporting) {
+        return {
+            ...base,
+            primary: state.status.text,
+            secondary: 'Please wait while BulkPixel checks the files.',
+            showSpinner: true,
+        };
+    }
+
+    if (state.validationMessage) {
+        return {
+            ...base,
+            tone: 'warning',
+            primary: state.validationMessage,
+            symbol: '!',
+            showClear: hasImages,
+        };
+    }
+
+    if (state.summary && Number(state.summary.successCount ?? 0) <= 0) {
+        return buildConversionResultActionBar(state, base);
+    }
+
+    if (state.status.kind === 'error') {
+        return {
+            ...base,
+            tone: 'error',
+            primary: state.status.text,
+            secondary: hasImages ? 'Review the current settings or image results.' : '',
+            symbol: '×',
+            showClear: hasImages && !state.summary,
+        };
+    }
+
+    if (state.summary) {
+        return buildConversionResultActionBar(state, base);
+    }
+
+    if (hasImages) {
+        const totalInputSize = getTotalInputSize(state.images);
+        return {
+            ...base,
+            primary: buildConversionJobSummary(state),
+            secondary: totalInputSize === null ? '' : `${formatBytes(totalInputSize)} input`,
+            showClear: true,
+        };
+    }
+
+    if (state.status.kind === 'warning') {
+        return {
+            ...base,
+            tone: 'warning',
+            primary: state.status.text,
+            symbol: '!',
+        };
+    }
+
+    return {
+        ...base,
+        primary: 'No images selected',
+        secondary: 'Add images to begin.',
+    };
+}
+
+function buildConversionResultActionBar(state, base) {
+    const summary = state.summary;
+    const successCount = Number(summary.successCount ?? 0);
+    const failureCount = Number(summary.failureCount ?? 0);
+    const totalCount = successCount + failureCount;
+
+    if (successCount <= 0) {
+        return {
+            ...base,
+            tone: 'error',
+            primary: 'No images were converted.',
+            secondary: 'Review the errors in the image list.',
+            symbol: '×',
+        };
+    }
+
+    const sizeChange = buildSummaryDeltaText(
+        Number(summary.totalDeltaBytes ?? 0),
+        Number(summary.totalPercentChange ?? 0),
+    );
+    const sizeComparison = buildSizeComparison(summary);
+
+    if (failureCount > 0) {
+        return {
+            ...base,
+            tone: 'warning',
+            primary: `${successCount} of ${totalCount} images converted · ${failureCount} failed`,
+            secondary: sizeComparison ? `${sizeComparison} · ${sizeChange}` : sizeChange,
+            symbol: '!',
+            showFinder: true,
+        };
+    }
+
+    return {
+        ...base,
+        tone: 'success',
+        primary: `${pluralize('image', successCount)} converted · ${sizeChange}`,
+        secondary: sizeComparison,
+        symbol: '✓',
+        showFinder: true,
+    };
+}
+
+export function buildConversionJobSummary(state) {
+    return [
+        pluralize('image', state.images.length),
+        `${buildInputFormatSummary(state.images)} → ${normalizeFormatLabel(state.format)}`,
+        buildResizeSummary(state),
+    ].join(' · ');
+}
+
+export function buildInputFormatSummary(images) {
+    const formats = new Set(
+        images
+            .map(image => normalizeFormatLabel(image.fileType))
+            .filter(Boolean),
+    );
+
+    if (formats.size !== 1) {
+        return 'Mixed';
+    }
+
+    return formats.values().next().value;
+}
+
+export function getTotalInputSize(images) {
+    if (!images.length) {
+        return null;
+    }
+
+    const sizes = images.map(image => Number(image.fileSize));
+    if (sizes.some(size => !Number.isFinite(size) || size < 0)) {
+        return null;
+    }
+
+    return sizes.reduce((total, size) => total + size, 0);
+}
+
+export function buildResizeSummary(state) {
+    if (state.resizeMode === 'width') {
+        return `Width ${state.width} px`;
+    }
+
+    if (state.resizeMode === 'height') {
+        return `Height ${state.height} px`;
+    }
+
+    return 'Original size';
+}
+
+function normalizeFormatLabel(value) {
+    const format = String(value ?? '').trim().toUpperCase();
+    return format === 'JPG' ? 'JPEG' : format;
+}
+
+function buildSizeComparison(summary) {
+    const originalSize = Number(summary.totalOriginalSize);
+    const convertedSize = Number(summary.totalConvertedSize);
+    if (!Number.isFinite(originalSize) || originalSize < 0 || !Number.isFinite(convertedSize) || convertedSize < 0) {
+        return '';
+    }
+
+    return `${formatBytes(originalSize)} → ${formatBytes(convertedSize)}`;
 }
 
 function renderPreview(state, elements) {

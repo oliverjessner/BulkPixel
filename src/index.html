@@ -431,16 +431,20 @@
             </main>
 
             <footer id="convert-action-bar" class="panel action-bar">
-                <div class="status-stack">
-                    <span class="status-label">Status</span>
+                <div class="action-summary" role="status" aria-live="polite" aria-atomic="true">
                     <div class="status-line">
                         <span id="status-spinner" class="spinner status-spinner" aria-hidden="true"></span>
-                        <p id="status-text" class="status-text">Choose images to begin.</p>
+                        <span id="status-symbol" class="status-symbol" aria-hidden="true"></span>
+                        <p id="status-text" class="status-text">No images selected</p>
                     </div>
+                    <p id="status-meta" class="status-meta">Add images to begin.</p>
                 </div>
                 <div class="action-buttons">
-                    <button id="remove-all-button" class="button secondary" type="button">Remove All</button>
-                    <button id="convert-button" class="button primary" type="button">Bulk Convert</button>
+                    <button id="action-show-output-button" class="button secondary" type="button" hidden>
+                        Show in Finder
+                    </button>
+                    <button id="remove-all-button" class="button secondary quiet" type="button" hidden>Clear</button>
+                    <button id="convert-button" class="button primary" type="button" disabled>Convert</button>
                 </div>
             </footer>
         </div>

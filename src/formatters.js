@@ -88,10 +88,10 @@ export function escapeHtml(value) {
 
 export function buildSummaryDeltaText(deltaBytes, percentChange) {
   if (deltaBytes >= 0) {
-    return `${formatBytes(deltaBytes)} saved · ${formatPercent(percentChange)}`;
+    return `${formatBytes(deltaBytes)} saved (${formatPercent(percentChange)})`;
   }
 
-  return `${formatBytes(Math.abs(deltaBytes))} larger · ${formatPercent(percentChange)}`;
+  return `output is ${formatBytes(Math.abs(deltaBytes))} larger (${formatPercent(percentChange)})`;
 }
 
 export function buildResultTone(result) {

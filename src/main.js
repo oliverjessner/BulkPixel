@@ -117,12 +117,15 @@ function cacheElements() {
     elements.outputPath = document.querySelector('#output-path');
     elements.chooseFolderButton = document.querySelector('#choose-folder-button');
     elements.showOutputFolderButton = document.querySelector('#show-output-folder-button');
+    elements.actionShowOutputButton = document.querySelector('#action-show-output-button');
     elements.addImagesButton = document.querySelector('#add-images-button');
     elements.removeAllButton = document.querySelector('#remove-all-button');
     elements.previewMeta = document.querySelector('#preview-meta');
     elements.previewList = document.querySelector('#preview-list');
     elements.statusSpinner = document.querySelector('#status-spinner');
+    elements.statusSymbol = document.querySelector('#status-symbol');
     elements.statusText = document.querySelector('#status-text');
+    elements.statusMeta = document.querySelector('#status-meta');
     elements.convertButton = document.querySelector('#convert-button');
     elements.presetForm = document.querySelector('#preset-form');
     elements.presetFormTitle = document.querySelector('#preset-form-title');
@@ -280,6 +283,10 @@ function bindEvents() {
     });
 
     elements.showOutputFolderButton.addEventListener('click', () => {
+        void showOutputDirectoryInFinder();
+    });
+
+    elements.actionShowOutputButton.addEventListener('click', () => {
         void showOutputDirectoryInFinder();
     });
 
@@ -1326,6 +1333,10 @@ function clearResults() {
     state.results = [];
     state.summary = null;
     state.images = state.images.map(image => ({ ...image, result: null }));
+    state.status = {
+        kind: 'info',
+        text: state.images.length ? 'Ready to convert.' : 'Choose images to begin.',
+    };
 }
 
 function selectResizeMode(value) {

@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
     buildBrandTitle,
     buildDeletePresetConfirmation,
+    buildSummaryDeltaText,
     buildStatisticsTitle,
     formatDate,
     formatDuration,
@@ -36,4 +37,9 @@ test('formats statistics durations like the CLI', () => {
 test('formats statistics dates like the CLI', () => {
     assert.equal(formatDate('2026-07-03 12:34:56'), '03.07.2026');
     assert.equal(formatDate(''), '—');
+});
+
+test('describes conversion size changes without claiming larger outputs were saved', () => {
+    assert.equal(buildSummaryDeltaText(2 * 1024 * 1024, 25), '2.0 MB saved (25.0%)');
+    assert.equal(buildSummaryDeltaText(-2 * 1024 * 1024, -25), 'output is 2.0 MB larger (25.0%)');
 });

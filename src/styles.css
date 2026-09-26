@@ -1109,31 +1109,33 @@ select:focus {
     align-items: center;
     justify-content: space-between;
     gap: 18px;
-    padding: 12px 16px;
+    min-height: 70px;
+    padding: 11px 16px;
 }
 
 .action-buttons {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex: 0 0 auto;
 }
 
-.status-stack {
+.action-buttons .button {
+    white-space: nowrap;
+}
+
+.action-summary {
+    flex: 1 1 auto;
     min-width: 0;
-}
-
-.status-label {
-    display: inline-block;
-    margin-bottom: 6px;
-    color: var(--text-soft);
-    font-size: 0.76rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
 }
 
 .status-text {
     margin: 0;
     color: var(--text);
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
 }
 
 .status-line {
@@ -1141,6 +1143,22 @@ select:focus {
     align-items: center;
     gap: 8px;
     min-height: 20px;
+}
+
+.status-meta {
+    margin: 4px 0 0;
+    color: var(--text-soft);
+    font-size: 0.8rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.status-symbol {
+    flex: 0 0 auto;
+    width: 14px;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-align: center;
 }
 
 .status-text[data-kind='success'] {
@@ -1153,6 +1171,37 @@ select:focus {
 
 .status-text[data-kind='warning'] {
     color: var(--warning);
+}
+
+.status-symbol[data-kind='success'] {
+    color: var(--positive);
+}
+
+.status-symbol[data-kind='error'] {
+    color: var(--negative);
+}
+
+.status-symbol[data-kind='warning'] {
+    color: var(--warning);
+}
+
+.button.secondary.quiet {
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-soft);
+}
+
+.button.secondary.quiet:hover:not(:disabled) {
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.025);
+    color: var(--text-muted);
+}
+
+.action-bar .button.primary:disabled {
+    border-color: rgba(124, 135, 147, 0.18);
+    background: #1a2022;
+    color: var(--text-soft);
+    opacity: 0.62;
 }
 
 .spinner {
