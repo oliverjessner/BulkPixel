@@ -84,7 +84,7 @@ const CREATE_STATISTICS_TABLE_SQL: &str = "
         last_conversion_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 ";
-const CREATE_MAGIC_DIRECTORIES_TABLES_SQL: &str = "
+const CREATE_MAGIC_DIRECTORIES_TABLE_SQL: &str = "
     CREATE TABLE IF NOT EXISTS magic_directories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         path TEXT NOT NULL UNIQUE
@@ -94,15 +94,16 @@ const CREATE_MAGIC_DIRECTORIES_TABLES_SQL: &str = "
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+";
 
+const CREATE_MAGIC_DIRECTORY_FORMATS_TABLE_SQL: &str = "
     CREATE TABLE IF NOT EXISTS magic_directory_formats (
         magic_directory_id INTEGER NOT NULL,
         format TEXT NOT NULL
-            CHECK (format IN ('svg', 'png', 'webp', 'avif')),
+            CHECK (format IN ('svg', 'jpeg', 'png', 'webp', 'avif')),
         PRIMARY KEY (magic_directory_id, format),
         FOREIGN KEY (magic_directory_id) REFERENCES magic_directories(id) ON DELETE CASCADE
     );
-
 ";
 const CREATE_MAGIC_DIRECTORY_PRESETS_TABLE_SQL: &str = "
     CREATE TABLE IF NOT EXISTS magic_directory_presets (
@@ -433,9 +434,41 @@ pub(crate) fn initialize_schema(connection: &mut Connection) -> Result<(), Prese
     }
 
     initialize_statistics_schema(connection)?;
-    connection.execute_batch(CREATE_MAGIC_DIRECTORIES_TABLES_SQL)?;
+    connection.execute_batch(CREATE_MAGIC_DIRECTORIES_TABLE_SQL)?;
+    connection.execute_batch(CREATE_MAGIC_DIRECTORY_FORMATS_TABLE_SQL)?;
     connection.execute_batch(CREATE_MAGIC_DIRECTORY_PRESETS_TABLE_SQL)?;
+    migrate_magic_directory_formats_schema(connection)?;
     migrate_magic_directory_presets_schema(connection)?;
+
+    Ok(())
+}
+
+fn migrate_magic_directory_formats_schema(connection: &mut Connection) -> Result<(), PresetError> {
+    let schema: Option<String> = connection
+        .query_row(
+            "SELECT sql FROM sqlite_master
+             WHERE type = 'table' AND name = 'magic_directory_formats'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
+
+    if schema.as_deref().is_some_and(|sql| sql.contains("'jpeg'")) {
+        return Ok(());
+    }
+
+    let transaction = connection.transaction()?;
+    transaction.execute_batch(
+        "ALTER TABLE magic_directory_formats RENAME TO magic_directory_formats_legacy;",
+    )?;
+    transaction.execute_batch(CREATE_MAGIC_DIRECTORY_FORMATS_TABLE_SQL)?;
+    transaction.execute(
+        "INSERT INTO magic_directory_formats (magic_directory_id, format)
+         SELECT magic_directory_id, format FROM magic_directory_formats_legacy",
+        [],
+    )?;
+    transaction.execute_batch("DROP TABLE magic_directory_formats_legacy;")?;
+    transaction.commit()?;
 
     Ok(())
 }

@@ -38,6 +38,9 @@ Usage:
 
 Export formats:
   jpeg, png, webp, avif
+
+Watched formats:
+  jpeg (jpg), png, webp, avif, svg
 ";
 
 #[derive(Debug, Default)]

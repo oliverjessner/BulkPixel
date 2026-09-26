@@ -27,7 +27,7 @@ use crate::{
     },
 };
 
-const VALID_WATCH_FORMATS: &[&str] = &["svg", "png", "webp", "avif"];
+const VALID_WATCH_FORMATS: &[&str] = &["svg", "jpeg", "png", "webp", "avif"];
 const EVENT_DEBOUNCE: Duration = Duration::from_millis(800);
 const FILE_READY_POLL: Duration = Duration::from_millis(250);
 const FILE_READY_ATTEMPTS: usize = 40;
@@ -227,7 +227,8 @@ fn load_formats(connection: &Connection, id: i64) -> Result<Vec<String>, PresetE
         "SELECT format FROM magic_directory_formats
          WHERE magic_directory_id = ?1
          ORDER BY CASE format
-            WHEN 'svg' THEN 1 WHEN 'png' THEN 2 WHEN 'webp' THEN 3 WHEN 'avif' THEN 4 END",
+            WHEN 'svg' THEN 1 WHEN 'jpeg' THEN 2 WHEN 'png' THEN 3
+            WHEN 'webp' THEN 4 WHEN 'avif' THEN 5 END",
     )?;
     let formats = statement
         .query_map(params![id], |row| row.get(0))?
@@ -265,7 +266,7 @@ fn normalize_and_validate_request(
     request.formats = request
         .formats
         .iter()
-        .map(|format| format.trim().to_ascii_lowercase())
+        .map(|format| normalize_watch_format(format))
         .filter(|format| seen_formats.insert(format.clone()))
         .collect();
     if request.formats.is_empty() {
@@ -279,7 +280,7 @@ fn normalize_and_validate_request(
         .any(|format| !VALID_WATCH_FORMATS.contains(&format.as_str()))
     {
         return Err(PresetError::Validation(
-            "Choose only SVG, PNG, WEBP, or AVIF as watched formats.".into(),
+            "Choose only SVG, JPEG (JPG), PNG, WEBP, or AVIF as watched formats.".into(),
         ));
     }
 
@@ -591,9 +592,17 @@ fn run_preset(
 
 fn watched_extension(path: &Path) -> Option<String> {
     let extension = path.extension()?.to_str()?.to_ascii_lowercase();
+    let format = normalize_watch_format(&extension);
     VALID_WATCH_FORMATS
-        .contains(&extension.as_str())
-        .then_some(extension)
+        .contains(&format.as_str())
+        .then_some(format)
+}
+
+fn normalize_watch_format(format: &str) -> String {
+    match format.trim().to_ascii_lowercase().as_str() {
+        "jpg" | "jpeg" => "jpeg".into(),
+        format => format.into(),
+    }
 }
 
 fn normalize_existing_path(path: &Path) -> PathBuf {
@@ -636,11 +645,14 @@ fn path_string(path: &Path) -> Option<String> {
 mod tests {
     use super::{
         list_magic_directories_with_connection, save_magic_directory_with_connection,
-        SaveMagicDirectoryRequest,
+        watched_extension, SaveMagicDirectoryRequest,
     };
     use crate::presets::initialize_schema;
     use rusqlite::{params, Connection};
-    use std::{fs, path::PathBuf};
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
 
     #[test]
     fn persists_formats_and_presets_for_a_magic_directory() {
@@ -654,14 +666,20 @@ mod tests {
             SaveMagicDirectoryRequest {
                 id: None,
                 path: directory.to_string_lossy().to_string(),
-                formats: vec!["SVG".into(), "png".into(), "svg".into()],
+                formats: vec![
+                    "SVG".into(),
+                    "JPG".into(),
+                    "jpeg".into(),
+                    "png".into(),
+                    "svg".into(),
+                ],
                 preset_ids: vec![preset_id, preset_id],
                 enabled: true,
             },
         )
         .expect("saved magic directory");
 
-        assert_eq!(saved.formats, vec!["svg", "png"]);
+        assert_eq!(saved.formats, vec!["svg", "jpeg", "png"]);
         assert_eq!(saved.preset_ids, vec![preset_id]);
         assert!(saved.enabled);
         assert_eq!(
@@ -672,6 +690,61 @@ mod tests {
         );
 
         fs::remove_dir_all(directory).expect("remove temporary directory");
+    }
+
+    #[test]
+    fn recognizes_jpg_and_jpeg_watched_extensions() {
+        assert_eq!(
+            watched_extension(Path::new("photo.jpg")).as_deref(),
+            Some("jpeg")
+        );
+        assert_eq!(
+            watched_extension(Path::new("photo.JPEG")).as_deref(),
+            Some("jpeg")
+        );
+        assert_eq!(watched_extension(Path::new("photo.txt")), None);
+    }
+
+    #[test]
+    fn migrates_watched_formats_schema_to_accept_jpeg() {
+        let mut connection = Connection::open_in_memory().expect("in-memory database");
+        initialize_schema(&mut connection).expect("initial schema");
+        connection
+            .execute_batch(
+                "DROP TABLE magic_directory_formats;
+                 CREATE TABLE magic_directory_formats (
+                    magic_directory_id INTEGER NOT NULL,
+                    format TEXT NOT NULL
+                        CHECK (format IN ('svg', 'png', 'webp', 'avif')),
+                    PRIMARY KEY (magic_directory_id, format),
+                    FOREIGN KEY (magic_directory_id)
+                        REFERENCES magic_directories(id) ON DELETE CASCADE
+                 );
+                 INSERT INTO magic_directories (path, enabled)
+                    VALUES ('/tmp/legacy-magic-formats', 1);
+                 INSERT INTO magic_directory_formats (magic_directory_id, format)
+                    VALUES (1, 'png');",
+            )
+            .expect("legacy watched formats schema");
+
+        initialize_schema(&mut connection).expect("migrated schema");
+
+        let existing_format: String = connection
+            .query_row(
+                "SELECT format FROM magic_directory_formats
+                 WHERE magic_directory_id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .expect("preserved watched format");
+        assert_eq!(existing_format, "png");
+        connection
+            .execute(
+                "INSERT INTO magic_directory_formats (magic_directory_id, format)
+                 VALUES (1, 'jpeg')",
+                [],
+            )
+            .expect("JPEG watched format");
     }
 
     #[test]

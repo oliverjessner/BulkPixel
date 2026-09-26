@@ -40,7 +40,7 @@ It is local-first, fast, and intentionally restrained.
 - Optional filename prefix or postfix (toggle between modes)
 - Output folder selection
 - Presets for saving reusable conversion settings
-- Magic Directories for automatically running presets when new SVG, PNG, WEBP, or AVIF files arrive
+- Magic Directories for automatically running presets when new JPEG, PNG, WEBP, AVIF, or SVG files arrive
 - Terminal CLI for scripted conversion, preset and Magic Directory management, and statistics
 - Collision-safe saving with `_1`, `_2`, and so on
 - Per-image and total savings analysis

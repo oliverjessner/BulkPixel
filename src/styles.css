@@ -586,6 +586,10 @@ select:focus {
     gap: 8px;
 }
 
+#magic-format-options {
+    grid-template-columns: repeat(5, 1fr);
+}
+
 .format-option {
     min-height: 40px;
     border-radius: 10px;

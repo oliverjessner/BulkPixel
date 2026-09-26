@@ -212,14 +212,14 @@ bulkpixel presets delete \
 
 Magic Directory rules use the same SQLite database as the desktop app. The desktop app performs the actual watching while it is running. Rules created or changed through the CLI are loaded the next time the desktop app starts.
 
-Supported watched formats are `svg`, `png`, `webp`, and `avif`. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
+Supported watched formats are `jpeg` (or its `jpg` alias), `png`, `webp`, `avif`, and `svg`. Both `.jpg` and `.jpeg` files match the JPEG format. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
 
 Create a rule:
 
 ```sh
 bulkpixel magic-directories create \
   --path ./incoming-images \
-  --formats svg png webp \
+  --formats jpg png webp \
   --presets "Website WEBP" "Archive AVIF"
 ```
 

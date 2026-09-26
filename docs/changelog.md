@@ -1,6 +1,6 @@
 # 2.2.0
 
-- security fixes
+- security fixes from dependalert
 - JPEG in magic directories
 - HEIC support
 - PNG no without lost
