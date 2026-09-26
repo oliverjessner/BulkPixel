@@ -82,7 +82,7 @@ brew tap oliverjessner/tap
 brew install --cask bulkpixel
 ```
 
-See [docs/CLI.md](docs/CLI.md) for commands, flags, preset usage, overwrite rules, and statistics output. The [supported formats matrix](docs/FORMATS.md) covers imports, exports, and Magic Directory compatibility.
+See [docs/CLI.md](docs/CLI.md) for commands, flags, preset usage, overwrite rules, and statistics output.
 
 ## macOS Open With test cases
 
