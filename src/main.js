@@ -969,7 +969,9 @@ function applyDefaultPresetToConvert() {
     state.filenameComponent = '';
     state.filenameMode = 'prefix';
     state.outputDirectory = state.defaultOutputDirectory || state.outputDirectory;
-    state.resizeMode = 'none';
+    state.resizeMode = 'width';
+    state.width = '';
+    state.height = '';
     syncResizeReference();
     state.selectedPresetId = 'default';
     clearResults();
