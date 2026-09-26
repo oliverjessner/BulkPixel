@@ -529,12 +529,9 @@ mod macos_heic {
     use std::{path::Path, ptr::NonNull};
 
     use image::{DynamicImage, RgbaImage};
-    use objc2::{available, msg_send, rc::autoreleasepool, runtime::AnyObject};
+    use objc2::{rc::autoreleasepool, runtime::AnyObject};
     use objc2_core_graphics::{kCGColorSpaceSRGB, CGColorSpace};
-    use objc2_core_image::{
-        kCIContextOutputPremultiplied, kCIFormatRGBA8, kCIImageExpandToHDR, CIContext, CIFilter,
-        CIImage,
-    };
+    use objc2_core_image::{kCIContextOutputPremultiplied, kCIFormatRGBA8, CIContext, CIImage};
     use objc2_foundation::{NSDictionary, NSNumber, NSString, NSURL};
 
     pub(super) fn decode(path: &Path) -> Result<DynamicImage, String> {
@@ -544,15 +541,11 @@ mod macos_heic {
     unsafe fn decode_inner(path: &Path) -> Result<DynamicImage, String> {
         let path = NSString::from_str(&path.to_string_lossy());
         let url = NSURL::fileURLWithPath(&path);
-        let true_value = NSNumber::new_bool(true);
-        let true_object: &AnyObject = &true_value;
-        let image = if available!(macos = 15.0) {
-            let options = NSDictionary::from_slices(&[kCIImageExpandToHDR], &[true_object]);
-            CIImage::imageWithContentsOfURL_options(&url, Some(&options))
-        } else {
-            CIImage::imageWithContentsOfURL(&url)
-        }
-        .ok_or_else(|| "Unable to decode the HEIC image with macOS Core Image.".to_string())?;
+        // Load the author-provided SDR-compatible representation. Expanding an
+        // HDR gain map and globally compressing it back to SDR can clip local
+        // highlight detail that is already preserved in this base image.
+        let image = CIImage::imageWithContentsOfURL(&url)
+            .ok_or_else(|| "Unable to decode the HEIC image with macOS Core Image.".to_string())?;
 
         // Read the CGImage/TIFF orientation property and transform it exactly once
         // so probing, previews, and exports share the same logical dimensions.
@@ -564,17 +557,6 @@ mod macos_heic {
             .unwrap_or(1);
         let image = if (2..=8).contains(&orientation) {
             image.imageByApplyingOrientation(orientation as i32)
-        } else {
-            image
-        };
-
-        let image = if available!(macos = 15.0) {
-            let filter = CIFilter::toneMapHeadroomFilter();
-            let _: () = msg_send![&*filter, setInputImage: Some(&*image)];
-            let _: () = msg_send![&*filter, setTargetHeadroom: 1.0_f32];
-            filter
-                .outputImage()
-                .ok_or_else(|| "Unable to tone-map the HDR HEIC image to SDR.".to_string())?
         } else {
             image
         };
@@ -903,47 +885,64 @@ mod tests {
             image::open(output_directory.join("source.png")).expect("open converted HEIC output");
         assert_eq!(converted.dimensions(), (32, 16));
 
-        if let Some(fixture) = std::env::var_os("BULKPIXEL_HEIC_FIXTURE") {
-            let fixture_path = Path::new(&fixture);
-            let fixture =
-                super::load_raster_image(fixture_path).expect("decode external HEIC fixture");
-            assert!(fixture.width() > 0 && fixture.height() > 0);
-            assert_eq!(fixture.color(), ColorType::Rgba8);
-            if let (Ok(expected_width), Ok(expected_height)) = (
-                std::env::var("BULKPIXEL_HEIC_EXPECTED_WIDTH"),
-                std::env::var("BULKPIXEL_HEIC_EXPECTED_HEIGHT"),
-            ) {
-                assert_eq!(
-                    fixture.dimensions(),
-                    (
-                        expected_width.parse().expect("numeric expected HEIC width"),
-                        expected_height
-                            .parse()
-                            .expect("numeric expected HEIC height"),
-                    )
-                );
-            }
-
-            let fixture_output_directory = directory.join("fixture-converted");
-            let fixture_response = super::convert_images(ConversionRequest {
-                images: vec![ConversionImageInput {
-                    path: fixture_path.to_string_lossy().to_string(),
-                }],
-                format: ExportFormat::Jpeg,
-                resize: ResizeOptions {
-                    width: Some(64),
-                    height: None,
-                },
-                quality: 90,
-                filename_component: String::new(),
-                filename_mode: "prefix".into(),
-                output_dir: fixture_output_directory.to_string_lossy().to_string(),
-                collision_mode: CollisionMode::Rename,
-            })
-            .expect("convert external HEIC fixture");
-            assert_eq!(fixture_response.summary.success_count, 1);
-            assert_eq!(fixture_response.summary.failure_count, 0);
+        let external_fixture = std::env::var_os("BULKPIXEL_HEIC_FIXTURE");
+        let fixture_path = external_fixture
+            .as_ref()
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/test_images/IMG_6576.heic")
+            });
+        let fixture = super::load_raster_image(&fixture_path).expect("decode HDR HEIC fixture");
+        assert!(fixture.width() > 0 && fixture.height() > 0);
+        assert_eq!(fixture.color(), ColorType::Rgba8);
+        if let (Ok(expected_width), Ok(expected_height)) = (
+            std::env::var("BULKPIXEL_HEIC_EXPECTED_WIDTH"),
+            std::env::var("BULKPIXEL_HEIC_EXPECTED_HEIGHT"),
+        ) {
+            assert_eq!(
+                fixture.dimensions(),
+                (
+                    expected_width.parse().expect("numeric expected HEIC width"),
+                    expected_height
+                        .parse()
+                        .expect("numeric expected HEIC height"),
+                )
+            );
+        } else if external_fixture.is_none() {
+            assert_eq!(fixture.dimensions(), (3213, 5712));
         }
+
+        let fixture_pixels = fixture.to_rgba8();
+        let near_white_pixels = fixture_pixels
+            .pixels()
+            .filter(|pixel| pixel[0] >= 250 && pixel[1] >= 250 && pixel[2] >= 250)
+            .count();
+        let total_pixels = fixture_pixels.width() as usize * fixture_pixels.height() as usize;
+        assert!(
+            near_white_pixels.saturating_mul(500) < total_pixels,
+            "HDR-to-SDR decoding clipped too many pixels to white: {near_white_pixels}/{}",
+            total_pixels
+        );
+
+        let fixture_output_directory = directory.join("fixture-converted");
+        let fixture_response = super::convert_images(ConversionRequest {
+            images: vec![ConversionImageInput {
+                path: fixture_path.to_string_lossy().to_string(),
+            }],
+            format: ExportFormat::Jpeg,
+            resize: ResizeOptions {
+                width: Some(64),
+                height: None,
+            },
+            quality: 90,
+            filename_component: String::new(),
+            filename_mode: "prefix".into(),
+            output_dir: fixture_output_directory.to_string_lossy().to_string(),
+            collision_mode: CollisionMode::Rename,
+        })
+        .expect("convert HDR HEIC fixture");
+        assert_eq!(fixture_response.summary.success_count, 1);
+        assert_eq!(fixture_response.summary.failure_count, 0);
 
         fs::remove_dir_all(directory).expect("remove HEIC test directory");
     }

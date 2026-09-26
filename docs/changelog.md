@@ -2,7 +2,7 @@
 
 - Resolve Dependabot security alerts by updating affected Rust and Tauri dependencies.
 - Add JPEG and JPG support to Magic Directories, including migration of existing watcher configurations.
-- Add native HEIC and HEIF import across the desktop app, CLI, Finder integration, and Magic Directories, with orientation handling, sRGB color management, and HDR-to-SDR conversion.
+- Add native HEIC and HEIF import across the desktop app, CLI, Finder integration, and Magic Directories, with orientation handling, sRGB color management, and highlight-preserving SDR output for HDR source images.
 - Preserve 16-bit channel depth when exporting PNG files, including resized images, instead of always reducing them to 8-bit RGBA.
 - Document import, export, and Magic Directory compatibility in a central supported-formats matrix.
 

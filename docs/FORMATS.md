@@ -16,6 +16,5 @@ BulkPixel uses the same conversion pipeline in the desktop app and CLI. The tabl
 - JPEG, WebP, and AVIF exports use the selected quality setting.
 - PNG exports use lossless compression. If the decoded source contains 16-bit channels, PNG preserves that channel depth, including after resizing.
 - SVG files are rasterized during import at the requested width or height while preserving their aspect ratio.
-- HEIC and HEIF use the native macOS decoder. BulkPixel applies image orientation, converts embedded color profiles such as Display P3 to sRGB, and produces SDR output. HDR images are tone-mapped on macOS 15 and later; older macOS versions use the file's SDR-compatible representation.
+- HEIC and HEIF use the native macOS decoder. BulkPixel applies image orientation, converts embedded color profiles such as Display P3 to sRGB, and produces SDR output. For HDR files, it uses the author-provided SDR-compatible base image so highlight detail is preserved instead of clipping the expanded gain map into an 8-bit export.
 - Magic Directories treat `.jpg` and `.jpeg` as JPEG, and `.heic` and `.heif` as HEIC.
-
