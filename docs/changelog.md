@@ -1,3 +1,7 @@
+# 2.2.0
+
+- security fixes
+
 # 2.1.1
 
 - the statistics from the cli bulkpixel stats is now availabe via clicking the top left BulkPixel text
