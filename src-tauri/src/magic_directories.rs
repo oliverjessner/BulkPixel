@@ -647,7 +647,13 @@ mod tests {
         list_magic_directories_with_connection, save_magic_directory_with_connection,
         watched_extension, SaveMagicDirectoryRequest,
     };
-    use crate::presets::initialize_schema;
+    use crate::{
+        image_pipeline::convert_images,
+        models::{
+            CollisionMode, ConversionImageInput, ConversionRequest, ExportFormat, ResizeOptions,
+        },
+        presets::initialize_schema,
+    };
     use rusqlite::{params, Connection};
     use std::{
         fs,
@@ -703,6 +709,40 @@ mod tests {
             Some("jpeg")
         );
         assert_eq!(watched_extension(Path::new("photo.txt")), None);
+    }
+
+    #[test]
+    fn converts_a_jpeg_path_accepted_by_the_watcher() {
+        let directory = temporary_directory("jpeg-conversion");
+        let output_directory = directory.join("output");
+        fs::create_dir_all(&output_directory).expect("create output directory");
+        let input_path = directory.join("incoming.jpg");
+        image::RgbImage::from_pixel(2, 2, image::Rgb([32, 64, 96]))
+            .save(&input_path)
+            .expect("write JPEG input");
+
+        assert_eq!(watched_extension(&input_path).as_deref(), Some("jpeg"));
+        let response = convert_images(ConversionRequest {
+            images: vec![ConversionImageInput {
+                path: input_path.to_string_lossy().to_string(),
+            }],
+            format: ExportFormat::Png,
+            resize: ResizeOptions {
+                width: None,
+                height: None,
+            },
+            quality: 90,
+            filename_component: "_magic".into(),
+            filename_mode: "postfix".into(),
+            output_dir: output_directory.to_string_lossy().to_string(),
+            collision_mode: CollisionMode::Rename,
+        })
+        .expect("convert watched JPEG");
+
+        assert_eq!(response.summary.success_count, 1);
+        assert_eq!(response.summary.failure_count, 0);
+        assert!(output_directory.join("incoming_magic.png").is_file());
+        fs::remove_dir_all(directory).expect("remove temporary directory");
     }
 
     #[test]
