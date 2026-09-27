@@ -1,3 +1,7 @@
+# 3.0.1
+
+- Allow Watched Folder rules to cascade outputs into other watched folders, with native-event deduplication, per-chain cycle detection, and an eight-rule depth limit.
+
 # 3.0.0
 
 - Resolve Dependabot security alerts by updating affected Rust and Tauri dependencies.

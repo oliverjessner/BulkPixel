@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     fs,
     path::{Path, PathBuf},
     sync::{
@@ -33,10 +33,61 @@ const EVENT_DEBOUNCE: Duration = Duration::from_millis(800);
 const FILE_READY_POLL: Duration = Duration::from_millis(250);
 const FILE_READY_ATTEMPTS: usize = 40;
 const IGNORED_OUTPUT_TTL: Duration = Duration::from_secs(60);
+const MAX_CASCADE_DEPTH: usize = 8;
+
+static NEXT_CHAIN_ID: AtomicU64 = AtomicU64::new(1);
 
 type PendingPaths = Arc<Mutex<HashMap<PathBuf, u64>>>;
 type IgnoredPaths = Arc<Mutex<HashMap<PathBuf, Instant>>>;
 type ConversionLock = Arc<Mutex<()>>;
+
+#[derive(Clone, Debug)]
+struct CascadeContext {
+    id: u64,
+    visited_rule_ids: Vec<i64>,
+}
+
+impl CascadeContext {
+    fn start() -> Self {
+        Self {
+            id: NEXT_CHAIN_ID.fetch_add(1, Ordering::Relaxed),
+            visited_rule_ids: Vec::new(),
+        }
+    }
+
+    fn advance(&self, rule_id: i64) -> Result<Self, CascadeStop> {
+        if self.visited_rule_ids.contains(&rule_id) {
+            return Err(CascadeStop::Cycle);
+        }
+        if self.visited_rule_ids.len() >= MAX_CASCADE_DEPTH {
+            return Err(CascadeStop::MaximumDepth);
+        }
+
+        let mut visited_rule_ids = self.visited_rule_ids.clone();
+        visited_rule_ids.push(rule_id);
+        Ok(Self {
+            id: self.id,
+            visited_rule_ids,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CascadeStop {
+    Cycle,
+    MaximumDepth,
+}
+
+struct CascadeJob {
+    path: PathBuf,
+    context: CascadeContext,
+}
+
+struct PresetRunResult {
+    success_count: usize,
+    failure_count: usize,
+    output_paths: Vec<PathBuf>,
+}
 
 pub struct MagicWatcherState {
     watcher: Mutex<Option<RecommendedWatcher>>,
@@ -452,32 +503,87 @@ fn wait_until_ready(path: &Path) -> bool {
 }
 
 fn process_magic_path(app: &AppHandle, path: &Path, ignored_paths: &IgnoredPaths) {
-    let extension = match watched_extension(path) {
-        Some(extension) => extension,
-        None => return,
-    };
+    let mut queue = VecDeque::from([CascadeJob {
+        path: path.to_path_buf(),
+        context: CascadeContext::start(),
+    }]);
+
+    while let Some(job) = queue.pop_front() {
+        process_magic_job(app, job, ignored_paths, &mut queue);
+    }
+}
+
+fn process_magic_job(
+    app: &AppHandle,
+    job: CascadeJob,
+    ignored_paths: &IgnoredPaths,
+    queue: &mut VecDeque<CascadeJob>,
+) {
     let directories = match list_magic_directories(app) {
         Ok(directories) => directories,
         Err(error) => {
-            emit_event(app, "error", error.to_string(), path_string(path), false);
+            emit_event(
+                app,
+                "error",
+                error.to_string(),
+                path_string(&job.path),
+                false,
+            );
             return;
         }
     };
-    let parent = path.parent().map(normalize_existing_path);
-    let Some(directory) = directories.into_iter().find(|directory| {
-        directory.enabled
-            && directory.formats.iter().any(|format| format == &extension)
-            && parent.as_ref().is_some_and(|parent| {
-                normalize_existing_path(Path::new(&directory.path)) == *parent
-            })
-    }) else {
+    let Some(directory) = matching_magic_directory(&directories, &job.path) else {
         return;
+    };
+    let context = match job.context.advance(directory.id) {
+        Ok(context) => context,
+        Err(CascadeStop::Cycle) => {
+            emit_event(
+                app,
+                "warning",
+                format!(
+                    "Cascade stopped for {}: the '{}' rule was already used in this chain.",
+                    display_file_name(&job.path),
+                    directory.name
+                ),
+                path_string(&job.path),
+                false,
+            );
+            eprintln!(
+                "watched folder cascade {} stopped because rule {} would repeat",
+                job.context.id, directory.id
+            );
+            return;
+        }
+        Err(CascadeStop::MaximumDepth) => {
+            emit_event(
+                app,
+                "warning",
+                format!(
+                    "Cascade stopped for {} after {MAX_CASCADE_DEPTH} Watched Folder rules.",
+                    display_file_name(&job.path)
+                ),
+                path_string(&job.path),
+                false,
+            );
+            eprintln!(
+                "watched folder cascade {} reached the maximum depth",
+                job.context.id
+            );
+            return;
+        }
     };
 
     let presets = match get_presets_by_ids(app, &directory.preset_ids) {
         Ok(presets) => presets,
         Err(error) => {
-            emit_event(app, "error", error.to_string(), path_string(path), false);
+            emit_event(
+                app,
+                "error",
+                error.to_string(),
+                path_string(&job.path),
+                false,
+            );
             return;
         }
     };
@@ -486,14 +592,14 @@ fn process_magic_path(app: &AppHandle, path: &Path, ignored_paths: &IgnoredPaths
             app,
             "error",
             "Watched folder has no available presets. Edit the rule before using it.".into(),
-            path_string(path),
+            path_string(&job.path),
             false,
         );
         return;
     }
     if presets.len() > 1 {
         if let Err(error) = validate_multiple_preset_markers(&presets) {
-            emit_event(app, "error", error, path_string(path), false);
+            emit_event(app, "error", error, path_string(&job.path), false);
             return;
         }
     }
@@ -503,26 +609,26 @@ fn process_magic_path(app: &AppHandle, path: &Path, ignored_paths: &IgnoredPaths
         "info",
         format!(
             "Processing {} with {} preset(s)...",
-            path.file_name()
-                .map(|name| name.to_string_lossy())
-                .unwrap_or_else(|| path.to_string_lossy()),
+            display_file_name(&job.path),
             presets.len()
         ),
-        path_string(path),
+        path_string(&job.path),
         true,
     );
 
     let mut success_count = 0_usize;
     let mut failure_count = 0_usize;
+    let mut output_paths = Vec::new();
     for preset in presets {
-        match run_preset(app, path, &preset, ignored_paths) {
-            Ok((successes, failures)) => {
-                success_count += successes;
-                failure_count += failures;
+        match run_preset(app, &job.path, &preset, ignored_paths) {
+            Ok(result) => {
+                success_count += result.success_count;
+                failure_count += result.failure_count;
+                output_paths.extend(result.output_paths);
             }
             Err(error) => {
                 failure_count += 1;
-                emit_event(app, "error", error, path_string(path), true);
+                emit_event(app, "error", error, path_string(&job.path), true);
             }
         }
     }
@@ -540,7 +646,12 @@ fn process_magic_path(app: &AppHandle, path: &Path, ignored_paths: &IgnoredPaths
     } else {
         ("error", "Watched folder conversion failed.".into())
     };
-    emit_event(app, kind, message, path_string(path), false);
+    emit_event(app, kind, message, path_string(&job.path), false);
+
+    queue.extend(output_paths.into_iter().map(|path| CascadeJob {
+        path,
+        context: context.clone(),
+    }));
 }
 
 fn run_preset(
@@ -548,7 +659,7 @@ fn run_preset(
     path: &Path,
     preset: &ConversionPreset,
     ignored_paths: &IgnoredPaths,
-) -> Result<(usize, usize), String> {
+) -> Result<PresetRunResult, String> {
     let format = ExportFormat::from_value(&preset.format)
         .ok_or_else(|| format!("Unsupported preset format: {}", preset.format))?;
     let resize = match preset.resize_mode.as_str() {
@@ -581,12 +692,15 @@ fn run_preset(
 
     let started_at = Instant::now();
     let response = convert_images(request).map_err(|error| error.to_string())?;
-    for output_path in response
+    let output_paths = response
         .results
         .iter()
         .filter_map(|result| result.output_path.as_deref())
-    {
-        ignore_output_path(ignored_paths, Path::new(output_path));
+        .map(Path::new)
+        .map(normalize_existing_path)
+        .collect::<Vec<_>>();
+    for output_path in &output_paths {
+        ignore_output_path(ignored_paths, output_path);
     }
     if let Err(error) = record_conversion_statistics(
         app,
@@ -600,10 +714,30 @@ fn run_preset(
         eprintln!("failed to update watched folder usage statistics: {error}");
     }
 
-    Ok((
-        response.summary.success_count,
-        response.summary.failure_count,
-    ))
+    Ok(PresetRunResult {
+        success_count: response.summary.success_count,
+        failure_count: response.summary.failure_count,
+        output_paths,
+    })
+}
+
+fn matching_magic_directory<'a>(
+    directories: &'a [MagicDirectory],
+    path: &Path,
+) -> Option<&'a MagicDirectory> {
+    let extension = watched_extension(path)?;
+    let parent = path.parent().map(normalize_existing_path)?;
+    directories.iter().find(|directory| {
+        directory.enabled
+            && directory.formats.iter().any(|format| format == &extension)
+            && normalize_existing_path(Path::new(&directory.path)) == parent
+    })
+}
+
+fn display_file_name(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.to_string_lossy().into_owned())
 }
 
 fn watched_extension(path: &Path) -> Option<String> {
@@ -661,13 +795,15 @@ fn path_string(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        list_magic_directories_with_connection, save_magic_directory_with_connection,
-        watched_extension, SaveMagicDirectoryRequest,
+        list_magic_directories_with_connection, matching_magic_directory,
+        save_magic_directory_with_connection, watched_extension, CascadeContext, CascadeStop,
+        SaveMagicDirectoryRequest, MAX_CASCADE_DEPTH,
     };
     use crate::{
         image_pipeline::convert_images,
         models::{
-            CollisionMode, ConversionImageInput, ConversionRequest, ExportFormat, ResizeOptions,
+            CollisionMode, ConversionImageInput, ConversionRequest, ExportFormat, MagicDirectory,
+            ResizeOptions,
         },
         presets::initialize_schema,
     };
@@ -912,6 +1048,70 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .expect("collected positions");
         assert_eq!(positions, vec![0, 1]);
+    }
+
+    #[test]
+    fn routes_outputs_to_downstream_rules_and_stops_cycles() {
+        let root = temporary_directory("cascade-cycle");
+        let directory_a = root.join("a");
+        let directory_b = root.join("b");
+        fs::create_dir_all(&directory_a).expect("create directory A");
+        fs::create_dir_all(&directory_b).expect("create directory B");
+        let directories = vec![
+            watched_directory(1, "Rule A", &directory_a, "png"),
+            watched_directory(2, "Rule B", &directory_b, "webp"),
+        ];
+
+        let input = directory_a.join("source.png");
+        let rule_a = matching_magic_directory(&directories, &input).expect("match rule A");
+        let after_a = CascadeContext::start()
+            .advance(rule_a.id)
+            .expect("enter rule A");
+
+        let first_output = directory_b.join("source-web.webp");
+        let rule_b = matching_magic_directory(&directories, &first_output).expect("match rule B");
+        let after_b = after_a.advance(rule_b.id).expect("enter rule B");
+
+        let loop_output = directory_a.join("source-loop.png");
+        let repeated_rule =
+            matching_magic_directory(&directories, &loop_output).expect("match rule A again");
+        assert_eq!(
+            after_b.advance(repeated_rule.id).expect_err("stop cycle"),
+            CascadeStop::Cycle
+        );
+
+        fs::remove_dir_all(root).expect("remove temporary directory");
+    }
+
+    #[test]
+    fn cascade_branches_are_independent_and_depth_is_bounded() {
+        let after_first_rule = CascadeContext::start()
+            .advance(1)
+            .expect("enter first rule");
+        assert!(after_first_rule.advance(2).is_ok());
+        assert!(after_first_rule.advance(2).is_ok());
+
+        let mut context = CascadeContext::start();
+        for rule_id in 1..=MAX_CASCADE_DEPTH as i64 {
+            context = context.advance(rule_id).expect("advance cascade");
+        }
+        assert_eq!(
+            context.advance(99).expect_err("enforce maximum depth"),
+            CascadeStop::MaximumDepth
+        );
+    }
+
+    fn watched_directory(id: i64, name: &str, path: &Path, format: &str) -> MagicDirectory {
+        MagicDirectory {
+            id,
+            name: name.into(),
+            path: path.to_string_lossy().into_owned(),
+            formats: vec![format.into()],
+            preset_ids: vec![id],
+            enabled: true,
+            created_at: String::new(),
+            updated_at: String::new(),
+        }
     }
 
     fn insert_preset(connection: &Connection, name: &str, component: &str) -> i64 {

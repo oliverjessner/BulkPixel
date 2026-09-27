@@ -214,6 +214,8 @@ Watched Folder rules use the same SQLite database as the desktop app. Every rule
 
 Supported watched formats are `jpeg` (or its `jpg` alias), `png`, `webp`, `avif`, `svg`, and `heic` (or its `heif` alias). Both `.jpg` and `.jpeg` files match JPEG; both `.heic` and `.heif` files match HEIC. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
 
+Watched Folder rules can be chained: when one rule writes a supported output directly into another enabled Watched Folder, the matching downstream rule runs automatically. BulkPixel deduplicates the native file event, stops a chain before it repeats a rule, and limits each chain to eight rules.
+
 Create a rule:
 
 ```sh

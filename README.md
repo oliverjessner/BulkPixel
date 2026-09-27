@@ -69,7 +69,7 @@ Use `Convert` for normal batch conversion. Use `Presets` to create, edit, duplic
 
 Watched Folders monitor selected folders while BulkPixel is running. Give each rule a name, choose one or more input formats and presets, and BulkPixel automatically applies those presets when a matching file arrives directly in the folder.
 
-Rules are stored alongside presets and statistics in BulkPixel's shared SQLite database. Generated outputs are ignored by the watcher to prevent conversion loops. When multiple presets are selected, each preset must use a unique non-empty prefix or postfix.
+Rules are stored alongside presets and statistics in BulkPixel's shared SQLite database. If a rule writes a supported format directly into another enabled Watched Folder, BulkPixel continues the conversion there automatically. Native file events are deduplicated, repeated rules stop the current chain, and every chain is limited to eight rules to prevent conversion loops. When multiple presets are selected, each preset must use a unique non-empty prefix or postfix.
 
 ![BulkPixel Watched Folders view](src/assets/mockups/watched_folders_directory.webp)
 

@@ -38,7 +38,7 @@ test('defines exactly the requested screenshot outputs', () => {
             { filename: 'bulkpixel.png', format: 'png' },
             { filename: 'bulkpixel_empty.png', format: 'png' },
             { filename: 'presets.png', format: 'png' },
-            { filename: 'watched_folders_directory.webp', format: 'webp' },
+            { filename: 'watched_folders_directory.png', format: 'png' },
             { filename: 'statistics.png', format: 'png' },
             { filename: 'image_inspector.png', format: 'png' },
         ],
