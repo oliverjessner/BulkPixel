@@ -12,23 +12,37 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(SCRIPT_DIR, '..');
 const SCREENSHOT_DIR = path.join(SCRIPT_DIR, 'screenshots');
 const VIEWPORT = { width: 1280, height: 860 };
-const FIXTURE_NAMES = [
+export const FIXTURE_NAMES = Object.freeze([
     'ayn_hor_akkutes.webp',
     'digimon_adventure_psp.png',
     'digimon_adventure_psp.png',
     'razer.png',
     'rentahuman.png',
-];
+]);
+export const SCREENSHOT_SPECS = Object.freeze([
+    { scenario: 'convert', filename: 'bulkpixel.png', format: 'png' },
+    { scenario: 'empty', filename: 'bulkpixel_empty.png', format: 'png' },
+    { scenario: 'presets', filename: 'presets.png', format: 'png' },
+    {
+        scenario: 'watched-folders',
+        filename: 'watched_folders_directory.webp',
+        format: 'webp',
+    },
+    { scenario: 'statistics', filename: 'statistics.png', format: 'png' },
+    { scenario: 'inspector', filename: 'image_inspector.png', format: 'png' },
+]);
 
 let browserProcess;
 let server;
 let browserProfile;
 
-await main().catch(async error => {
-    console.error(`Screenshot generation failed: ${error.message}`);
-    await cleanup();
-    process.exitCode = 1;
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    await main().catch(async error => {
+        console.error(`Screenshot generation failed: ${error.message}`);
+        await cleanup();
+        process.exitCode = 1;
+    });
+}
 
 async function main() {
     await emptyScreenshotDirectory();
@@ -61,12 +75,9 @@ async function main() {
             source: buildTauriMock(appOrigin, fixtures),
         });
 
-        await captureScenario(cdp, appOrigin, 'convert', 'bulkpixel.png');
-        await captureScenario(cdp, appOrigin, 'empty', 'bulkpixel_empty.png');
-        await captureScenario(cdp, appOrigin, 'presets', 'presets.png');
-        await captureScenario(cdp, appOrigin, 'watched-folders', 'watched_folders_directory.webp', 'webp');
-        await captureScenario(cdp, appOrigin, 'statistics', 'statistics.png');
-        await captureScenario(cdp, appOrigin, 'inspector', 'image_inspector.png');
+        for (const spec of SCREENSHOT_SPECS) {
+            await captureScenario(cdp, appOrigin, spec.scenario, spec.filename, spec.format);
+        }
 
         console.log(`Created screenshots in ${SCREENSHOT_DIR}`);
     } finally {
@@ -80,7 +91,7 @@ async function emptyScreenshotDirectory() {
     await fs.promises.mkdir(SCREENSHOT_DIR, { recursive: true });
 }
 
-function buildFixtureData() {
+export function buildFixtureData() {
     return FIXTURE_NAMES.map(name => {
         const fixturePath = path.join(ROOT_DIR, 'tests', 'test_images', name);
         const fileSize = fs.statSync(fixturePath).size;
