@@ -221,6 +221,38 @@
                         </div>
                     </div>
                 </section>
+
+                <button
+                    id="image-inspector-scrim"
+                    class="image-inspector-scrim"
+                    type="button"
+                    aria-label="Close image information"
+                    hidden
+                ></button>
+
+                <aside
+                    id="image-inspector"
+                    class="panel image-inspector"
+                    aria-labelledby="image-inspector-title"
+                    aria-busy="false"
+                    hidden
+                >
+                    <header class="image-inspector-header">
+                        <div>
+                            <p class="section-kicker">Inspector</p>
+                            <h2 id="image-inspector-title">Image Info</h2>
+                        </div>
+                        <button
+                            id="image-inspector-close"
+                            class="icon-button image-inspector-close"
+                            type="button"
+                            aria-label="Close image information"
+                        >
+                            <span aria-hidden="true">×</span>
+                        </button>
+                    </header>
+                    <div id="image-inspector-body" class="image-inspector-body"></div>
+                </aside>
             </main>
 
             <main id="presets-view" class="presets-workspace app-view" hidden>

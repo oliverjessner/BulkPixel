@@ -1,8 +1,12 @@
 import {
+    buildPrivacySummary,
     buildResultTone,
     buildSummaryDeltaText,
+    filterMetadataEntries,
+    formatAspectRatio,
     formatBytes,
     formatDimensions,
+    formatMegapixels,
     pluralize,
 } from './formatters.js';
 
@@ -18,6 +22,7 @@ export function renderApp(state, elements) {
     renderMagicDirectoryList(state, elements);
     renderConversionActionBar(state, elements);
     renderPreview(state, elements);
+    renderImageInspector(state, elements);
 }
 
 function renderBrand(elements) {
@@ -523,7 +528,14 @@ function renderPreview(state, elements) {
         return;
     }
 
-    elements.previewList.replaceChildren(...state.images.map(buildPreviewCard));
+    elements.previewList.replaceChildren(
+        ...state.images.map(image =>
+            buildPreviewCard(
+                image,
+                Boolean(state.inspector?.open && state.inspector.imageId === image.id),
+            ),
+        ),
+    );
 }
 
 function buildOption(value, label) {
@@ -713,11 +725,15 @@ function buildPresetEmptyState(message) {
     return emptyState;
 }
 
-function buildPreviewCard(image) {
+function buildPreviewCard(image, selected = false) {
     const result = image.result;
 
     const card = document.createElement('article');
-    card.className = 'preview-card';
+    card.className = `preview-card${selected ? ' is-selected' : ''}`;
+    card.dataset.imageId = image.id;
+    if (selected) {
+        card.setAttribute('aria-current', 'true');
+    }
 
     const thumbWrap = document.createElement('div');
     thumbWrap.className = 'thumb-wrap';
@@ -757,7 +773,15 @@ function buildPreviewCard(image) {
     subtitle.textContent = `${image.fileType} · ${formatDimensions(image.width, image.height)} · ${formatBytes(image.fileSize)}`;
 
     titleContent.append(name, subtitle);
-    titleRow.append(titleContent);
+
+    const infoButton = document.createElement('button');
+    infoButton.className = 'icon-button image-info-button';
+    infoButton.type = 'button';
+    infoButton.dataset.imageId = image.id;
+    infoButton.setAttribute('aria-label', `Show image information for ${image.name}`);
+    infoButton.textContent = 'ⓘ';
+
+    titleRow.append(titleContent, infoButton);
     body.append(titleRow);
 
     if (result) {
@@ -766,6 +790,350 @@ function buildPreviewCard(image) {
 
     card.append(thumbWrap, body);
     return card;
+}
+
+function renderImageInspector(state, elements) {
+    const inspector = state.inspector ?? { open: false };
+    const image = state.images.find(item => item.id === inspector.imageId);
+    const isOpen = Boolean(inspector.open && image && state.view === 'convert');
+
+    elements.convertView.classList.toggle('has-inspector', isOpen);
+    elements.imageInspector.hidden = !isOpen;
+    elements.imageInspectorScrim.hidden = !isOpen;
+    elements.imageInspector.setAttribute('aria-busy', inspector.loading ? 'true' : 'false');
+    elements.imageInspectorTitle.textContent = inspector.view === 'all' ? 'All Metadata' : 'Image Info';
+
+    if (!isOpen) {
+        elements.imageInspectorBody.replaceChildren();
+        return;
+    }
+
+    const content = inspector.view === 'all'
+        ? buildAllMetadataView(inspector)
+        : buildInspectorSummary(image, inspector, state.images);
+    elements.imageInspectorBody.replaceChildren(content);
+}
+
+function buildInspectorSummary(image, inspector, images) {
+    const container = document.createElement('div');
+    container.className = 'image-inspector-summary';
+
+    const hero = document.createElement('div');
+    hero.className = 'image-inspector-hero';
+    const thumbnail = document.createElement('img');
+    thumbnail.src = image.previewDataUrl;
+    thumbnail.alt = `${image.name} preview`;
+    const filename = document.createElement('h3');
+    filename.title = image.name;
+    filename.textContent = image.name;
+    const summary = document.createElement('p');
+    summary.textContent = [
+        formatDimensions(image.width, image.height),
+        formatMegapixels(image.width, image.height),
+        formatBytes(image.fileSize),
+    ].join(' · ');
+    hero.append(thumbnail, filename, summary);
+    if (images.length > 1) {
+        hero.append(buildInspectorImageNavigation(image, images));
+    }
+    container.append(hero);
+
+    const metadata = inspector.data;
+    const generalRows = [
+        ['Format', metadata?.general?.format || image.fileType],
+        metadata?.general?.mimeType && ['MIME Type', metadata.general.mimeType],
+        ['Dimensions', formatDimensions(image.width, image.height)],
+        ['Megapixels', formatMegapixels(image.width, image.height)],
+        ['Aspect ratio', formatAspectRatio(image.width, image.height)],
+        ['File size', formatBytes(image.fileSize)],
+        metadata?.general?.bitDepth && ['Bit depth', `${metadata.general.bitDepth} bit`],
+        metadata?.general?.channels && ['Channels', String(metadata.general.channels)],
+        metadata?.general?.animated !== null
+            && metadata?.general?.animated !== undefined
+            && ['Animation', metadata.general.animated ? 'Yes' : 'No'],
+        metadata?.general?.frameCount && ['Frames', String(metadata.general.frameCount)],
+    ].filter(Boolean);
+    container.append(buildInspectorSection('General', generalRows));
+
+    if (metadata) {
+        const colorRows = [
+            metadata.color.colorModel && ['Color space', metadata.color.colorModel],
+            [
+                'ICC Profile',
+                metadata.color.iccProfileChecked
+                    ? metadata.color.iccProfileEmbedded
+                        ? metadata.color.iccProfileName || 'Embedded profile'
+                        : 'None embedded'
+                    : 'Not detected',
+            ],
+            metadata.color.alpha !== null
+                && metadata.color.alpha !== undefined
+                && ['Alpha', metadata.color.alpha ? 'Yes' : 'No'],
+        ].filter(Boolean);
+        container.append(buildInspectorSection('Color', colorRows));
+        container.append(buildMetadataSummarySection(metadata));
+        container.append(buildPrivacySection(metadata.privacy));
+        container.append(buildContentCredentialsSection(metadata.contentCredentials));
+    }
+
+    if (inspector.loading) {
+        const loading = document.createElement('p');
+        loading.className = 'image-inspector-message';
+        loading.textContent = 'Loading metadata...';
+        container.append(loading);
+    }
+    if (inspector.error) {
+        const error = document.createElement('p');
+        error.className = 'image-inspector-message is-error';
+        error.textContent = 'Metadata could not be read.';
+        error.title = inspector.error;
+        container.append(error);
+    }
+    for (const warningText of metadata?.warnings ?? []) {
+        const warning = document.createElement('p');
+        warning.className = 'image-inspector-message is-warning';
+        warning.textContent = warningText;
+        container.append(warning);
+    }
+
+    if (metadata?.raw?.length) {
+        const viewAllButton = document.createElement('button');
+        viewAllButton.className = 'button secondary image-inspector-view-all';
+        viewAllButton.type = 'button';
+        viewAllButton.dataset.inspectorAction = 'view-all';
+        viewAllButton.textContent = `View all metadata (${metadata.raw.length})`;
+        container.append(viewAllButton);
+    }
+
+    return container;
+}
+
+function buildInspectorImageNavigation(image, images) {
+    const currentIndex = images.findIndex(item => item.id === image.id);
+    const navigation = document.createElement('div');
+    navigation.className = 'image-inspector-navigation';
+    const previous = document.createElement('button');
+    previous.type = 'button';
+    previous.dataset.inspectorImageDirection = 'previous';
+    previous.setAttribute('aria-label', 'Show previous image information');
+    previous.textContent = '← Previous';
+    const position = document.createElement('span');
+    position.textContent = `${currentIndex + 1} of ${images.length}`;
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.dataset.inspectorImageDirection = 'next';
+    next.setAttribute('aria-label', 'Show next image information');
+    next.textContent = 'Next →';
+    navigation.append(previous, position, next);
+    return navigation;
+}
+
+function buildInspectorSection(title, rows, className = '') {
+    const section = document.createElement('section');
+    section.className = `image-inspector-section${className ? ` ${className}` : ''}`;
+    const heading = document.createElement('h3');
+    heading.textContent = title;
+    const list = document.createElement('dl');
+    list.className = 'image-metadata-rows';
+    for (const [label, value, tone] of rows) {
+        list.append(buildMetadataRow(label, value, tone));
+    }
+    section.append(heading, list);
+    return section;
+}
+
+function buildMetadataRow(label, value, tone = '') {
+    const row = document.createElement('div');
+    row.className = `image-metadata-row${tone ? ` is-${tone}` : ''}`;
+    const term = document.createElement('dt');
+    term.textContent = label;
+    const description = document.createElement('dd');
+    description.textContent = String(value);
+    description.title = String(value);
+    row.append(term, description);
+    return row;
+}
+
+function buildMetadataSummarySection(metadata) {
+    const section = document.createElement('section');
+    section.className = 'image-inspector-section';
+    const heading = document.createElement('h3');
+    heading.textContent = 'Metadata';
+    section.append(heading);
+
+    const accordions = document.createElement('div');
+    accordions.className = 'metadata-accordions';
+    accordions.append(
+        buildMetadataAccordion('EXIF', metadata.exif),
+        buildMetadataAccordion('IPTC', metadata.iptc),
+        buildMetadataAccordion('XMP', metadata.xmp),
+    );
+    section.append(accordions);
+    return section;
+}
+
+function buildMetadataAccordion(label, group) {
+    const details = document.createElement('details');
+    details.className = 'metadata-accordion';
+    const summary = document.createElement('summary');
+    const name = document.createElement('span');
+    name.textContent = label;
+    const status = document.createElement('span');
+    status.textContent = metadataGroupSummary(group);
+    summary.append(name, status);
+    details.append(summary);
+
+    if (group.error) {
+        const error = document.createElement('p');
+        error.className = 'image-inspector-message is-warning';
+        error.textContent = group.error;
+        details.append(error);
+    } else if (group.entries.length) {
+        const rows = document.createElement('dl');
+        rows.className = 'image-metadata-rows metadata-accordion-rows';
+        for (const entry of selectReadableEntries(group.entries)) {
+            rows.append(buildMetadataRow(entry.label, entry.value));
+        }
+        details.append(rows);
+    }
+    return details;
+}
+
+function metadataGroupSummary(group) {
+    if (group.status === 'unreadable') {
+        return 'Unreadable';
+    }
+    if (group.status === 'none') {
+        return 'None';
+    }
+    if (group.status === 'notChecked') {
+        return 'Not checked';
+    }
+    return group.entries.length ? pluralize('field', group.entries.length) : 'Present';
+}
+
+function selectReadableEntries(entries) {
+    const preferred = [
+        'make', 'model', 'lens model', 'date time original', 'exposure time', 'f number',
+        'photographic sensitivity', 'iso', 'focal length', 'orientation', 'creator',
+        'copyright', 'headline', 'caption', 'creator tool', 'rating', 'label',
+        'gps latitude', 'gps longitude',
+    ];
+    const selected = entries.filter(entry =>
+        preferred.some(label => entry.label.toLocaleLowerCase() === label),
+    );
+    return (selected.length ? selected : entries).slice(0, 10);
+}
+
+function buildPrivacySection(privacy) {
+    const summary = buildPrivacySummary(privacy);
+    const section = document.createElement('section');
+    section.className = 'image-inspector-section';
+    const heading = document.createElement('h3');
+    heading.textContent = 'Privacy';
+    section.append(heading);
+
+    if (!summary.findings.length) {
+        const empty = document.createElement('p');
+        empty.className = 'privacy-empty';
+        empty.textContent = summary.emptyText;
+        section.append(empty);
+        return section;
+    }
+
+    const rows = document.createElement('dl');
+    rows.className = 'image-metadata-rows';
+    for (const finding of summary.findings) {
+        rows.append(buildMetadataRow(finding.label, 'Present', finding.warning ? 'warning' : ''));
+    }
+    section.append(rows);
+    return section;
+}
+
+function buildContentCredentialsSection(credentials) {
+    const section = buildInspectorSection(
+        'Content Credentials',
+        [['C2PA', credentials.status === 'notChecked' ? 'Not checked' : credentials.status]],
+    );
+    const helper = document.createElement('p');
+    helper.className = 'image-inspector-section-helper';
+    helper.textContent = credentials.summary;
+    section.append(helper);
+    return section;
+}
+
+function buildAllMetadataView(inspector) {
+    const container = document.createElement('div');
+    container.className = 'all-metadata-view';
+    const backButton = document.createElement('button');
+    backButton.className = 'image-inspector-back';
+    backButton.type = 'button';
+    backButton.dataset.inspectorAction = 'summary';
+    backButton.textContent = '← Image Info';
+
+    const search = document.createElement('input');
+    search.className = 'metadata-search-input';
+    search.type = 'search';
+    search.placeholder = 'Search metadata...';
+    search.setAttribute('aria-label', 'Search metadata');
+    search.value = inspector.query;
+
+    const modeToggle = document.createElement('div');
+    modeToggle.className = 'metadata-view-toggle';
+    modeToggle.setAttribute('role', 'group');
+    modeToggle.setAttribute('aria-label', 'Metadata labels');
+    modeToggle.append(
+        buildMetadataModeButton('readable', 'Readable', inspector.metadataMode),
+        buildMetadataModeButton('raw', 'Raw', inspector.metadataMode),
+    );
+
+    const entries = filterMetadataEntries(inspector.data?.raw ?? [], inspector.query);
+    const resultCount = document.createElement('p');
+    resultCount.className = 'metadata-result-count';
+    resultCount.textContent = pluralize('result', entries.length);
+    container.append(backButton, search, modeToggle, resultCount);
+
+    if (!entries.length) {
+        const empty = document.createElement('p');
+        empty.className = 'image-inspector-message';
+        empty.textContent = inspector.query ? 'No metadata matches this search.' : 'No metadata fields found.';
+        container.append(empty);
+        return container;
+    }
+
+    for (const groupName of ['EXIF', 'IPTC', 'XMP']) {
+        const groupEntries = entries.filter(entry => entry.group === groupName);
+        if (!groupEntries.length) {
+            continue;
+        }
+        const section = document.createElement('section');
+        section.className = 'image-inspector-section all-metadata-section';
+        const heading = document.createElement('h3');
+        heading.textContent = groupName;
+        const rows = document.createElement('dl');
+        rows.className = 'image-metadata-rows all-metadata-rows';
+        for (const entry of groupEntries) {
+            rows.append(
+                buildMetadataRow(
+                    inspector.metadataMode === 'raw' ? entry.key : entry.label,
+                    entry.value,
+                ),
+            );
+        }
+        section.append(heading, rows);
+        container.append(section);
+    }
+    return container;
+}
+
+function buildMetadataModeButton(mode, label, selectedMode) {
+    const button = document.createElement('button');
+    button.className = 'toggle-button';
+    button.type = 'button';
+    button.dataset.inspectorMetadataMode = mode;
+    button.setAttribute('aria-pressed', mode === selectedMode ? 'true' : 'false');
+    button.textContent = label;
+    return button;
 }
 
 function buildPreviewResult(image, result) {

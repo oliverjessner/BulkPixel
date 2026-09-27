@@ -53,6 +53,17 @@ const state = {
     isProcessing: false,
     isImporting: false,
     dragActive: false,
+    metadataByImageId: new Map(),
+    inspector: {
+        open: false,
+        imageId: null,
+        data: null,
+        loading: false,
+        error: '',
+        view: 'summary',
+        query: '',
+        metadataMode: 'readable',
+    },
     validationMessage: '',
     status: {
         kind: 'info',
@@ -61,6 +72,8 @@ const state = {
 };
 
 const elements = {};
+let inspectorRequestSerial = 0;
+let inspectorReturnFocusImageId = null;
 
 window.addEventListener('DOMContentLoaded', async () => {
     cacheElements();
@@ -128,6 +141,11 @@ function cacheElements() {
     elements.removeAllButton = document.querySelector('#remove-all-button');
     elements.previewMeta = document.querySelector('#preview-meta');
     elements.previewList = document.querySelector('#preview-list');
+    elements.imageInspector = document.querySelector('#image-inspector');
+    elements.imageInspectorTitle = document.querySelector('#image-inspector-title');
+    elements.imageInspectorClose = document.querySelector('#image-inspector-close');
+    elements.imageInspectorBody = document.querySelector('#image-inspector-body');
+    elements.imageInspectorScrim = document.querySelector('#image-inspector-scrim');
     elements.statusSpinner = document.querySelector('#status-spinner');
     elements.statusSymbol = document.querySelector('#status-symbol');
     elements.statusText = document.querySelector('#status-text');
@@ -184,6 +202,9 @@ function bindEvents() {
     elements.appModeButtons.forEach(button => {
         button.addEventListener('click', () => {
             state.view = button.dataset.view;
+            if (state.view !== 'convert' && state.inspector.open) {
+                closeImageInspector({ restoreFocus: false });
+            }
             if (state.view === 'presets' && !state.presetForm.id && !state.presetForm.name.trim()) {
                 resetPresetFormToCurrentSettings();
             }
@@ -203,6 +224,8 @@ function bindEvents() {
 
     elements.removeAllButton.addEventListener('click', () => {
         state.images = [];
+        state.metadataByImageId.clear();
+        closeImageInspector({ restoreFocus: false, renderAfter: false });
         state.filenameComponent = '';
         syncResizeReference();
         markPresetCustom();
@@ -298,19 +321,96 @@ function bindEvents() {
     });
 
     elements.previewList.addEventListener('click', event => {
-        const button = event.target.closest('.remove-image-button');
-        if (!button || state.isProcessing) {
+        const removeButton = event.target.closest('.remove-image-button');
+        if (removeButton) {
+            if (!state.isProcessing) {
+                removeImage(removeButton.dataset.imageId);
+            }
             return;
         }
 
-        state.images = state.images.filter(image => image.id !== button.dataset.imageId);
-        syncResizeReference();
-        if (!state.images.length) {
-            markPresetCustom();
+        const infoButton = event.target.closest('.image-info-button');
+        if (infoButton) {
+            openImageInspector(infoButton.dataset.imageId, infoButton);
+            return;
         }
-        clearResults();
-        setStatus('info', 'Image removed.');
+
+        const card = event.target.closest('.preview-card');
+        if (card && state.inspector.open) {
+            selectInspectorImage(card.dataset.imageId);
+        }
+    });
+
+    elements.imageInspectorClose.addEventListener('click', () => {
+        closeImageInspector();
+    });
+
+    elements.imageInspectorScrim.addEventListener('click', () => {
+        closeImageInspector();
+    });
+
+    elements.imageInspectorBody.addEventListener('click', event => {
+        const imageNavigation = event.target.closest('[data-inspector-image-direction]');
+        if (imageNavigation) {
+            navigateInspectorImages(imageNavigation.dataset.inspectorImageDirection);
+            requestAnimationFrame(() => {
+                elements.imageInspectorBody
+                    .querySelector(`[data-inspector-image-direction="${imageNavigation.dataset.inspectorImageDirection}"]`)
+                    ?.focus();
+            });
+            return;
+        }
+
+        const actionButton = event.target.closest('[data-inspector-action]');
+        if (actionButton?.dataset.inspectorAction === 'view-all') {
+            state.inspector.view = 'all';
+            state.inspector.query = '';
+            render();
+            requestAnimationFrame(() => elements.imageInspectorBody.querySelector('.metadata-search-input')?.focus());
+            return;
+        }
+        if (actionButton?.dataset.inspectorAction === 'summary') {
+            state.inspector.view = 'summary';
+            state.inspector.query = '';
+            render();
+            return;
+        }
+
+        const modeButton = event.target.closest('[data-inspector-metadata-mode]');
+        if (modeButton) {
+            state.inspector.metadataMode = modeButton.dataset.inspectorMetadataMode;
+            render();
+        }
+    });
+
+    elements.imageInspectorBody.addEventListener('input', event => {
+        if (!event.target.matches('.metadata-search-input')) {
+            return;
+        }
+        const cursor = event.target.selectionStart;
+        state.inspector.query = event.target.value;
         render();
+        requestAnimationFrame(() => {
+            const search = elements.imageInspectorBody.querySelector('.metadata-search-input');
+            search?.focus();
+            if (search && cursor !== null) {
+                search.setSelectionRange(cursor, cursor);
+            }
+        });
+    });
+
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || !state.inspector.open) {
+            return;
+        }
+        event.preventDefault();
+        if (state.inspector.view === 'all') {
+            state.inspector.view = 'summary';
+            state.inspector.query = '';
+            render();
+        } else {
+            closeImageInspector();
+        }
     });
 
     elements.convertButton.addEventListener('click', () => {
@@ -318,6 +418,121 @@ function bindEvents() {
     });
 
     bindPresetEvents();
+}
+
+function openImageInspector(imageId, trigger = null) {
+    const image = state.images.find(item => item.id === imageId);
+    if (!image) {
+        return;
+    }
+
+    if (trigger) {
+        inspectorReturnFocusImageId = imageId;
+    }
+    state.inspector.open = true;
+    state.inspector.imageId = imageId;
+    state.inspector.view = 'summary';
+    state.inspector.query = '';
+    state.inspector.metadataMode = 'readable';
+    const cached = state.metadataByImageId.get(imageId);
+    state.inspector.data = cached ?? null;
+    state.inspector.error = '';
+    state.inspector.loading = !cached;
+    render();
+
+    if (trigger) {
+        requestAnimationFrame(() => elements.imageInspectorClose.focus());
+    }
+    if (!cached) {
+        void loadInspectorMetadata(image);
+    }
+}
+
+function selectInspectorImage(imageId) {
+    if (state.inspector.imageId === imageId) {
+        return;
+    }
+    openImageInspector(imageId);
+}
+
+function navigateInspectorImages(direction) {
+    const currentIndex = state.images.findIndex(image => image.id === state.inspector.imageId);
+    if (currentIndex < 0 || state.images.length < 2) {
+        return;
+    }
+    const offset = direction === 'previous' ? -1 : 1;
+    const nextIndex = (currentIndex + offset + state.images.length) % state.images.length;
+    selectInspectorImage(state.images[nextIndex].id);
+}
+
+async function loadInspectorMetadata(image) {
+    const requestSerial = ++inspectorRequestSerial;
+    try {
+        const metadata = await invoke('inspect_image_metadata_command', { path: image.path });
+        state.metadataByImageId.set(image.id, metadata);
+        if (requestSerial !== inspectorRequestSerial || state.inspector.imageId !== image.id) {
+            return;
+        }
+        state.inspector.data = metadata;
+        state.inspector.error = '';
+    } catch (error) {
+        if (requestSerial !== inspectorRequestSerial || state.inspector.imageId !== image.id) {
+            return;
+        }
+        state.inspector.error = normaliseError(error, 'Metadata could not be read.');
+    } finally {
+        if (requestSerial === inspectorRequestSerial && state.inspector.imageId === image.id) {
+            state.inspector.loading = false;
+            render();
+        }
+    }
+}
+
+function closeImageInspector(options = {}) {
+    const restoreFocus = options.restoreFocus ?? true;
+    const renderAfter = options.renderAfter ?? true;
+    inspectorRequestSerial += 1;
+    state.inspector.open = false;
+    state.inspector.imageId = null;
+    state.inspector.data = null;
+    state.inspector.loading = false;
+    state.inspector.error = '';
+    state.inspector.view = 'summary';
+    state.inspector.query = '';
+    if (renderAfter) {
+        render();
+    }
+    if (restoreFocus && inspectorReturnFocusImageId) {
+        const returnButton = [...elements.previewList.querySelectorAll('.image-info-button')]
+            .find(button => button.dataset.imageId === inspectorReturnFocusImageId);
+        returnButton?.focus();
+    }
+    inspectorReturnFocusImageId = null;
+}
+
+function removeImage(imageId) {
+    const removedIndex = state.images.findIndex(image => image.id === imageId);
+    if (removedIndex < 0) {
+        return;
+    }
+    const removedSelectedImage = state.inspector.imageId === imageId;
+    state.images = state.images.filter(image => image.id !== imageId);
+    state.metadataByImageId.delete(imageId);
+    syncResizeReference();
+    if (!state.images.length) {
+        markPresetCustom();
+    }
+    clearResults();
+    setStatus('info', 'Image removed.');
+
+    if (removedSelectedImage && state.images.length) {
+        const nextImage = state.images[Math.min(removedIndex, state.images.length - 1)];
+        openImageInspector(nextImage.id);
+    } else if (removedSelectedImage) {
+        closeImageInspector({ restoreFocus: false });
+    } else {
+        render();
+    }
 }
 
 async function openStatistics() {

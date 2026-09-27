@@ -51,6 +51,71 @@ export function formatDimensions(width, height) {
   return `${width} × ${height}`;
 }
 
+export function formatMegapixels(width, height) {
+  const pixels = Number(width) * Number(height);
+  if (!Number.isFinite(pixels) || pixels <= 0) {
+    return "Unknown";
+  }
+
+  return `${(pixels / 1_000_000).toFixed(1)} MP`;
+}
+
+export function formatAspectRatio(width, height) {
+  const normalizedWidth = Math.round(Number(width));
+  const normalizedHeight = Math.round(Number(height));
+  if (normalizedWidth <= 0 || normalizedHeight <= 0) {
+    return "Unknown";
+  }
+
+  const divisor = greatestCommonDivisor(normalizedWidth, normalizedHeight);
+  const ratioWidth = normalizedWidth / divisor;
+  const ratioHeight = normalizedHeight / divisor;
+  if (ratioWidth <= 50 && ratioHeight <= 50) {
+    return `${ratioWidth}:${ratioHeight}`;
+  }
+
+  return `${(normalizedWidth / normalizedHeight).toFixed(2)}:1`;
+}
+
+function greatestCommonDivisor(left, right) {
+  let a = Math.abs(left);
+  let b = Math.abs(right);
+  while (b) {
+    [a, b] = [b, a % b];
+  }
+  return a || 1;
+}
+
+export function filterMetadataEntries(entries, query) {
+  const needle = String(query ?? "").trim().toLocaleLowerCase();
+  if (!needle) {
+    return [...entries];
+  }
+
+  return entries.filter(entry =>
+    [entry.label, entry.key, entry.value]
+      .some(value => String(value ?? "").toLocaleLowerCase().includes(needle)),
+  );
+}
+
+export function buildPrivacySummary(privacy = {}) {
+  const findings = [
+    privacy.gps && { label: "GPS location", warning: true },
+    privacy.serialNumber && { label: "Device serial", warning: true },
+    privacy.deviceModel && { label: "Device model", warning: true },
+    privacy.creator && { label: "Creator information", warning: false },
+    privacy.software && { label: "Software information", warning: false },
+    privacy.timestamps && { label: "Timestamps", warning: false },
+  ].filter(Boolean);
+
+  return {
+    findings,
+    emptyText: findings.length
+      ? ""
+      : "No obvious location or device identifiers detected.",
+  };
+}
+
 export function sanitizeNumberInput(value) {
   const digits = String(value ?? "").replace(/[^\d]/g, "");
   return digits.replace(/^0+(?=\d)/, "");

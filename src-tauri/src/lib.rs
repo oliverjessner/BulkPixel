@@ -1,9 +1,11 @@
 mod cli;
+mod image_metadata;
 mod image_pipeline;
 mod magic_directories;
 mod models;
 mod presets;
 
+use image_metadata::inspect_image_metadata;
 use image_pipeline::{convert_images, default_output_directory, probe_images};
 use magic_directories::{
     delete_magic_directory as delete_magic_directory_from_store,
@@ -11,8 +13,9 @@ use magic_directories::{
     save_magic_directory as save_magic_directory_to_store, MagicWatcherState,
 };
 use models::{
-    ConversionPreset, ConversionRequest, ConversionResponse, ConversionStatistics, MagicDirectory,
-    ProbeImagesResponse, SaveMagicDirectoryRequest, SavePresetRequest,
+    ConversionPreset, ConversionRequest, ConversionResponse, ConversionStatistics,
+    ImageMetadataResponse, MagicDirectory, ProbeImagesResponse, SaveMagicDirectoryRequest,
+    SavePresetRequest,
 };
 use presets::{
     delete_preset as delete_preset_from_store, list_presets as list_presets_from_store,
@@ -105,6 +108,13 @@ async fn probe_images_command(paths: Vec<String>) -> Result<ProbeImagesResponse,
         .await
         .map_err(|error| error.to_string())?
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn inspect_image_metadata_command(path: String) -> Result<ImageMetadataResponse, String> {
+    tauri::async_runtime::spawn_blocking(move || inspect_image_metadata(path))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -203,6 +213,7 @@ pub fn run() {
             get_app_version,
             show_in_finder,
             probe_images_command,
+            inspect_image_metadata_command,
             bulk_convert_images,
             get_statistics,
             list_presets,

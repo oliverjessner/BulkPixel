@@ -109,6 +109,91 @@ pub struct ProbeImagesResponse {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ImageMetadataResponse {
+    pub general: GeneralImageMetadata,
+    pub color: ColorImageMetadata,
+    pub exif: MetadataGroup,
+    pub iptc: MetadataGroup,
+    pub xmp: MetadataGroup,
+    pub privacy: PrivacyMetadata,
+    pub content_credentials: ContentCredentialsMetadata,
+    pub raw: Vec<MetadataEntry>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneralImageMetadata {
+    pub format: String,
+    pub mime_type: String,
+    pub bit_depth: Option<u8>,
+    pub channels: Option<u8>,
+    pub animated: Option<bool>,
+    pub frame_count: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ColorImageMetadata {
+    pub color_model: Option<String>,
+    pub icc_profile_checked: bool,
+    pub icc_profile_embedded: bool,
+    pub icc_profile_name: Option<String>,
+    pub alpha: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataGroup {
+    pub status: MetadataGroupStatus,
+    pub entries: Vec<MetadataEntry>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum MetadataGroupStatus {
+    Present,
+    None,
+    Unreadable,
+    NotChecked,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataEntry {
+    pub key: String,
+    pub label: String,
+    pub value: String,
+    pub group: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PrivacyMetadata {
+    pub gps: bool,
+    pub serial_number: bool,
+    pub device_model: bool,
+    pub creator: bool,
+    pub software: bool,
+    pub timestamps: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentCredentialsMetadata {
+    pub status: ContentCredentialsStatus,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ContentCredentialsStatus {
+    NotChecked,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConversionItemResult {
     pub input_path: String,
     pub original_name: String,
