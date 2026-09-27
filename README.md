@@ -1,6 +1,6 @@
 # BulkPixel 🖼️
 
-![BulkPixel convert view](/src/assets/mockups/bulkpixel_1920.webp)
+![BulkPixel convert view](src/assets/mockups/bulkpixel.webp)
 
 **Convert more. Click less.**
 
@@ -8,6 +8,8 @@ BulkPixel is a local-first desktop app for fast batch image processing (Mac Only
 Drop in multiple images, choose an output format, resize if needed, and export everything in one go.
 
 Built for people who do not want a bloated image editor just to prepare assets for the web, blogs, apps, client work, or side projects.
+
+![BulkPixel empty convert view](src/assets/mockups/bulkpixel_empty.webp)
 
 ## Why BulkPixel
 
@@ -48,6 +50,12 @@ It is local-first, fast, and intentionally restrained.
 
 See the [supported import and export formats](docs/FORMATS.md) for the complete compatibility matrix and format-specific behavior.
 
+## Image Inspector
+
+Open Image Info for any loaded image to inspect its dimensions, format, color information, embedded metadata, and privacy-relevant fields without leaving the conversion workflow.
+
+![BulkPixel Image Inspector](src/assets/mockups/image_inspector.webp)
+
 ## Presets
 
 Presets let you save complete conversion setups and reuse them later.  
@@ -55,7 +63,7 @@ A preset stores the export format, resize setting, quality, filename prefix or p
 
 Use `Convert` for normal batch conversion. Use `Presets` to create, edit, duplicate, or delete saved setups. In the conversion settings, the preset dropdown lets you switch between `Default`, saved presets, and `Custom` when settings are changed manually.
 
-![BulkPixel presets view](/src/assets/mockups/presets_1920.webp)
+![BulkPixel presets view](src/assets/mockups/presets.webp)
 
 ## Watched Folders
 
@@ -63,13 +71,13 @@ Watched Folders monitor selected folders while BulkPixel is running. Give each r
 
 Rules are stored alongside presets and statistics in BulkPixel's shared SQLite database. Generated outputs are ignored by the watcher to prevent conversion loops. When multiple presets are selected, each preset must use a unique non-empty prefix or postfix.
 
-![BulkPixel Watched Folders view](/src/assets/mockups/maagic_directory_1920.webp)
+![BulkPixel Watched Folders view](src/assets/mockups/watched_folders_directory.webp)
 
 ## Statistics
 
 Click the BulkPixel brand in the app header to open the hidden statistics panel. It shows the same conversion totals, CLI usage, Watched Folder conversions, storage savings, processing time, and timeline as `bulkpixel stats` in the CLI.
 
-![BulkPixel statistics view](/src/assets/mockups/statistics_1920.webp)
+![BulkPixel statistics view](src/assets/mockups/statistics.webp)
 
 ## CLI
 
