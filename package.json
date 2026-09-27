@@ -8,6 +8,7 @@
         "dev": "tauri dev",
         "build": "tauri build",
         "test": "node --test",
+        "screenshots": "node scripts/screenshots.mjs",
         "publish": "sh scripts/publish.sh"
     },
     "repository": {
