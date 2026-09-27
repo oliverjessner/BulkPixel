@@ -17,16 +17,19 @@ from
 ![](/docs/ux_overhaul/convert_v2.1.1.webp)
 
 to
+![](/asstes/mockups/bulkpixel.webp)
 
 from
 ![](/docs/ux_overhaul/magic_directory_v2.1.1.webp)
 
 to
+![](/asstes/mockups/watched_folders_directory.webp)
 
 from
 ![](/docs/ux_overhaul/presets_v2.1.1.webp)
 
 to
+![](/asstes/mockups/presets.webp)
 
 # 2.1.1
 
