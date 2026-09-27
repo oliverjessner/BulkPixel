@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(SCRIPT_DIR, '..');
 const SCREENSHOT_DIR = path.join(SCRIPT_DIR, 'screenshots');
-const VIEWPORT = { width: 1280, height: 860 };
+const VIEWPORT = { width: 1920, height: 1080 };
 export const FIXTURE_NAMES = Object.freeze([
     'ayn_hor_akkutes.webp',
     'digimon_adventure_psp.png',
@@ -25,8 +25,8 @@ export const SCREENSHOT_SPECS = Object.freeze([
     { scenario: 'presets', filename: 'presets.png', format: 'png' },
     {
         scenario: 'watched-folders',
-        filename: 'watched_folders_directory.webp',
-        format: 'webp',
+        filename: 'watched_folders_directory.png',
+        format: 'png',
     },
     { scenario: 'statistics', filename: 'statistics.png', format: 'png' },
     { scenario: 'inspector', filename: 'image_inspector.png', format: 'png' },
