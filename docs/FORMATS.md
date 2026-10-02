@@ -13,6 +13,7 @@ BulkPixel uses the same conversion pipeline in the desktop app and CLI. The tabl
 | TIFF        | `.tif`, `.tiff`  | Yes    | No           | Yes             |
 | GIF         | `.gif`           | Yes    | No           | Yes             |
 | JPEG XL     | `.jxl`           | Yes    | No           | Yes             |
+| JPEG 2000   | `.jp2`           | Yes    | No           | Yes             |
 
 ## Format Notes
 
@@ -23,4 +24,5 @@ BulkPixel uses the same conversion pipeline in the desktop app and CLI. The tabl
 - TIFF imports the first page of a multipage file. Decoded 16-bit channels are preserved when exporting to PNG.
 - GIF and JPEG XL import the first frame of an animated file and export a still image. Transparency is preserved in PNG, WebP, and AVIF exports; JPEG composites it onto white.
 - JPEG XL supports both raw codestreams and container files, including 16-bit channels and alpha. Decoding uses [jxl-oxide](https://github.com/tirr-c/jxl-oxide), without requiring an installed native JPEG XL library.
+- JPEG 2000 (`.jp2`) uses the shared native macOS decoder, applies image orientation, and produces 8-bit sRGB output. JPEG 2000 source EXIF, ICC, XMP, and IPTC metadata are not currently inspected.
 - Watched Folders treat `.jpg` and `.jpeg` as JPEG, `.heic` and `.heif` as HEIC, and `.tif` and `.tiff` as TIFF. Extensions are case-insensitive.

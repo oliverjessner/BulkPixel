@@ -29,7 +29,7 @@ use crate::{
 };
 
 const VALID_WATCH_FORMATS: &[&str] = &[
-    "svg", "jpeg", "png", "webp", "avif", "heic", "tiff", "gif", "jxl",
+    "svg", "jpeg", "png", "webp", "avif", "heic", "tiff", "gif", "jxl", "jp2",
 ];
 const EVENT_DEBOUNCE: Duration = Duration::from_millis(800);
 const FILE_READY_POLL: Duration = Duration::from_millis(250);
@@ -287,7 +287,7 @@ fn load_formats(connection: &Connection, id: i64) -> Result<Vec<String>, PresetE
          ORDER BY CASE format
             WHEN 'svg' THEN 1 WHEN 'jpeg' THEN 2 WHEN 'png' THEN 3
             WHEN 'webp' THEN 4 WHEN 'avif' THEN 5 WHEN 'heic' THEN 6
-            WHEN 'tiff' THEN 7 WHEN 'gif' THEN 8 WHEN 'jxl' THEN 9 END",
+            WHEN 'tiff' THEN 7 WHEN 'gif' THEN 8 WHEN 'jxl' THEN 9 WHEN 'jp2' THEN 10 END",
     )?;
     let formats = statement
         .query_map(params![id], |row| row.get(0))?
@@ -346,7 +346,7 @@ fn normalize_and_validate_request(
         .any(|format| !VALID_WATCH_FORMATS.contains(&format.as_str()))
     {
         return Err(PresetError::Validation(
-            "Choose only SVG, JPEG (JPG), PNG, WEBP, AVIF, HEIC (HEIF), TIFF (TIF), GIF, or JPEG XL (JXL) as watched formats."
+            "Choose only SVG, JPEG (JPG), PNG, WEBP, AVIF, HEIC (HEIF), TIFF (TIF), GIF, JPEG XL (JXL), or JPEG 2000 (JP2) as watched formats."
                 .into(),
         ));
     }
@@ -842,6 +842,7 @@ mod tests {
                     "tiff".into(),
                     "GIF".into(),
                     "JXL".into(),
+                    "JP2".into(),
                 ],
                 preset_ids: vec![preset_id, preset_id],
                 enabled: true,
@@ -852,7 +853,7 @@ mod tests {
         assert_eq!(saved.name, "Incoming Photos");
         assert_eq!(
             saved.formats,
-            vec!["svg", "jpeg", "png", "heic", "tiff", "gif", "jxl"]
+            vec!["svg", "jpeg", "png", "heic", "tiff", "gif", "jxl", "jp2"]
         );
         assert_eq!(saved.preset_ids, vec![preset_id]);
         assert!(saved.enabled);
@@ -914,6 +915,7 @@ mod tests {
             ("scan.tiff", "tiff"),
             ("animation.GIF", "gif"),
             ("photo.JXL", "jxl"),
+            ("photo.JP2", "jp2"),
         ] {
             assert_eq!(watched_extension(Path::new(name)).as_deref(), Some(format));
         }
@@ -963,7 +965,7 @@ mod tests {
                  CREATE TABLE magic_directory_formats (
                     magic_directory_id INTEGER NOT NULL,
                     format TEXT NOT NULL
-                        CHECK (format IN ('svg', 'jpeg', 'png', 'webp', 'avif', 'heic')),
+                        CHECK (format IN ('svg', 'jpeg', 'png', 'webp', 'avif', 'heic', 'tiff', 'gif', 'jxl')),
                     PRIMARY KEY (magic_directory_id, format),
                     FOREIGN KEY (magic_directory_id)
                         REFERENCES magic_directories(id) ON DELETE CASCADE
@@ -986,7 +988,7 @@ mod tests {
             )
             .expect("preserved watched format");
         assert_eq!(existing_format, "png");
-        for format in ["heic", "tiff", "gif", "jxl"] {
+        for format in ["heic", "tiff", "gif", "jxl", "jp2"] {
             connection.execute(
                 "INSERT INTO magic_directory_formats (magic_directory_id, format) VALUES (1, ?1)",
                 params![format],
@@ -995,7 +997,7 @@ mod tests {
         initialize_schema(&mut connection).expect("idempotent migration");
         assert_eq!(
             load_formats(&connection, 1).expect("all formats"),
-            vec!["png", "heic", "tiff", "gif", "jxl"]
+            vec!["png", "heic", "tiff", "gif", "jxl", "jp2"]
         );
     }
 

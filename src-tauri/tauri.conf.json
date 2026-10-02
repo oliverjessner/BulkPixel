@@ -99,6 +99,13 @@
                 "name": "BulkPixel JPEG XL Image",
                 "role": "Editor",
                 "rank": "Alternate"
+            },
+            {
+                "ext": ["jp2"],
+                "mimeType": "image/jp2",
+                "name": "BulkPixel JPEG 2000 Image",
+                "role": "Editor",
+                "rank": "Alternate"
             }
         ]
     }

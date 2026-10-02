@@ -39,14 +39,14 @@ Usage:
   bulkpixel --version
 
 Input formats:
-  jpeg (jpg), png, webp, avif, svg, heic (heif), tiff (tif), gif, jxl (JPEG XL)
+  jpeg (jpg), png, webp, avif, svg, heic (heif), tiff (tif), gif, jxl (JPEG XL), jp2 (JPEG 2000)
   Animated GIF/JPEG XL: first frame only. Multipage TIFF: first page only.
 
 Export formats:
   jpeg, png, webp, avif
 
 Watched formats:
-  jpeg (jpg), png, webp, avif, svg, heic (heif), tiff (tif), gif, jxl
+  jpeg (jpg), png, webp, avif, svg, heic (heif), tiff (tif), gif, jxl, jp2
 "
 );
 

@@ -8,7 +8,7 @@ The desktop UI and terminal CLI are two entry points into the same product and s
 Core capabilities:
 
 - Drag and drop or select images
-- Batch convert `jpg`, `jpeg`, `png`, `webp`, `avif`, `svg`, `heic`, `heif`, `tif`, `tiff`, `gif`, and `jxl`
+- Batch convert `jpg`, `jpeg`, `png`, `webp`, `avif`, `svg`, `heic`, `heif`, `tif`, `tiff`, `gif`, `jxl`, and `jp2`
 - Import the first frame of animated GIF/JPEG XL files and the first page of multipage TIFF files
 - Export to `jpeg`, `png`, `webp`, and `avif`
 - Resize by width or height while preserving aspect ratio

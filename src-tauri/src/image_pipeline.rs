@@ -21,7 +21,7 @@ use crate::models::{
 };
 
 pub(crate) const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "jpg", "jpeg", "png", "webp", "avif", "svg", "heic", "heif", "tif", "tiff", "gif", "jxl",
+    "jpg", "jpeg", "png", "webp", "avif", "svg", "heic", "heif", "tif", "tiff", "gif", "jxl", "jp2",
 ];
 const THUMBNAIL_WIDTH: u32 = 220;
 const THUMBNAIL_HEIGHT: u32 = 140;
@@ -300,8 +300,8 @@ fn resize_image(image: &DynamicImage, width: Option<u32>, height: Option<u32>) -
 }
 
 fn load_raster_image(path: &Path) -> Result<DynamicImage, AppError> {
-    if is_heic(path) {
-        return load_heic_image(path);
+    if is_heic(path) || is_jpeg_2000(path) {
+        return load_native_image(path);
     }
 
     if path
@@ -317,15 +317,16 @@ fn load_raster_image(path: &Path) -> Result<DynamicImage, AppError> {
 }
 
 #[cfg(target_os = "macos")]
-fn load_heic_image(path: &Path) -> Result<DynamicImage, AppError> {
-    macos_heic::decode(path).map_err(AppError::Validation)
+fn load_native_image(path: &Path) -> Result<DynamicImage, AppError> {
+    macos_raster::decode(path, &format_label_from_extension(path)).map_err(AppError::Validation)
 }
 
 #[cfg(not(target_os = "macos"))]
-fn load_heic_image(_path: &Path) -> Result<DynamicImage, AppError> {
-    Err(AppError::Validation(
-        "HEIC input is available only on macOS.".into(),
-    ))
+fn load_native_image(path: &Path) -> Result<DynamicImage, AppError> {
+    Err(AppError::Validation(format!(
+        "{} input is available only on macOS.",
+        format_label_from_extension(path)
+    )))
 }
 
 fn resize_dimensions(
@@ -519,6 +520,12 @@ fn is_heic(path: &Path) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("heic") || ext.eq_ignore_ascii_case("heif"))
 }
 
+fn is_jpeg_2000(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("jp2"))
+}
+
 pub(crate) fn format_label_from_extension(path: &Path) -> String {
     match path
         .extension()
@@ -535,12 +542,13 @@ pub(crate) fn format_label_from_extension(path: &Path) -> String {
         Some("tif") | Some("tiff") => "TIFF".into(),
         Some("gif") => "GIF".into(),
         Some("jxl") => "JPEG XL".into(),
+        Some("jp2") => "JPEG 2000".into(),
         _ => "Image".into(),
     }
 }
 
 #[cfg(target_os = "macos")]
-mod macos_heic {
+mod macos_raster {
     use std::{path::Path, ptr::NonNull};
 
     use image::{DynamicImage, RgbaImage};
@@ -549,18 +557,18 @@ mod macos_heic {
     use objc2_core_image::{kCIContextOutputPremultiplied, kCIFormatRGBA8, CIContext, CIImage};
     use objc2_foundation::{NSDictionary, NSNumber, NSString, NSURL};
 
-    pub(super) fn decode(path: &Path) -> Result<DynamicImage, String> {
-        autoreleasepool(|_| unsafe { decode_inner(path) })
+    pub(super) fn decode(path: &Path, format: &str) -> Result<DynamicImage, String> {
+        autoreleasepool(|_| unsafe { decode_inner(path, format) })
     }
 
-    unsafe fn decode_inner(path: &Path) -> Result<DynamicImage, String> {
+    unsafe fn decode_inner(path: &Path, format: &str) -> Result<DynamicImage, String> {
         let path = NSString::from_str(&path.to_string_lossy());
         let url = NSURL::fileURLWithPath(&path);
         // Load the author-provided SDR-compatible representation. Expanding an
         // HDR gain map and globally compressing it back to SDR can clip local
         // highlight detail that is already preserved in this base image.
         let image = CIImage::imageWithContentsOfURL(&url)
-            .ok_or_else(|| "Unable to decode the HEIC image with macOS Core Image.".to_string())?;
+            .ok_or_else(|| format!("Unable to decode the {format} image with macOS Core Image."))?;
 
         // Read the CGImage/TIFF orientation property and transform it exactly once
         // so probing, previews, and exports share the same logical dimensions.
@@ -577,14 +585,14 @@ mod macos_heic {
         };
 
         let extent = image.extent();
-        let width = dimension(extent.size.width, "width")?;
-        let height = dimension(extent.size.height, "height")?;
+        let width = dimension(extent.size.width, "width", format)?;
+        let height = dimension(extent.size.height, "height", format)?;
         let row_bytes = (width as usize)
             .checked_mul(4)
-            .ok_or_else(|| "The HEIC image is too wide to decode.".to_string())?;
+            .ok_or_else(|| format!("The {format} image is too wide to decode."))?;
         let buffer_len = row_bytes
             .checked_mul(height as usize)
-            .ok_or_else(|| "The HEIC image is too large to decode.".to_string())?;
+            .ok_or_else(|| format!("The {format} image is too large to decode."))?;
         let mut pixels = vec![0_u8; buffer_len];
 
         let false_value = NSNumber::new_bool(false);
@@ -596,22 +604,22 @@ mod macos_heic {
             .ok_or_else(|| "Unable to create the sRGB output color space.".to_string())?;
         context.render_toBitmap_rowBytes_bounds_format_colorSpace(
             &image,
-            NonNull::new(pixels.as_mut_ptr().cast()).expect("non-empty HEIC pixel buffer"),
+            NonNull::new(pixels.as_mut_ptr().cast()).expect("non-empty native pixel buffer"),
             isize::try_from(row_bytes)
-                .map_err(|_| "The HEIC row size is too large to decode.".to_string())?,
+                .map_err(|_| format!("The {format} row size is too large to decode."))?,
             extent,
             kCIFormatRGBA8,
             Some(&color_space),
         );
 
         let pixels = RgbaImage::from_raw(width, height, pixels)
-            .ok_or_else(|| "Core Image returned an invalid HEIC pixel buffer.".to_string())?;
+            .ok_or_else(|| format!("Core Image returned an invalid {format} pixel buffer."))?;
         Ok(DynamicImage::ImageRgba8(pixels))
     }
 
-    fn dimension(value: f64, label: &str) -> Result<u32, String> {
+    fn dimension(value: f64, label: &str, format: &str) -> Result<u32, String> {
         if !value.is_finite() || value < 1.0 || value > u32::MAX as f64 {
-            return Err(format!("The HEIC image has an invalid {label}."));
+            return Err(format!("The {format} image has an invalid {label}."));
         }
         Ok(value.round() as u32)
     }
@@ -779,6 +787,78 @@ mod tests {
     #[cfg(target_os = "macos")]
     use std::process::Command;
 
+    fn assert_provided_fixture_converts(name: &str, label: &str, dimensions: (u32, u32)) {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../tests/test_images")
+            .join(name);
+        let input = path.to_string_lossy().to_string();
+        let probe = super::probe_images(vec![input.clone()]).expect("probe provided fixture");
+        assert!(probe.rejected.is_empty(), "{name}: {:?}", probe.rejected);
+        assert_eq!(probe.loaded.len(), 1);
+        assert_eq!(probe.loaded[0].file_type, label);
+        assert_eq!(
+            (probe.loaded[0].width, probe.loaded[0].height),
+            dimensions,
+            "{name}"
+        );
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "bulkpixel-provided-{name}-{}-{nonce}",
+            std::process::id()
+        ));
+        let response = super::convert_images(ConversionRequest {
+            images: vec![ConversionImageInput { path: input }],
+            format: ExportFormat::Png,
+            resize: ResizeOptions {
+                width: Some(128),
+                height: None,
+            },
+            quality: 100,
+            filename_component: String::new(),
+            filename_mode: "prefix".into(),
+            output_dir: directory.to_string_lossy().to_string(),
+            collision_mode: CollisionMode::Error,
+        })
+        .expect("convert provided fixture");
+        assert_eq!(
+            response.summary.success_count, 1,
+            "{name}: {:?}",
+            response.results
+        );
+        assert_eq!(response.summary.failure_count, 0);
+        let output = image::open(directory.join("test.png")).expect("read fixture output");
+        assert_eq!(
+            output.dimensions(),
+            super::resize_dimensions(dimensions.0, dimensions.1, Some(128), None)
+        );
+        // A failed native render can return a correctly sized but empty pixel buffer.
+        let pixels = output.to_rgba8();
+        assert!(pixels.pixels().any(|pixel| pixel[3] != 0));
+        let first = pixels.get_pixel(0, 0);
+        assert!(
+            pixels.pixels().any(|pixel| pixel != first),
+            "{name}: blank output"
+        );
+        fs::remove_dir_all(directory).expect("remove fixture output");
+    }
+
+    #[test]
+    fn converts_provided_gif_and_tiff_fixtures() {
+        assert_provided_fixture_converts("test.gif", "GIF", (314, 400));
+        assert_provided_fixture_converts("test.tiff", "TIFF", (650, 434));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "requires native macOS image codec services"]
+    fn converts_provided_heic_and_jpeg_2000_fixtures() {
+        assert_provided_fixture_converts("test.heic", "HEIC", (3213, 5712));
+        assert_provided_fixture_converts("test.jp2", "JPEG 2000", (2717, 3701));
+    }
+
     #[test]
     fn probes_and_converts_tiff_gif_and_jpeg_xl_inputs() {
         let directory =
@@ -919,14 +999,14 @@ mod tests {
         )
         .expect("write valid input");
         let mut paths = vec![valid.to_string_lossy().to_string()];
-        for extension in ["tiff", "gif", "jxl"] {
+        for extension in ["tiff", "gif", "jxl", "jp2"] {
             let path = directory.join(format!("broken.{extension}"));
             fs::write(&path, b"not an image").expect("write invalid input");
             paths.push(path.to_string_lossy().to_string());
         }
         let probe = super::probe_images(paths.clone()).expect("probe mixed batch");
         assert_eq!(probe.loaded.len(), 1);
-        assert_eq!(probe.rejected.len(), 3);
+        assert_eq!(probe.rejected.len(), 4);
         let response = super::convert_images(ConversionRequest {
             images: paths
                 .into_iter()
@@ -945,7 +1025,7 @@ mod tests {
         })
         .expect("convert partial batch");
         assert_eq!(response.summary.success_count, 1);
-        assert_eq!(response.summary.failure_count, 3);
+        assert_eq!(response.summary.failure_count, 4);
         assert!(response.results[1..].iter().all(|result| !result.success
             && !result.message.is_empty()
             && result.output_path.is_none()));
@@ -1078,7 +1158,7 @@ mod tests {
             .as_ref()
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| {
-                Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/test_images/IMG_6576.heic")
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/test_images/test.heic")
             });
         let fixture = super::load_raster_image(&fixture_path).expect("decode HDR HEIC fixture");
         assert!(fixture.width() > 0 && fixture.height() > 0);
