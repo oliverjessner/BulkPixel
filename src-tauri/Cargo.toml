@@ -1,6 +1,6 @@
 [package]
 name = "bulkpixel"
-version = "3.0.1"
+version = "3.1.0"
 description = "BulkPixel desktop app"
 authors = ["oli"]
 edition = "2021"
@@ -15,7 +15,8 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 base64 = "0.22"
 dirs = "6"
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "avif", "avif-native"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "avif", "avif-native", "tiff", "gif"] }
+jxl-oxide = { version = "0.12", features = ["image", "moxcms"] }
 kamadak-exif = "0.6"
 notify = "8.2"
 resvg = "0.47"

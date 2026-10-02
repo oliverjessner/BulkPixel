@@ -105,7 +105,7 @@ const CREATE_MAGIC_DIRECTORY_FORMATS_TABLE_SQL: &str = "
     CREATE TABLE IF NOT EXISTS magic_directory_formats (
         magic_directory_id INTEGER NOT NULL,
         format TEXT NOT NULL
-            CHECK (format IN ('svg', 'jpeg', 'png', 'webp', 'avif', 'heic')),
+            CHECK (format IN ('svg', 'jpeg', 'png', 'webp', 'avif', 'heic', 'tiff', 'gif', 'jxl', 'jp2')),
         PRIMARY KEY (magic_directory_id, format),
         FOREIGN KEY (magic_directory_id) REFERENCES magic_directories(id) ON DELETE CASCADE
     );
@@ -393,10 +393,17 @@ fn load_statistics_with_connection(
              WHERE id = 1",
             [],
             |row| {
+                let amount: i64 = row.get(0)?;
+                let cli_uses: i64 = row.get(1)?;
+                let watched_folder_conversions: i64 = row.get(2)?;
                 Ok(ConversionStatistics {
-                    amount: row.get(0)?,
-                    cli_uses: row.get(1)?,
-                    watched_folder_conversions: row.get(2)?,
+                    amount,
+                    cli_uses,
+                    ui_uses: amount
+                        .saturating_sub(cli_uses)
+                        .saturating_sub(watched_folder_conversions)
+                        .max(0),
+                    watched_folder_conversions,
                     webp: row.get(3)?,
                     avif: row.get(4)?,
                     jpeg: row.get(5)?,
@@ -509,10 +516,11 @@ fn migrate_magic_directory_formats_schema(connection: &mut Connection) -> Result
         )
         .optional()?;
 
-    if schema
-        .as_deref()
-        .is_some_and(|sql| sql.contains("'jpeg'") && sql.contains("'heic'"))
-    {
+    if schema.as_deref().is_some_and(|sql| {
+        ["'jpeg'", "'heic'", "'tiff'", "'gif'", "'jxl'", "'jp2'"]
+            .iter()
+            .all(|format| sql.contains(format))
+    }) {
         return Ok(());
     }
 
@@ -788,8 +796,132 @@ mod tests {
 
     use super::{
         initialize_schema, initialize_statistics_schema, load_statistics_with_connection,
-        record_cli_usage_with_connection, record_watched_folder_conversions_with_connection,
+        record_cli_usage_with_connection, record_conversion_statistics_with_connection,
+        record_watched_folder_conversions_with_connection,
     };
+    use crate::models::{ConversionSummary, ExportFormat};
+
+    #[test]
+    fn derives_ui_usage_from_total_cli_and_watched_folder_statistics() {
+        let connection = Connection::open_in_memory().expect("database");
+        initialize_statistics_schema(&connection).expect("schema");
+        let successful = ConversionSummary {
+            success_count: 3,
+            failure_count: 0,
+            total_original_size: 1000,
+            total_converted_size: 600,
+            total_delta_bytes: 400,
+            total_percent_change: 40.0,
+        };
+        record_conversion_statistics_with_connection(
+            &connection,
+            &ExportFormat::Png,
+            &successful,
+            50,
+        )
+        .expect("successful UI batch");
+        let failed = ConversionSummary {
+            success_count: 0,
+            failure_count: 2,
+            total_original_size: 0,
+            total_converted_size: 0,
+            total_delta_bytes: 0,
+            total_percent_change: 0.0,
+        };
+        record_conversion_statistics_with_connection(&connection, &ExportFormat::Png, &failed, 999)
+            .expect("fully failed UI batch");
+        let statistics = load_statistics_with_connection(&connection).expect("UI statistics");
+        assert_eq!(statistics.ui_uses, 3);
+        assert_eq!(statistics.amount, 3);
+        assert_eq!(statistics.processing_time_ms, 50);
+
+        let partial = ConversionSummary {
+            success_count: 1,
+            failure_count: 2,
+            total_original_size: 200,
+            total_converted_size: 100,
+            total_delta_bytes: 100,
+            total_percent_change: 50.0,
+        };
+        record_conversion_statistics_with_connection(&connection, &ExportFormat::Png, &partial, 25)
+            .expect("partial UI batch");
+        record_conversion_statistics_with_connection(
+            &connection,
+            &ExportFormat::Jpeg,
+            &partial,
+            25,
+        )
+        .expect("CLI conversion");
+        record_cli_usage_with_connection(&connection).expect("CLI usage");
+        record_conversion_statistics_with_connection(
+            &connection,
+            &ExportFormat::Webp,
+            &partial,
+            25,
+        )
+        .expect("watched conversion");
+        record_watched_folder_conversions_with_connection(&connection, 1).expect("watched usage");
+        let statistics = load_statistics_with_connection(&connection).expect("shared statistics");
+        assert_eq!(statistics.ui_uses, 4);
+        assert_eq!(statistics.cli_uses, 1);
+        assert_eq!(statistics.watched_folder_conversions, 1);
+        assert_eq!(statistics.amount, 6);
+        assert_eq!(
+            (statistics.png, statistics.jpeg, statistics.webp),
+            (4, 1, 1)
+        );
+        assert_eq!(statistics.input_bytes, 1600);
+        assert_eq!(statistics.output_bytes, 900);
+        assert_eq!(statistics.saved_bytes, 700);
+        assert_eq!(statistics.processing_time_ms, 125);
+
+        // The existing CLI counter counts command runs, even for batch exports.
+        record_conversion_statistics_with_connection(
+            &connection,
+            &ExportFormat::Jpeg,
+            &successful,
+            50,
+        )
+        .expect("CLI batch conversion");
+        record_cli_usage_with_connection(&connection).expect("CLI batch usage");
+        let statistics = load_statistics_with_connection(&connection).expect("batch statistics");
+        assert_eq!(statistics.amount, 9);
+        assert_eq!(statistics.cli_uses, 2);
+        assert_eq!(statistics.watched_folder_conversions, 1);
+        assert_eq!(statistics.ui_uses, 6);
+    }
+
+    #[test]
+    fn ignores_the_old_ui_counter_and_keeps_derived_usage_nonnegative() {
+        let connection = Connection::open_in_memory().expect("database");
+        initialize_statistics_schema(&connection).expect("schema");
+        connection
+            .execute_batch(
+                "ALTER TABLE statistics ADD COLUMN ui_uses INTEGER NOT NULL DEFAULT 0;
+                 UPDATE statistics
+                 SET png = 20, cli_uses = 3, watched_folder_conversions = 5, ui_uses = 999
+                 WHERE id = 1;",
+            )
+            .expect("old UI counter");
+        initialize_statistics_schema(&connection).expect("existing schema");
+        let statistics = load_statistics_with_connection(&connection).expect("derived usage");
+        assert_eq!(statistics.ui_uses, 12);
+        let old_ui_uses: i64 = connection
+            .query_row("SELECT ui_uses FROM statistics WHERE id = 1", [], |row| {
+                row.get(0)
+            })
+            .expect("preserved old counter");
+        assert_eq!(old_ui_uses, 999);
+
+        connection
+            .execute(
+                "UPDATE statistics SET cli_uses = ?1, watched_folder_conversions = ?1 WHERE id = 1",
+                [i64::MAX],
+            )
+            .expect("inconsistent legacy counters");
+        let statistics = load_statistics_with_connection(&connection).expect("nonnegative usage");
+        assert_eq!(statistics.ui_uses, 0);
+    }
 
     #[test]
     fn adds_names_to_existing_watched_folders() {
@@ -858,6 +990,7 @@ mod tests {
 
         assert_eq!(statistics.amount, 10);
         assert_eq!(statistics.cli_uses, 0);
+        assert_eq!(statistics.ui_uses, 10);
         assert_eq!(statistics.watched_folder_conversions, 0);
         assert_eq!(statistics.saved_bytes, 400);
 
@@ -870,5 +1003,29 @@ mod tests {
         assert_eq!(statistics.amount, 10);
         assert_eq!(statistics.cli_uses, 2);
         assert_eq!(statistics.watched_folder_conversions, 3);
+        assert_eq!(statistics.ui_uses, 5);
+
+        initialize_statistics_schema(&connection).expect("existing usage schema");
+        initialize_statistics_schema(&connection).expect("idempotent initialization");
+        let migrated = load_statistics_with_connection(&connection).expect("migrated usage");
+        assert_eq!(migrated.ui_uses, 5);
+        assert_eq!(migrated.cli_uses, 2);
+        assert_eq!(migrated.watched_folder_conversions, 3);
+        assert_eq!(
+            (migrated.webp, migrated.avif, migrated.jpeg, migrated.png),
+            (4, 3, 2, 1)
+        );
+        assert_eq!(migrated.amount, 10);
+        assert_eq!(
+            (
+                migrated.input_bytes,
+                migrated.output_bytes,
+                migrated.saved_bytes
+            ),
+            (1000, 600, 400)
+        );
+        assert_eq!(migrated.processing_time_ms, 250);
+        assert_eq!(migrated.created_at, statistics.created_at);
+        assert_eq!(migrated.last_conversion_at, statistics.last_conversion_at);
     }
 }

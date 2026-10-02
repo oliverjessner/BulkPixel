@@ -28,7 +28,9 @@ use crate::{
     },
 };
 
-const VALID_WATCH_FORMATS: &[&str] = &["svg", "jpeg", "png", "webp", "avif", "heic"];
+const VALID_WATCH_FORMATS: &[&str] = &[
+    "svg", "jpeg", "png", "webp", "avif", "heic", "tiff", "gif", "jxl", "jp2",
+];
 const EVENT_DEBOUNCE: Duration = Duration::from_millis(800);
 const FILE_READY_POLL: Duration = Duration::from_millis(250);
 const FILE_READY_ATTEMPTS: usize = 40;
@@ -284,7 +286,8 @@ fn load_formats(connection: &Connection, id: i64) -> Result<Vec<String>, PresetE
          WHERE magic_directory_id = ?1
          ORDER BY CASE format
             WHEN 'svg' THEN 1 WHEN 'jpeg' THEN 2 WHEN 'png' THEN 3
-            WHEN 'webp' THEN 4 WHEN 'avif' THEN 5 WHEN 'heic' THEN 6 END",
+            WHEN 'webp' THEN 4 WHEN 'avif' THEN 5 WHEN 'heic' THEN 6
+            WHEN 'tiff' THEN 7 WHEN 'gif' THEN 8 WHEN 'jxl' THEN 9 WHEN 'jp2' THEN 10 END",
     )?;
     let formats = statement
         .query_map(params![id], |row| row.get(0))?
@@ -343,7 +346,7 @@ fn normalize_and_validate_request(
         .any(|format| !VALID_WATCH_FORMATS.contains(&format.as_str()))
     {
         return Err(PresetError::Validation(
-            "Choose only SVG, JPEG (JPG), PNG, WEBP, AVIF, or HEIC (HEIF) as watched formats."
+            "Choose only SVG, JPEG (JPG), PNG, WEBP, AVIF, HEIC (HEIF), TIFF (TIF), GIF, JPEG XL (JXL), or JPEG 2000 (JP2) as watched formats."
                 .into(),
         ));
     }
@@ -752,6 +755,7 @@ fn normalize_watch_format(format: &str) -> String {
     match format.trim().to_ascii_lowercase().as_str() {
         "jpg" | "jpeg" => "jpeg".into(),
         "heic" | "heif" => "heic".into(),
+        "tif" | "tiff" => "tiff".into(),
         format => format.into(),
     }
 }
@@ -795,7 +799,7 @@ fn path_string(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        list_magic_directories_with_connection, matching_magic_directory,
+        list_magic_directories_with_connection, load_formats, matching_magic_directory,
         save_magic_directory_with_connection, watched_extension, CascadeContext, CascadeStop,
         SaveMagicDirectoryRequest, MAX_CASCADE_DEPTH,
     };
@@ -834,6 +838,11 @@ mod tests {
                     "HEIF".into(),
                     "heic".into(),
                     "svg".into(),
+                    "TIF".into(),
+                    "tiff".into(),
+                    "GIF".into(),
+                    "JXL".into(),
+                    "JP2".into(),
                 ],
                 preset_ids: vec![preset_id, preset_id],
                 enabled: true,
@@ -842,7 +851,10 @@ mod tests {
         .expect("saved magic directory");
 
         assert_eq!(saved.name, "Incoming Photos");
-        assert_eq!(saved.formats, vec!["svg", "jpeg", "png", "heic"]);
+        assert_eq!(
+            saved.formats,
+            vec!["svg", "jpeg", "png", "heic", "tiff", "gif", "jxl", "jp2"]
+        );
         assert_eq!(saved.preset_ids, vec![preset_id]);
         assert!(saved.enabled);
         assert_eq!(
@@ -898,6 +910,15 @@ mod tests {
             Some("heic")
         );
         assert_eq!(watched_extension(Path::new("photo.txt")), None);
+        for (name, format) in [
+            ("scan.TIF", "tiff"),
+            ("scan.tiff", "tiff"),
+            ("animation.GIF", "gif"),
+            ("photo.JXL", "jxl"),
+            ("photo.JP2", "jp2"),
+        ] {
+            assert_eq!(watched_extension(Path::new(name)).as_deref(), Some(format));
+        }
     }
 
     #[test]
@@ -935,7 +956,7 @@ mod tests {
     }
 
     #[test]
-    fn migrates_watched_formats_schema_to_accept_heic() {
+    fn migrates_watched_formats_schema_to_accept_new_inputs() {
         let mut connection = Connection::open_in_memory().expect("in-memory database");
         initialize_schema(&mut connection).expect("initial schema");
         connection
@@ -944,7 +965,7 @@ mod tests {
                  CREATE TABLE magic_directory_formats (
                     magic_directory_id INTEGER NOT NULL,
                     format TEXT NOT NULL
-                        CHECK (format IN ('svg', 'jpeg', 'png', 'webp', 'avif')),
+                        CHECK (format IN ('svg', 'jpeg', 'png', 'webp', 'avif', 'heic', 'tiff', 'gif', 'jxl')),
                     PRIMARY KEY (magic_directory_id, format),
                     FOREIGN KEY (magic_directory_id)
                         REFERENCES magic_directories(id) ON DELETE CASCADE
@@ -967,13 +988,17 @@ mod tests {
             )
             .expect("preserved watched format");
         assert_eq!(existing_format, "png");
-        connection
-            .execute(
-                "INSERT INTO magic_directory_formats (magic_directory_id, format)
-                 VALUES (1, 'heic')",
-                [],
-            )
-            .expect("HEIC watched format");
+        for format in ["heic", "tiff", "gif", "jxl", "jp2"] {
+            connection.execute(
+                "INSERT INTO magic_directory_formats (magic_directory_id, format) VALUES (1, ?1)",
+                params![format],
+            ).expect("new watched format");
+        }
+        initialize_schema(&mut connection).expect("idempotent migration");
+        assert_eq!(
+            load_formats(&connection, 1).expect("all formats"),
+            vec!["png", "heic", "tiff", "gif", "jxl", "jp2"]
+        );
     }
 
     #[test]

@@ -1,7 +1,7 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
     "productName": "BulkPixel",
-    "version": "3.0.1",
+    "version": "3.1.0",
     "identifier": "com.oli.bulkpixel",
     "build": {
         "frontendDist": "../src"
@@ -76,6 +76,34 @@
                 "ext": ["heif"],
                 "mimeType": "image/heif",
                 "name": "BulkPixel HEIF Image",
+                "role": "Editor",
+                "rank": "Alternate"
+            },
+            {
+                "ext": ["tif", "tiff"],
+                "mimeType": "image/tiff",
+                "name": "BulkPixel TIFF Image",
+                "role": "Editor",
+                "rank": "Alternate"
+            },
+            {
+                "ext": ["gif"],
+                "mimeType": "image/gif",
+                "name": "BulkPixel GIF Image",
+                "role": "Editor",
+                "rank": "Alternate"
+            },
+            {
+                "ext": ["jxl"],
+                "mimeType": "image/jxl",
+                "name": "BulkPixel JPEG XL Image",
+                "role": "Editor",
+                "rank": "Alternate"
+            },
+            {
+                "ext": ["jp2"],
+                "mimeType": "image/jp2",
+                "name": "BulkPixel JPEG 2000 Image",
                 "role": "Editor",
                 "rank": "Alternate"
             }

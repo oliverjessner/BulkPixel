@@ -33,7 +33,7 @@ It is local-first, fast, and intentionally restrained.
 - Drag and drop images into the app
 - Native file picker support
 - Batch conversion for multiple images at once
-- Input support for `jpg`, `jpeg`, `png`, `avif`, `webp`, `svg`, `heic`, and `heif`
+- Input support for `jpg`, `jpeg`, `png`, `avif`, `webp`, `svg`, `heic`, `heif`, `tif`, `tiff`, `gif`, `jxl` (JPEG XL), and `jp2` (JPEG 2000)
 - Export to `jpg`, `png`, `avif` or `webp`
 - Resize by width or height
 - Automatic aspect-ratio preservation
@@ -42,7 +42,7 @@ It is local-first, fast, and intentionally restrained.
 - Optional filename prefix or postfix (toggle between modes)
 - Output folder selection
 - Presets for saving reusable conversion settings
-- Watched Folders for automatically running presets when new JPEG, PNG, WEBP, AVIF, SVG, or HEIC files arrive
+- Watched Folders for automatically running presets when new JPEG, PNG, WEBP, AVIF, SVG, HEIC, TIFF, GIF, JPEG XL, or JPEG 2000 files arrive
 - Terminal CLI for scripted conversion, preset and Watched Folder management, and statistics
 - Collision-safe saving with `_1`, `_2`, and so on
 - Per-image and total savings analysis
@@ -75,7 +75,7 @@ Rules are stored alongside presets and statistics in BulkPixel's shared SQLite d
 
 ## Statistics
 
-Click the BulkPixel brand in the app header to open the hidden statistics panel. It shows the same conversion totals, CLI usage, Watched Folder conversions, storage savings, processing time, and timeline as `bulkpixel stats` in the CLI.
+Click the BulkPixel brand in the app header to open the hidden statistics panel. It shows the same conversion totals, CLI and UI usage, Watched Folder conversions, storage savings, processing time, and timeline as `bulkpixel stats` in the CLI. UI usage is derived as Total minus CLI Uses minus Watched Folder Conversions. Because CLI Uses counts command runs rather than individual outputs, this remainder also includes additional outputs from CLI batches; see [docs/CLI.md](docs/CLI.md) for the counter definitions.
 
 ![BulkPixel statistics view](src/assets/mockups/statistics.webp)
 

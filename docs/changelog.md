@@ -1,3 +1,11 @@
+# 3.1.0
+
+- Derive UI Uses from Total minus CLI Uses minus Watched Folder Conversions in the shared UI and CLI statistics, including existing totals.
+
+- tiff, gif and JPEG XL support
+- JPEG 2000 (`.jp2`) input support in the desktop app, CLI, Finder, and Watched Folders
+- orientation fix in HEIC
+
 # 3.0.1
 
 - Allow Watched Folder rules to cascade outputs into other watched folders, with native-event deduplication, per-chain cycle detection, and an eight-rule depth limit.

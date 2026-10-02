@@ -108,6 +108,7 @@ function cacheElements() {
     elements.statisticsAvif = document.querySelector('#statistics-avif');
     elements.statisticsJpeg = document.querySelector('#statistics-jpeg');
     elements.statisticsCliUses = document.querySelector('#statistics-cli-uses');
+    elements.statisticsUiUses = document.querySelector('#statistics-ui-uses');
     elements.statisticsWatchedFolderConversions = document.querySelector(
         '#statistics-watched-folder-conversions',
     );
@@ -581,6 +582,7 @@ function renderStatistics() {
     elements.statisticsAvif.textContent = String(statistics.avif);
     elements.statisticsJpeg.textContent = String(statistics.jpeg);
     elements.statisticsCliUses.textContent = String(statistics.cliUses);
+    elements.statisticsUiUses.textContent = String(statistics.uiUses);
     elements.statisticsWatchedFolderConversions.textContent = String(
         statistics.watchedFolderConversions,
     );
@@ -954,7 +956,7 @@ async function pickImages() {
             filters: [
                 {
                     name: 'Images',
-                    extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg', 'heic', 'heif'],
+                    extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg', 'heic', 'heif', 'tif', 'tiff', 'gif', 'jxl', 'jp2'],
                 },
             ],
         });

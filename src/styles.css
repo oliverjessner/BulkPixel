@@ -338,7 +338,7 @@ select:focus {
 }
 
 .statistics-usage {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .statistics-total strong,
@@ -757,7 +757,7 @@ select:focus {
 }
 
 #magic-format-options {
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(3, 1fr);
 }
 
 .format-option {

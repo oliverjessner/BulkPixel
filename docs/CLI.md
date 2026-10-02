@@ -23,6 +23,8 @@ bulkpixel --version
 
 See [Supported Formats](FORMATS.md) for the complete import/export matrix, Watched Folder compatibility, and format-specific behavior.
 
+Inputs include JPEG, PNG, WebP, AVIF, SVG, HEIC/HEIF, TIFF (`.tif`/`.tiff`), GIF, JPEG XL (`.jxl`), and JPEG 2000 (`.jp2`). Animated GIF and JPEG XL files convert their first frame; multipage TIFF files convert their first page. The desktop app uses the same behavior. TIFF and JPEG XL retain decoded 16-bit channels when exporting to PNG. JPEG 2000 uses the native macOS decoder and produces 8-bit sRGB output.
+
 Required:
 
 - `--input`
@@ -41,6 +43,8 @@ Optional:
 
 BulkPixel does not overwrite files by default. If an output file already exists, the affected conversion fails with an error.
 Use `--overwrite` to allow the CLI to replace existing output files.
+
+Inputs with the same filename stem, such as `test.gif` and `test.jp2`, target the same output filename. Convert these to separate output folders or use different prefixes/postfixes in separate commands. `--overwrite` does not allow two inputs in one batch to write the same output path. The desktop app instead adds numeric suffixes automatically.
 
 Use either `--width` or `--height`. The other value is calculated automatically from the image aspect ratio.
 Use either `--prefix` or `--postfix`.
@@ -64,6 +68,15 @@ bulkpixel convert \
   --postfix "_1200" \
   --format webp \
   --quality 90
+```
+
+Mix the new input formats in the same batch:
+
+```sh
+bulkpixel convert \
+  --input ./scan.tiff ./animation.gif ./photo.jxl \
+  --output-dir ./exports \
+  --format png
 ```
 
 After a successful conversion, BulkPixel prints a summary:
@@ -212,7 +225,7 @@ bulkpixel presets delete \
 
 Watched Folder rules use the same SQLite database as the desktop app. Every rule has a required name. The desktop app performs the actual watching while it is running, and rules created or changed through the CLI are loaded the next time the desktop app starts.
 
-Supported watched formats are `jpeg` (or its `jpg` alias), `png`, `webp`, `avif`, `svg`, and `heic` (or its `heif` alias). Both `.jpg` and `.jpeg` files match JPEG; both `.heic` and `.heif` files match HEIC. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
+Supported watched formats are `jpeg` (or its `jpg` alias), `png`, `webp`, `avif`, `svg`, `heic` (or its `heif` alias), `tiff` (or its `tif` alias), `gif`, `jxl`, and `jp2`. Both `.jpg` and `.jpeg` files match JPEG; both `.heic` and `.heif` files match HEIC; both `.tif` and `.tiff` files match TIFF. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
 
 Watched Folder rules can be chained: when one rule writes a supported output directly into another enabled Watched Folder, the matching downstream rule runs automatically. BulkPixel deduplicates the native file event, stops a chain before it repeats a rule, and limits each chain to eight rules.
 
@@ -268,6 +281,7 @@ JPEG: 12
 
 Usage
 CLI Uses: 18
+UI Uses: 74
 Watched Folder Conversions: 42
 
 Storage
@@ -286,5 +300,12 @@ Last Conversion: 05.07.2026
 `CLI Uses` counts successful `bulkpixel convert` command runs. A single command using
 multiple presets counts once, and CLI management commands such as `stats` or `presets list`
 do not increase it.
+
+`UI Uses` is derived as `Total - CLI Uses - Watched Folder Conversions`, with a minimum
+of zero for inconsistent historical counters. It is calculated from existing statistics
+in both the app and CLI; no separate UI counter is incremented or reset on upgrade.
+`Total` and Watched Folder conversions count successful outputs, while `CLI Uses`
+counts command runs. Consequently, a CLI batch producing multiple outputs also increases
+this derived remainder; it is not an exact count of desktop exports or desktop batches.
 
 `Watched Folder Conversions` counts successful outputs created automatically by Watched Folder rules.
