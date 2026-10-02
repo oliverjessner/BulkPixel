@@ -1063,6 +1063,7 @@ fn print_statistics(statistics: &ConversionStatistics) {
     println!();
     println!("Usage");
     println!("CLI Uses: {}", statistics.cli_uses);
+    println!("UI Uses: {}", statistics.ui_uses);
     println!(
         "Watched Folder Conversions: {}",
         statistics.watched_folder_conversions

@@ -320,6 +320,7 @@ pub struct MagicDirectoryEvent {
 pub struct ConversionStatistics {
     pub amount: i64,
     pub cli_uses: i64,
+    pub ui_uses: i64,
     pub watched_folder_conversions: i64,
     pub webp: i64,
     pub avif: i64,

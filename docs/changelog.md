@@ -1,5 +1,7 @@
 # 3.1.0
 
+- Track successful desktop conversion batches as UI Uses in the shared UI and CLI statistics, preserving existing counters on upgrade.
+
 - tiff, gif and JPEG XL support
 - JPEG 2000 (`.jp2`) input support in the desktop app, CLI, Finder, and Watched Folders
 - orientation fix in HEIC

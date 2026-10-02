@@ -56,6 +56,9 @@ const CREATE_STATISTICS_TABLE_SQL: &str = "
         cli_uses INTEGER NOT NULL DEFAULT 0
             CHECK (cli_uses >= 0),
 
+        ui_uses INTEGER NOT NULL DEFAULT 0
+            CHECK (ui_uses >= 0),
+
         watched_folder_conversions INTEGER NOT NULL DEFAULT 0
             CHECK (watched_folder_conversions >= 0),
 
@@ -299,6 +302,46 @@ pub fn record_conversion_statistics_for_cli(
     record_conversion_statistics_with_connection(&connection, format, summary, processing_time_ms)
 }
 
+pub fn record_ui_conversion_statistics(
+    app: &AppHandle,
+    format: &ExportFormat,
+    summary: &ConversionSummary,
+    processing_time_ms: u128,
+) -> Result<(), PresetError> {
+    let mut connection = open_connection(app)?;
+    record_ui_conversion_statistics_with_connection(
+        &mut connection,
+        format,
+        summary,
+        processing_time_ms,
+    )
+}
+
+fn record_ui_conversion_statistics_with_connection(
+    connection: &mut Connection,
+    format: &ExportFormat,
+    summary: &ConversionSummary,
+    processing_time_ms: u128,
+) -> Result<(), PresetError> {
+    if summary.success_count == 0 {
+        return Ok(());
+    }
+
+    let transaction = connection.transaction()?;
+    record_conversion_statistics_with_connection(
+        &transaction,
+        format,
+        summary,
+        processing_time_ms,
+    )?;
+    transaction.execute(
+        "UPDATE statistics SET ui_uses = ui_uses + 1 WHERE id = 1",
+        [],
+    )?;
+    transaction.commit()?;
+    Ok(())
+}
+
 pub fn record_cli_usage_for_cli() -> Result<(), PresetError> {
     let connection = open_cli_connection()?;
     record_cli_usage_with_connection(&connection)
@@ -388,7 +431,7 @@ fn load_statistics_with_connection(
         .query_row(
             "SELECT amount, cli_uses, watched_folder_conversions,
                     webp, avif, jpeg, png, input_bytes, output_bytes,
-                    processing_time_ms, saved_bytes, created_at, last_conversion_at
+                    processing_time_ms, saved_bytes, created_at, last_conversion_at, ui_uses
              FROM statistics
              WHERE id = 1",
             [],
@@ -396,6 +439,7 @@ fn load_statistics_with_connection(
                 Ok(ConversionStatistics {
                     amount: row.get(0)?,
                     cli_uses: row.get(1)?,
+                    ui_uses: row.get(13)?,
                     watched_folder_conversions: row.get(2)?,
                     webp: row.get(3)?,
                     avif: row.get(4)?,
@@ -580,6 +624,14 @@ fn initialize_statistics_schema(connection: &Connection) -> Result<(), PresetErr
         connection.execute(
             "ALTER TABLE statistics
              ADD COLUMN cli_uses INTEGER NOT NULL DEFAULT 0 CHECK (cli_uses >= 0)",
+            [],
+        )?;
+    }
+
+    if !columns.iter().any(|column| column == "ui_uses") {
+        connection.execute(
+            "ALTER TABLE statistics
+             ADD COLUMN ui_uses INTEGER NOT NULL DEFAULT 0 CHECK (ui_uses >= 0)",
             [],
         )?;
     }
@@ -789,8 +841,96 @@ mod tests {
 
     use super::{
         initialize_schema, initialize_statistics_schema, load_statistics_with_connection,
-        record_cli_usage_with_connection, record_watched_folder_conversions_with_connection,
+        record_cli_usage_with_connection, record_conversion_statistics_with_connection,
+        record_ui_conversion_statistics_with_connection,
+        record_watched_folder_conversions_with_connection,
     };
+    use crate::models::{ConversionSummary, ExportFormat};
+
+    #[test]
+    fn counts_successful_ui_batches_and_keeps_other_sources_separate() {
+        let mut connection = Connection::open_in_memory().expect("database");
+        initialize_statistics_schema(&connection).expect("schema");
+        let successful = ConversionSummary {
+            success_count: 3,
+            failure_count: 0,
+            total_original_size: 1000,
+            total_converted_size: 600,
+            total_delta_bytes: 400,
+            total_percent_change: 40.0,
+        };
+        record_ui_conversion_statistics_with_connection(
+            &mut connection,
+            &ExportFormat::Png,
+            &successful,
+            50,
+        )
+        .expect("successful UI batch");
+        let failed = ConversionSummary {
+            success_count: 0,
+            failure_count: 2,
+            total_original_size: 0,
+            total_converted_size: 0,
+            total_delta_bytes: 0,
+            total_percent_change: 0.0,
+        };
+        record_ui_conversion_statistics_with_connection(
+            &mut connection,
+            &ExportFormat::Png,
+            &failed,
+            999,
+        )
+        .expect("fully failed UI batch");
+        let statistics = load_statistics_with_connection(&connection).expect("UI statistics");
+        assert_eq!(statistics.ui_uses, 1);
+        assert_eq!(statistics.amount, 3);
+        assert_eq!(statistics.processing_time_ms, 50);
+
+        let partial = ConversionSummary {
+            success_count: 1,
+            failure_count: 2,
+            total_original_size: 200,
+            total_converted_size: 100,
+            total_delta_bytes: 100,
+            total_percent_change: 50.0,
+        };
+        record_ui_conversion_statistics_with_connection(
+            &mut connection,
+            &ExportFormat::Png,
+            &partial,
+            25,
+        )
+        .expect("partial UI batch");
+        record_conversion_statistics_with_connection(
+            &connection,
+            &ExportFormat::Jpeg,
+            &partial,
+            25,
+        )
+        .expect("CLI conversion");
+        record_cli_usage_with_connection(&connection).expect("CLI usage");
+        record_conversion_statistics_with_connection(
+            &connection,
+            &ExportFormat::Webp,
+            &partial,
+            25,
+        )
+        .expect("watched conversion");
+        record_watched_folder_conversions_with_connection(&connection, 1).expect("watched usage");
+        let statistics = load_statistics_with_connection(&connection).expect("shared statistics");
+        assert_eq!(statistics.ui_uses, 2);
+        assert_eq!(statistics.cli_uses, 1);
+        assert_eq!(statistics.watched_folder_conversions, 1);
+        assert_eq!(statistics.amount, 6);
+        assert_eq!(
+            (statistics.png, statistics.jpeg, statistics.webp),
+            (4, 1, 1)
+        );
+        assert_eq!(statistics.input_bytes, 1600);
+        assert_eq!(statistics.output_bytes, 900);
+        assert_eq!(statistics.saved_bytes, 700);
+        assert_eq!(statistics.processing_time_ms, 125);
+    }
 
     #[test]
     fn adds_names_to_existing_watched_folders() {
@@ -859,6 +999,7 @@ mod tests {
 
         assert_eq!(statistics.amount, 10);
         assert_eq!(statistics.cli_uses, 0);
+        assert_eq!(statistics.ui_uses, 0);
         assert_eq!(statistics.watched_folder_conversions, 0);
         assert_eq!(statistics.saved_bytes, 400);
 
@@ -871,5 +1012,32 @@ mod tests {
         assert_eq!(statistics.amount, 10);
         assert_eq!(statistics.cli_uses, 2);
         assert_eq!(statistics.watched_folder_conversions, 3);
+
+        // Simulate the prior schema, which already tracked CLI and watcher usage.
+        connection
+            .execute("ALTER TABLE statistics DROP COLUMN ui_uses", [])
+            .expect("prior usage schema");
+        initialize_statistics_schema(&connection).expect("UI usage migration");
+        initialize_statistics_schema(&connection).expect("idempotent UI migration");
+        let migrated = load_statistics_with_connection(&connection).expect("migrated usage");
+        assert_eq!(migrated.ui_uses, 0);
+        assert_eq!(migrated.cli_uses, 2);
+        assert_eq!(migrated.watched_folder_conversions, 3);
+        assert_eq!(
+            (migrated.webp, migrated.avif, migrated.jpeg, migrated.png),
+            (4, 3, 2, 1)
+        );
+        assert_eq!(migrated.amount, 10);
+        assert_eq!(
+            (
+                migrated.input_bytes,
+                migrated.output_bytes,
+                migrated.saved_bytes
+            ),
+            (1000, 600, 400)
+        );
+        assert_eq!(migrated.processing_time_ms, 250);
+        assert_eq!(migrated.created_at, statistics.created_at);
+        assert_eq!(migrated.last_conversion_at, statistics.last_conversion_at);
     }
 }

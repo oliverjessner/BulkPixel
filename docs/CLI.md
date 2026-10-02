@@ -281,6 +281,7 @@ JPEG: 12
 
 Usage
 CLI Uses: 18
+UI Uses: 24
 Watched Folder Conversions: 42
 
 Storage
@@ -299,5 +300,10 @@ Last Conversion: 05.07.2026
 `CLI Uses` counts successful `bulkpixel convert` command runs. A single command using
 multiple presets counts once, and CLI management commands such as `stats` or `presets list`
 do not increase it.
+
+`UI Uses` counts desktop conversion batches with at least one successful output.
+Each batch counts once, including partial successes. Opening the app, viewing statistics,
+fully failed batches, CLI conversions, and Watched Folder conversions do not increase it.
+The counter starts at zero when upgrading; existing conversion totals and other usage counters are preserved.
 
 `Watched Folder Conversions` counts successful outputs created automatically by Watched Folder rules.
