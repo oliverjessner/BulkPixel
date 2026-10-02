@@ -56,9 +56,6 @@ const CREATE_STATISTICS_TABLE_SQL: &str = "
         cli_uses INTEGER NOT NULL DEFAULT 0
             CHECK (cli_uses >= 0),
 
-        ui_uses INTEGER NOT NULL DEFAULT 0
-            CHECK (ui_uses >= 0),
-
         watched_folder_conversions INTEGER NOT NULL DEFAULT 0
             CHECK (watched_folder_conversions >= 0),
 
@@ -302,46 +299,6 @@ pub fn record_conversion_statistics_for_cli(
     record_conversion_statistics_with_connection(&connection, format, summary, processing_time_ms)
 }
 
-pub fn record_ui_conversion_statistics(
-    app: &AppHandle,
-    format: &ExportFormat,
-    summary: &ConversionSummary,
-    processing_time_ms: u128,
-) -> Result<(), PresetError> {
-    let mut connection = open_connection(app)?;
-    record_ui_conversion_statistics_with_connection(
-        &mut connection,
-        format,
-        summary,
-        processing_time_ms,
-    )
-}
-
-fn record_ui_conversion_statistics_with_connection(
-    connection: &mut Connection,
-    format: &ExportFormat,
-    summary: &ConversionSummary,
-    processing_time_ms: u128,
-) -> Result<(), PresetError> {
-    if summary.success_count == 0 {
-        return Ok(());
-    }
-
-    let transaction = connection.transaction()?;
-    record_conversion_statistics_with_connection(
-        &transaction,
-        format,
-        summary,
-        processing_time_ms,
-    )?;
-    transaction.execute(
-        "UPDATE statistics SET ui_uses = ui_uses + 1 WHERE id = 1",
-        [],
-    )?;
-    transaction.commit()?;
-    Ok(())
-}
-
 pub fn record_cli_usage_for_cli() -> Result<(), PresetError> {
     let connection = open_cli_connection()?;
     record_cli_usage_with_connection(&connection)
@@ -431,16 +388,22 @@ fn load_statistics_with_connection(
         .query_row(
             "SELECT amount, cli_uses, watched_folder_conversions,
                     webp, avif, jpeg, png, input_bytes, output_bytes,
-                    processing_time_ms, saved_bytes, created_at, last_conversion_at, ui_uses
+                    processing_time_ms, saved_bytes, created_at, last_conversion_at
              FROM statistics
              WHERE id = 1",
             [],
             |row| {
+                let amount: i64 = row.get(0)?;
+                let cli_uses: i64 = row.get(1)?;
+                let watched_folder_conversions: i64 = row.get(2)?;
                 Ok(ConversionStatistics {
-                    amount: row.get(0)?,
-                    cli_uses: row.get(1)?,
-                    ui_uses: row.get(13)?,
-                    watched_folder_conversions: row.get(2)?,
+                    amount,
+                    cli_uses,
+                    ui_uses: amount
+                        .saturating_sub(cli_uses)
+                        .saturating_sub(watched_folder_conversions)
+                        .max(0),
+                    watched_folder_conversions,
                     webp: row.get(3)?,
                     avif: row.get(4)?,
                     jpeg: row.get(5)?,
@@ -624,14 +587,6 @@ fn initialize_statistics_schema(connection: &Connection) -> Result<(), PresetErr
         connection.execute(
             "ALTER TABLE statistics
              ADD COLUMN cli_uses INTEGER NOT NULL DEFAULT 0 CHECK (cli_uses >= 0)",
-            [],
-        )?;
-    }
-
-    if !columns.iter().any(|column| column == "ui_uses") {
-        connection.execute(
-            "ALTER TABLE statistics
-             ADD COLUMN ui_uses INTEGER NOT NULL DEFAULT 0 CHECK (ui_uses >= 0)",
             [],
         )?;
     }
@@ -842,14 +797,13 @@ mod tests {
     use super::{
         initialize_schema, initialize_statistics_schema, load_statistics_with_connection,
         record_cli_usage_with_connection, record_conversion_statistics_with_connection,
-        record_ui_conversion_statistics_with_connection,
         record_watched_folder_conversions_with_connection,
     };
     use crate::models::{ConversionSummary, ExportFormat};
 
     #[test]
-    fn counts_successful_ui_batches_and_keeps_other_sources_separate() {
-        let mut connection = Connection::open_in_memory().expect("database");
+    fn derives_ui_usage_from_total_cli_and_watched_folder_statistics() {
+        let connection = Connection::open_in_memory().expect("database");
         initialize_statistics_schema(&connection).expect("schema");
         let successful = ConversionSummary {
             success_count: 3,
@@ -859,8 +813,8 @@ mod tests {
             total_delta_bytes: 400,
             total_percent_change: 40.0,
         };
-        record_ui_conversion_statistics_with_connection(
-            &mut connection,
+        record_conversion_statistics_with_connection(
+            &connection,
             &ExportFormat::Png,
             &successful,
             50,
@@ -874,15 +828,10 @@ mod tests {
             total_delta_bytes: 0,
             total_percent_change: 0.0,
         };
-        record_ui_conversion_statistics_with_connection(
-            &mut connection,
-            &ExportFormat::Png,
-            &failed,
-            999,
-        )
-        .expect("fully failed UI batch");
+        record_conversion_statistics_with_connection(&connection, &ExportFormat::Png, &failed, 999)
+            .expect("fully failed UI batch");
         let statistics = load_statistics_with_connection(&connection).expect("UI statistics");
-        assert_eq!(statistics.ui_uses, 1);
+        assert_eq!(statistics.ui_uses, 3);
         assert_eq!(statistics.amount, 3);
         assert_eq!(statistics.processing_time_ms, 50);
 
@@ -894,13 +843,8 @@ mod tests {
             total_delta_bytes: 100,
             total_percent_change: 50.0,
         };
-        record_ui_conversion_statistics_with_connection(
-            &mut connection,
-            &ExportFormat::Png,
-            &partial,
-            25,
-        )
-        .expect("partial UI batch");
+        record_conversion_statistics_with_connection(&connection, &ExportFormat::Png, &partial, 25)
+            .expect("partial UI batch");
         record_conversion_statistics_with_connection(
             &connection,
             &ExportFormat::Jpeg,
@@ -918,7 +862,7 @@ mod tests {
         .expect("watched conversion");
         record_watched_folder_conversions_with_connection(&connection, 1).expect("watched usage");
         let statistics = load_statistics_with_connection(&connection).expect("shared statistics");
-        assert_eq!(statistics.ui_uses, 2);
+        assert_eq!(statistics.ui_uses, 4);
         assert_eq!(statistics.cli_uses, 1);
         assert_eq!(statistics.watched_folder_conversions, 1);
         assert_eq!(statistics.amount, 6);
@@ -930,6 +874,53 @@ mod tests {
         assert_eq!(statistics.output_bytes, 900);
         assert_eq!(statistics.saved_bytes, 700);
         assert_eq!(statistics.processing_time_ms, 125);
+
+        // The existing CLI counter counts command runs, even for batch exports.
+        record_conversion_statistics_with_connection(
+            &connection,
+            &ExportFormat::Jpeg,
+            &successful,
+            50,
+        )
+        .expect("CLI batch conversion");
+        record_cli_usage_with_connection(&connection).expect("CLI batch usage");
+        let statistics = load_statistics_with_connection(&connection).expect("batch statistics");
+        assert_eq!(statistics.amount, 9);
+        assert_eq!(statistics.cli_uses, 2);
+        assert_eq!(statistics.watched_folder_conversions, 1);
+        assert_eq!(statistics.ui_uses, 6);
+    }
+
+    #[test]
+    fn ignores_the_old_ui_counter_and_keeps_derived_usage_nonnegative() {
+        let connection = Connection::open_in_memory().expect("database");
+        initialize_statistics_schema(&connection).expect("schema");
+        connection
+            .execute_batch(
+                "ALTER TABLE statistics ADD COLUMN ui_uses INTEGER NOT NULL DEFAULT 0;
+                 UPDATE statistics
+                 SET png = 20, cli_uses = 3, watched_folder_conversions = 5, ui_uses = 999
+                 WHERE id = 1;",
+            )
+            .expect("old UI counter");
+        initialize_statistics_schema(&connection).expect("existing schema");
+        let statistics = load_statistics_with_connection(&connection).expect("derived usage");
+        assert_eq!(statistics.ui_uses, 12);
+        let old_ui_uses: i64 = connection
+            .query_row("SELECT ui_uses FROM statistics WHERE id = 1", [], |row| {
+                row.get(0)
+            })
+            .expect("preserved old counter");
+        assert_eq!(old_ui_uses, 999);
+
+        connection
+            .execute(
+                "UPDATE statistics SET cli_uses = ?1, watched_folder_conversions = ?1 WHERE id = 1",
+                [i64::MAX],
+            )
+            .expect("inconsistent legacy counters");
+        let statistics = load_statistics_with_connection(&connection).expect("nonnegative usage");
+        assert_eq!(statistics.ui_uses, 0);
     }
 
     #[test]
@@ -999,7 +990,7 @@ mod tests {
 
         assert_eq!(statistics.amount, 10);
         assert_eq!(statistics.cli_uses, 0);
-        assert_eq!(statistics.ui_uses, 0);
+        assert_eq!(statistics.ui_uses, 10);
         assert_eq!(statistics.watched_folder_conversions, 0);
         assert_eq!(statistics.saved_bytes, 400);
 
@@ -1012,15 +1003,12 @@ mod tests {
         assert_eq!(statistics.amount, 10);
         assert_eq!(statistics.cli_uses, 2);
         assert_eq!(statistics.watched_folder_conversions, 3);
+        assert_eq!(statistics.ui_uses, 5);
 
-        // Simulate the prior schema, which already tracked CLI and watcher usage.
-        connection
-            .execute("ALTER TABLE statistics DROP COLUMN ui_uses", [])
-            .expect("prior usage schema");
-        initialize_statistics_schema(&connection).expect("UI usage migration");
-        initialize_statistics_schema(&connection).expect("idempotent UI migration");
+        initialize_statistics_schema(&connection).expect("existing usage schema");
+        initialize_statistics_schema(&connection).expect("idempotent initialization");
         let migrated = load_statistics_with_connection(&connection).expect("migrated usage");
-        assert_eq!(migrated.ui_uses, 0);
+        assert_eq!(migrated.ui_uses, 5);
         assert_eq!(migrated.cli_uses, 2);
         assert_eq!(migrated.watched_folder_conversions, 3);
         assert_eq!(

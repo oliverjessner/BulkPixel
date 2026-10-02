@@ -20,7 +20,7 @@ use models::{
 use presets::{
     delete_preset as delete_preset_from_store, list_presets as list_presets_from_store,
     load_statistics as load_statistics_from_store,
-    record_ui_conversion_statistics as record_conversion_statistics_in_store,
+    record_conversion_statistics as record_conversion_statistics_in_store,
     save_preset as save_preset_to_store,
 };
 use std::{collections::HashSet, path::PathBuf, sync::Mutex, time::Instant};

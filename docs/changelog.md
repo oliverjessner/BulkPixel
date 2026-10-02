@@ -1,6 +1,6 @@
 # 3.1.0
 
-- Track successful desktop conversion batches as UI Uses in the shared UI and CLI statistics, preserving existing counters on upgrade.
+- Derive UI Uses from Total minus CLI Uses minus Watched Folder Conversions in the shared UI and CLI statistics, including existing totals.
 
 - tiff, gif and JPEG XL support
 - JPEG 2000 (`.jp2`) input support in the desktop app, CLI, Finder, and Watched Folders

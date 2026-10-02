@@ -75,7 +75,7 @@ Rules are stored alongside presets and statistics in BulkPixel's shared SQLite d
 
 ## Statistics
 
-Click the BulkPixel brand in the app header to open the hidden statistics panel. It shows the same conversion totals, CLI and UI usage, Watched Folder conversions, storage savings, processing time, and timeline as `bulkpixel stats` in the CLI. UI usage counts conversion batches with at least one successful output.
+Click the BulkPixel brand in the app header to open the hidden statistics panel. It shows the same conversion totals, CLI and UI usage, Watched Folder conversions, storage savings, processing time, and timeline as `bulkpixel stats` in the CLI. UI usage is derived as Total minus CLI Uses minus Watched Folder Conversions. Because CLI Uses counts command runs rather than individual outputs, this remainder also includes additional outputs from CLI batches; see [docs/CLI.md](docs/CLI.md) for the counter definitions.
 
 ![BulkPixel statistics view](src/assets/mockups/statistics.webp)
 

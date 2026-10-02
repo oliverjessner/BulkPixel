@@ -281,7 +281,7 @@ JPEG: 12
 
 Usage
 CLI Uses: 18
-UI Uses: 24
+UI Uses: 74
 Watched Folder Conversions: 42
 
 Storage
@@ -301,9 +301,11 @@ Last Conversion: 05.07.2026
 multiple presets counts once, and CLI management commands such as `stats` or `presets list`
 do not increase it.
 
-`UI Uses` counts desktop conversion batches with at least one successful output.
-Each batch counts once, including partial successes. Opening the app, viewing statistics,
-fully failed batches, CLI conversions, and Watched Folder conversions do not increase it.
-The counter starts at zero when upgrading; existing conversion totals and other usage counters are preserved.
+`UI Uses` is derived as `Total - CLI Uses - Watched Folder Conversions`, with a minimum
+of zero for inconsistent historical counters. It is calculated from existing statistics
+in both the app and CLI; no separate UI counter is incremented or reset on upgrade.
+`Total` and Watched Folder conversions count successful outputs, while `CLI Uses`
+counts command runs. Consequently, a CLI batch producing multiple outputs also increases
+this derived remainder; it is not an exact count of desktop exports or desktop batches.
 
 `Watched Folder Conversions` counts successful outputs created automatically by Watched Folder rules.

@@ -534,7 +534,7 @@ function buildStatistics() {
     return {
         amount: 2847,
         cliUses: 412,
-        uiUses: 587,
+        uiUses: 2847 - 412 - 693,
         watchedFolderConversions: 693,
         webp: 1462,
         avif: 384,
