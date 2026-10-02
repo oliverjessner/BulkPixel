@@ -23,6 +23,8 @@ bulkpixel --version
 
 See [Supported Formats](FORMATS.md) for the complete import/export matrix, Watched Folder compatibility, and format-specific behavior.
 
+Inputs include JPEG, PNG, WebP, AVIF, SVG, HEIC/HEIF, TIFF (`.tif`/`.tiff`), GIF, and JPEG XL (`.jxl`). Animated GIF and JPEG XL files convert their first frame; multipage TIFF files convert their first page. The desktop app uses the same behavior. TIFF and JPEG XL retain decoded 16-bit channels when exporting to PNG.
+
 Required:
 
 - `--input`
@@ -64,6 +66,15 @@ bulkpixel convert \
   --postfix "_1200" \
   --format webp \
   --quality 90
+```
+
+Mix the new input formats in the same batch:
+
+```sh
+bulkpixel convert \
+  --input ./scan.tiff ./animation.gif ./photo.jxl \
+  --output-dir ./exports \
+  --format png
 ```
 
 After a successful conversion, BulkPixel prints a summary:
@@ -212,7 +223,7 @@ bulkpixel presets delete \
 
 Watched Folder rules use the same SQLite database as the desktop app. Every rule has a required name. The desktop app performs the actual watching while it is running, and rules created or changed through the CLI are loaded the next time the desktop app starts.
 
-Supported watched formats are `jpeg` (or its `jpg` alias), `png`, `webp`, `avif`, `svg`, and `heic` (or its `heif` alias). Both `.jpg` and `.jpeg` files match JPEG; both `.heic` and `.heif` files match HEIC. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
+Supported watched formats are `jpeg` (or its `jpg` alias), `png`, `webp`, `avif`, `svg`, `heic` (or its `heif` alias), `tiff` (or its `tif` alias), `gif`, and `jxl`. Both `.jpg` and `.jpeg` files match JPEG; both `.heic` and `.heif` files match HEIC; both `.tif` and `.tiff` files match TIFF. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
 
 Watched Folder rules can be chained: when one rule writes a supported output directly into another enabled Watched Folder, the matching downstream rule runs automatically. BulkPixel deduplicates the native file event, stops a chain before it repeats a rule, and limits each chain to eight rules.
 

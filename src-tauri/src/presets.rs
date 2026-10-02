@@ -105,7 +105,7 @@ const CREATE_MAGIC_DIRECTORY_FORMATS_TABLE_SQL: &str = "
     CREATE TABLE IF NOT EXISTS magic_directory_formats (
         magic_directory_id INTEGER NOT NULL,
         format TEXT NOT NULL
-            CHECK (format IN ('svg', 'jpeg', 'png', 'webp', 'avif', 'heic')),
+            CHECK (format IN ('svg', 'jpeg', 'png', 'webp', 'avif', 'heic', 'tiff', 'gif', 'jxl')),
         PRIMARY KEY (magic_directory_id, format),
         FOREIGN KEY (magic_directory_id) REFERENCES magic_directories(id) ON DELETE CASCADE
     );
@@ -509,10 +509,11 @@ fn migrate_magic_directory_formats_schema(connection: &mut Connection) -> Result
         )
         .optional()?;
 
-    if schema
-        .as_deref()
-        .is_some_and(|sql| sql.contains("'jpeg'") && sql.contains("'heic'"))
-    {
+    if schema.as_deref().is_some_and(|sql| {
+        ["'jpeg'", "'heic'", "'tiff'", "'gif'", "'jxl'"]
+            .iter()
+            .all(|format| sql.contains(format))
+    }) {
         return Ok(());
     }
 

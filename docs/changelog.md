@@ -1,3 +1,8 @@
+# 3.1.0
+
+- tiff, gif and JPEG XL support
+- orientation fix in HEIC
+
 # 3.0.1
 
 - Allow Watched Folder rules to cascade outputs into other watched folders, with native-event deduplication, per-chain cycle detection, and an eight-rule depth limit.

@@ -5,18 +5,21 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::image_pipeline::SUPPORTED_EXTENSIONS;
 use image::{
-    codecs::{avif::AvifDecoder, jpeg::JpegDecoder, png::PngDecoder, webp::WebPDecoder},
+    codecs::{
+        avif::AvifDecoder, gif::GifDecoder, jpeg::JpegDecoder, png::PngDecoder, tiff::TiffDecoder,
+        webp::WebPDecoder,
+    },
     ExtendedColorType, ImageDecoder,
 };
+use jxl_oxide::integration::JxlDecoder;
 
 use crate::models::{
     ColorImageMetadata, ContentCredentialsMetadata, ContentCredentialsStatus, GeneralImageMetadata,
     ImageMetadataResponse, MetadataEntry, MetadataGroup, MetadataGroupStatus, PrivacyMetadata,
 };
 
-const SUPPORTED_EXTENSIONS: &[&str] =
-    &["jpg", "jpeg", "png", "webp", "avif", "svg", "heic", "heif"];
 const MAX_METADATA_BLOCK_BYTES: usize = 2 * 1024 * 1024;
 const MAX_METADATA_ENTRIES: usize = 256;
 const MAX_METADATA_VALUE_CHARS: usize = 4096;
@@ -28,6 +31,7 @@ struct ContainerMetadata {
     icc: Option<Vec<u8>>,
     xmp: Option<Vec<u8>>,
     iptc: Option<Vec<u8>>,
+    exif: Option<MetadataGroup>,
     xmp_checked: bool,
     iptc_checked: bool,
     animated: Option<bool>,
@@ -55,7 +59,9 @@ pub fn inspect_image_metadata(path: String) -> Result<ImageMetadataResponse, Str
     let icc_profile_name = container.icc.as_deref().and_then(extract_icc_profile_name);
     let icc_profile_embedded = container.icc.is_some();
 
-    let exif = if extension == "svg" {
+    let exif = if let Some(exif) = container.exif.take() {
+        exif
+    } else if matches!(extension.as_str(), "svg" | "gif") {
         empty_group()
     } else {
         read_exif_metadata(&path)
@@ -146,6 +152,53 @@ fn read_container_metadata(path: &Path, extension: &str) -> Result<ContainerMeta
                 .map_err(|error| error.to_string())?;
             collect_decoder_metadata(decoder, None, extension)
         }
+        "tif" | "tiff" => {
+            let decoder = TiffDecoder::new(BufReader::new(open_file(path)?))
+                .map_err(|error| error.to_string())?;
+            collect_decoder_metadata(decoder, Some(false), extension)
+        }
+        "gif" => {
+            let decoder = GifDecoder::new(BufReader::new(open_file(path)?))
+                .map_err(|error| error.to_string())?;
+            // The image decoder exposes the first frame but no animation flag.
+            collect_decoder_metadata(decoder, None, extension)
+        }
+        "jxl" => {
+            let decoder = JxlDecoder::new(BufReader::new(open_file(path)?))
+                .map_err(|error| error.to_string())?;
+            // Finalize the container so metadata in the last box is also available.
+            let image = jxl_oxide::JxlImage::builder()
+                .open(path)
+                .map_err(|error| error.to_string())?;
+            let exif = match image.aux_boxes().first_exif() {
+                Ok(jxl_oxide::AuxBoxData::Data(data))
+                    if data.payload().len() > MAX_METADATA_BLOCK_BYTES =>
+                {
+                    unreadable_group("EXIF metadata exceeds the safe inspection limit.".into())
+                }
+                Ok(jxl_oxide::AuxBoxData::Data(data)) => {
+                    let mut reader = exif::Reader::new();
+                    reader.continue_on_error(true);
+                    parse_exif_metadata(reader.read_raw(data.payload().to_vec()))
+                }
+                Ok(jxl_oxide::AuxBoxData::NotFound) => empty_group(),
+                Ok(jxl_oxide::AuxBoxData::Decoding) => {
+                    unreadable_group("Incomplete JPEG XL EXIF metadata.".into())
+                }
+                Err(error) => unreadable_group(clean_error(&error.to_string())),
+            };
+            let animated = image.image_header().metadata.animation.is_some();
+            let mut metadata = collect_decoder_metadata(decoder, Some(animated), extension)?;
+            // The adapter's ICC profile can be synthesized from the color encoding;
+            // only report a profile as embedded when the source actually contains one.
+            metadata.icc = collect_metadata_block(
+                Ok(image.original_icc().map(|icc| icc.to_vec())),
+                "ICC",
+                &mut metadata.warnings,
+            );
+            metadata.exif = Some(exif);
+            Ok(metadata)
+        }
         // HEIC decoding currently uses Core Image in the conversion pipeline. EXIF is still read
         // below through kamadak-exif, but color/profile claims are intentionally omitted here.
         "heic" | "heif" | "svg" => Ok(ContainerMetadata::default()),
@@ -165,7 +218,7 @@ fn collect_decoder_metadata<D: ImageDecoder>(
     let color_type = decoder.original_color_type();
     let mut warnings = Vec::new();
     let icc = collect_metadata_block(decoder.icc_profile(), "ICC", &mut warnings);
-    let xmp_checked = matches!(extension, "jpg" | "jpeg" | "png" | "webp");
+    let xmp_checked = matches!(extension, "jpg" | "jpeg" | "png" | "webp" | "tif" | "tiff");
     let iptc_checked = matches!(extension, "jpg" | "jpeg" | "png");
     let xmp = xmp_checked
         .then(|| collect_metadata_block(decoder.xmp_metadata(), "XMP", &mut warnings))
@@ -176,10 +229,11 @@ fn collect_decoder_metadata<D: ImageDecoder>(
 
     Ok(ContainerMetadata {
         color_type: Some(color_type),
-        icc_checked: true,
+        icc_checked: extension != "gif",
         icc,
         xmp,
         iptc,
+        exif: None,
         xmp_checked,
         iptc_checked,
         animated,
@@ -275,7 +329,11 @@ fn read_exif_metadata(path: &Path) -> MetadataGroup {
     let mut reader = BufReader::new(file);
     let mut exif_reader = exif::Reader::new();
     exif_reader.continue_on_error(true);
-    let exif = match exif_reader.read_from_container(&mut reader) {
+    parse_exif_metadata(exif_reader.read_from_container(&mut reader))
+}
+
+fn parse_exif_metadata(result: Result<exif::Exif, exif::Error>) -> MetadataGroup {
+    let exif = match result {
         Ok(exif) => exif,
         Err(exif::Error::NotFound(_)) => return empty_group(),
         Err(exif::Error::PartialResult(partial)) => partial.into_inner().0,
@@ -612,6 +670,9 @@ fn format_and_mime(extension: &str) -> (String, String) {
         "svg" => ("SVG".into(), "image/svg+xml".into()),
         "heic" => ("HEIC".into(), "image/heic".into()),
         "heif" => ("HEIF".into(), "image/heif".into()),
+        "tif" | "tiff" => ("TIFF".into(), "image/tiff".into()),
+        "gif" => ("GIF".into(), "image/gif".into()),
+        "jxl" => ("JPEG XL".into(), "image/jxl".into()),
         other => (
             other.to_ascii_uppercase(),
             "application/octet-stream".into(),
@@ -653,6 +714,57 @@ mod tests {
         output.extend_from_slice(&payload);
         output.extend_from_slice(&source[2..]);
         output
+    }
+
+    #[test]
+    fn inspects_tiff_gif_and_jpeg_xl_inputs() {
+        for (name, format, mime, depth, alpha) in [
+            ("multipage16.tiff", "TIFF", "image/tiff", 16, true),
+            ("animated.gif", "GIF", "image/gif", 8, true),
+            ("rgb8-codestream.jxl", "JPEG XL", "image/jxl", 8, false),
+            ("rgb8-container.jxl", "JPEG XL", "image/jxl", 8, false),
+            ("rgba16.jxl", "JPEG XL", "image/jxl", 16, true),
+        ] {
+            let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures")
+                .join(name);
+            let metadata = inspect_image_metadata(path.to_string_lossy().to_string())
+                .expect("inspect fixture");
+            assert_eq!(metadata.general.format, format, "{name}");
+            assert_eq!(metadata.general.mime_type, mime, "{name}");
+            assert_eq!(metadata.general.bit_depth, Some(depth), "{name}");
+            assert_eq!(metadata.color.alpha, Some(alpha), "{name}");
+            assert!(
+                metadata.warnings.is_empty(),
+                "{name}: {:?}",
+                metadata.warnings
+            );
+            if format != "TIFF" {
+                assert_eq!(metadata.exif.status, MetadataGroupStatus::None, "{name}");
+            }
+        }
+    }
+
+    #[test]
+    fn reads_exif_from_a_jpeg_xl_container() {
+        // Big-endian TIFF containing a GPSLatitudeRef through a GPSInfo IFD pointer.
+        let tiff = [
+            b'M', b'M', 0, 42, 0, 0, 0, 8, 0, 1, 0x88, 0x25, 0, 4, 0, 0, 0, 1, 0, 0, 0, 26, 0, 0,
+            0, 0, 0, 1, 0, 1, 0, 2, 0, 0, 0, 2, b'N', 0, 0, 0, 0, 0, 0, 0,
+        ];
+        let source = include_bytes!("../tests/fixtures/rgb8-container.jxl");
+        let mut bytes = source.to_vec();
+        bytes.extend_from_slice(&((12 + tiff.len()) as u32).to_be_bytes());
+        bytes.extend_from_slice(b"Exif");
+        bytes.extend_from_slice(&0_u32.to_be_bytes());
+        bytes.extend_from_slice(&tiff);
+        let path = temporary_image_path("jxl-exif").with_extension("JXL");
+        fs::write(&path, bytes).expect("write JPEG XL EXIF fixture");
+        let metadata = inspect_image_metadata(path.to_string_lossy().to_string())
+            .expect("inspect JPEG XL EXIF");
+        assert_eq!(metadata.exif.status, MetadataGroupStatus::Present);
+        assert!(metadata.privacy.gps);
+        fs::remove_file(path).expect("remove JPEG XL fixture");
     }
 
     #[test]

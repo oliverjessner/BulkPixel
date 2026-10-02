@@ -1,6 +1,7 @@
 use std::{
     collections::HashSet,
     fs,
+    io::BufReader,
     path::{Path, PathBuf},
     sync::{Arc, OnceLock},
 };
@@ -10,6 +11,7 @@ use image::{
     codecs::{jpeg::JpegEncoder, png::PngEncoder},
     ColorType, DynamicImage, GenericImageView, ImageBuffer, ImageEncoder, Rgb, RgbImage, RgbaImage,
 };
+use jxl_oxide::integration::JxlDecoder;
 use resvg::{tiny_skia, usvg};
 use thiserror::Error;
 
@@ -18,8 +20,9 @@ use crate::models::{
     ExportFormat, LoadedImage, ProbeImagesResponse, RejectedImage,
 };
 
-const SUPPORTED_EXTENSIONS: &[&str] =
-    &["jpg", "jpeg", "png", "webp", "avif", "svg", "heic", "heif"];
+pub(crate) const SUPPORTED_EXTENSIONS: &[&str] = &[
+    "jpg", "jpeg", "png", "webp", "avif", "svg", "heic", "heif", "tif", "tiff", "gif", "jxl",
+];
 const THUMBNAIL_WIDTH: u32 = 220;
 const THUMBNAIL_HEIGHT: u32 = 140;
 const MAX_RESIZE_DIMENSION: u32 = 9999;
@@ -301,6 +304,15 @@ fn load_raster_image(path: &Path) -> Result<DynamicImage, AppError> {
         return load_heic_image(path);
     }
 
+    if path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("jxl"))
+    {
+        let decoder = JxlDecoder::new(BufReader::new(fs::File::open(path)?))?;
+        return Ok(DynamicImage::from_decoder(decoder)?);
+    }
+
     Ok(image::open(path)?)
 }
 
@@ -507,7 +519,7 @@ fn is_heic(path: &Path) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("heic") || ext.eq_ignore_ascii_case("heif"))
 }
 
-fn format_label_from_extension(path: &Path) -> String {
+pub(crate) fn format_label_from_extension(path: &Path) -> String {
     match path
         .extension()
         .and_then(|ext| ext.to_str())
@@ -520,6 +532,9 @@ fn format_label_from_extension(path: &Path) -> String {
         Some("avif") => "AVIF".into(),
         Some("svg") => "SVG".into(),
         Some("heic") | Some("heif") => "HEIC".into(),
+        Some("tif") | Some("tiff") => "TIFF".into(),
+        Some("gif") => "GIF".into(),
+        Some("jxl") => "JPEG XL".into(),
         _ => "Image".into(),
     }
 }
@@ -759,10 +774,183 @@ mod tests {
     };
     use image::{ColorType, DynamicImage, GenericImageView, ImageBuffer, Rgba};
     use resvg::usvg;
-    use std::{collections::HashSet, path::Path};
+    use std::{collections::HashSet, fs, path::Path};
 
     #[cfg(target_os = "macos")]
-    use std::{fs, process::Command};
+    use std::process::Command;
+
+    #[test]
+    fn probes_and_converts_tiff_gif_and_jpeg_xl_inputs() {
+        let directory =
+            std::env::temp_dir().join(format!("bulkpixel-new-inputs-{}", std::process::id()));
+        fs::create_dir_all(&directory).expect("create input directory");
+        let fixtures: &[(&str, &[u8], &str, ColorType)] = &[
+            (
+                "multipage.TIFF",
+                include_bytes!("../tests/fixtures/multipage16.tiff"),
+                "TIFF",
+                ColorType::Rgba16,
+            ),
+            (
+                "alias.tif",
+                include_bytes!("../tests/fixtures/multipage16.tiff"),
+                "TIFF",
+                ColorType::Rgba16,
+            ),
+            (
+                "animation.GIF",
+                include_bytes!("../tests/fixtures/animated.gif"),
+                "GIF",
+                ColorType::Rgba8,
+            ),
+            (
+                "codestream.JXL",
+                include_bytes!("../tests/fixtures/rgb8-codestream.jxl"),
+                "JPEG XL",
+                ColorType::Rgb8,
+            ),
+            (
+                "container.jxl",
+                include_bytes!("../tests/fixtures/rgb8-container.jxl"),
+                "JPEG XL",
+                ColorType::Rgb8,
+            ),
+            (
+                "rgba16.jxl",
+                include_bytes!("../tests/fixtures/rgba16.jxl"),
+                "JPEG XL",
+                ColorType::Rgba16,
+            ),
+            (
+                "animated.jxl",
+                include_bytes!("../tests/fixtures/animated.jxl"),
+                "JPEG XL",
+                ColorType::Rgba8,
+            ),
+        ];
+        let mut inputs = Vec::new();
+        for (name, bytes, _, color) in fixtures {
+            let path = directory.join(name);
+            fs::write(&path, bytes).expect("write input fixture");
+            let decoded = super::load_raster_image(&path).expect("decode fixture");
+            assert_eq!(decoded.dimensions(), (8, 4), "{name}");
+            assert_eq!(decoded.color(), *color, "{name}");
+            match *color {
+                ColorType::Rgba16 => assert_eq!(
+                    decoded.to_rgba16().get_pixel(0, 0).0,
+                    [12345, 23456, 34567, 45678],
+                    "{name}"
+                ),
+                ColorType::Rgb8 => {
+                    assert_eq!(decoded.to_rgb8().get_pixel(0, 0).0, [48, 96, 144], "{name}")
+                }
+                ColorType::Rgba8 => {
+                    let rgba = decoded.to_rgba8();
+                    assert_eq!(
+                        rgba.get_pixel(0, 0).0,
+                        [240, 16, 32, 255],
+                        "first frame of {name}"
+                    );
+                    assert_eq!(
+                        rgba.get_pixel(7, 0)[3],
+                        0,
+                        "transparent first frame of {name}"
+                    );
+                }
+                _ => unreachable!(),
+            }
+            inputs.push(path.to_string_lossy().to_string());
+        }
+        let probe = super::probe_images(inputs.clone()).expect("probe input formats");
+        assert!(probe.rejected.is_empty(), "{:?}", probe.rejected);
+        assert_eq!(probe.loaded.len(), fixtures.len());
+        for (loaded, (_, _, label, _)) in probe.loaded.iter().zip(fixtures) {
+            assert_eq!(&loaded.file_type, label);
+            assert_eq!((loaded.width, loaded.height), (8, 4));
+            assert!(loaded
+                .preview_data_url
+                .starts_with("data:image/png;base64,"));
+        }
+
+        let output_directory = directory.join("exports");
+        let response = super::convert_images(ConversionRequest {
+            images: inputs
+                .into_iter()
+                .map(|path| ConversionImageInput { path })
+                .collect(),
+            format: ExportFormat::Png,
+            resize: ResizeOptions {
+                width: Some(4),
+                height: None,
+            },
+            quality: 100,
+            filename_component: "output_".into(),
+            filename_mode: "prefix".into(),
+            output_dir: output_directory.to_string_lossy().to_string(),
+            collision_mode: CollisionMode::Error,
+        })
+        .expect("convert mixed input batch");
+        assert_eq!(response.summary.success_count, fixtures.len());
+        assert_eq!(response.summary.failure_count, 0, "{:?}", response.results);
+        for (result, (_, _, _, color)) in response.results.iter().zip(fixtures) {
+            let output = image::open(result.output_path.as_ref().expect("output path"))
+                .expect("read exported PNG");
+            assert_eq!(output.dimensions(), (4, 2));
+            assert_eq!(output.color(), *color);
+            if *color == ColorType::Rgba16 {
+                assert_eq!(
+                    output.to_rgba16().get_pixel(0, 0).0,
+                    [12345, 23456, 34567, 45678]
+                );
+            }
+        }
+        fs::remove_dir_all(directory).expect("remove input directory");
+    }
+
+    #[test]
+    fn reports_invalid_new_inputs_as_partial_batch_failures() {
+        let directory =
+            std::env::temp_dir().join(format!("bulkpixel-invalid-inputs-{}", std::process::id()));
+        fs::create_dir_all(&directory).expect("create input directory");
+        let valid = directory.join("valid.jxl");
+        fs::write(
+            &valid,
+            include_bytes!("../tests/fixtures/rgb8-container.jxl"),
+        )
+        .expect("write valid input");
+        let mut paths = vec![valid.to_string_lossy().to_string()];
+        for extension in ["tiff", "gif", "jxl"] {
+            let path = directory.join(format!("broken.{extension}"));
+            fs::write(&path, b"not an image").expect("write invalid input");
+            paths.push(path.to_string_lossy().to_string());
+        }
+        let probe = super::probe_images(paths.clone()).expect("probe mixed batch");
+        assert_eq!(probe.loaded.len(), 1);
+        assert_eq!(probe.rejected.len(), 3);
+        let response = super::convert_images(ConversionRequest {
+            images: paths
+                .into_iter()
+                .map(|path| ConversionImageInput { path })
+                .collect(),
+            format: ExportFormat::Png,
+            resize: ResizeOptions {
+                width: None,
+                height: None,
+            },
+            quality: 100,
+            filename_component: String::new(),
+            filename_mode: "prefix".into(),
+            output_dir: directory.join("exports").to_string_lossy().to_string(),
+            collision_mode: CollisionMode::Error,
+        })
+        .expect("convert partial batch");
+        assert_eq!(response.summary.success_count, 1);
+        assert_eq!(response.summary.failure_count, 3);
+        assert!(response.results[1..].iter().all(|result| !result.success
+            && !result.message.is_empty()
+            && result.output_path.is_none()));
+        fs::remove_dir_all(directory).expect("remove input directory");
+    }
 
     #[test]
     fn sanitizes_file_components() {

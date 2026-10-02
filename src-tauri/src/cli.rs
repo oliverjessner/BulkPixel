@@ -1,7 +1,7 @@
 use std::{collections::HashSet, env, path::Path, time::Instant};
 
 use crate::{
-    image_pipeline::convert_images,
+    image_pipeline::{convert_images, format_label_from_extension},
     magic_directories::{
         delete_magic_directory_for_cli, list_magic_directories_for_cli,
         save_magic_directory_for_cli,
@@ -39,13 +39,14 @@ Usage:
   bulkpixel --version
 
 Input formats:
-  jpeg (jpg), png, webp, avif, svg, heic (heif)
+  jpeg (jpg), png, webp, avif, svg, heic (heif), tiff (tif), gif, jxl (JPEG XL)
+  Animated GIF/JPEG XL: first frame only. Multipage TIFF: first page only.
 
 Export formats:
   jpeg, png, webp, avif
 
 Watched formats:
-  jpeg (jpg), png, webp, avif, svg, heic (heif)
+  jpeg (jpg), png, webp, avif, svg, heic (heif), tiff (tif), gif, jxl
 "
 );
 
@@ -880,20 +881,7 @@ fn input_format_label(inputs: &[String]) -> String {
 }
 
 fn format_label_from_path(path: &str) -> String {
-    match Path::new(path)
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::to_ascii_lowercase)
-        .as_deref()
-    {
-        Some("jpg") | Some("jpeg") => "JPEG".into(),
-        Some("png") => "PNG".into(),
-        Some("webp") => "WEBP".into(),
-        Some("avif") => "AVIF".into(),
-        Some("svg") => "SVG".into(),
-        Some("heic") | Some("heif") => "HEIC".into(),
-        _ => "IMAGE".into(),
-    }
+    format_label_from_extension(Path::new(path)).to_ascii_uppercase()
 }
 
 fn print_single_conversion_report(report: &ConversionReport) {
