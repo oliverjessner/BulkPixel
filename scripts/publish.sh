@@ -77,8 +77,7 @@ cask "bulkpixel" do
   version "$VERSION"
   sha256 "$DMG_SHA256"
 
-  url "https://github.com/oliverjessner/BulkPixel/releases/download/v#{version}/BulkPixel_#{version}_aarch64_adhoc.dmg",
-      verified: "github.com/oliverjessner/BulkPixel/"
+  url "https://github.com/oliverjessner/BulkPixel/releases/download/v#{version}/BulkPixel_#{version}_aarch64_adhoc.dmg"
   name "$PRODUCT_NAME"
   desc "Local-first batch image converter"
   homepage "https://github.com/oliverjessner/BulkPixel"
