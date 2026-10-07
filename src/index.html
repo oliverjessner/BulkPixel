@@ -7,134 +7,206 @@
             name="description"
             content="BulkPixel is a local-first desktop utility for bulk image conversion and resizing."
         />
+        <link rel="stylesheet" href="/vendor/oj-designsystem/styles.css" />
         <link rel="stylesheet" href="/styles.css" />
         <title>BulkPixel</title>
         <script type="module" src="/main.js" defer></script>
     </head>
-    <body>
+    <body class="oj-app">
         <div class="app-shell">
-            <header class="panel app-header">
-                <button id="statistics-trigger" class="brand-group" type="button" aria-label="BulkPixel">
+            <header class="oj-panel app-header">
+                <button
+                    id="statistics-trigger"
+                    class="oj-button oj-button-ghost brand-group"
+                    type="button"
+                    aria-label="BulkPixel"
+                >
                     <img class="brand-logo" src="/assets/icons/logo.png" alt="BulkPixel logo" />
-                    <h1 id="brand-title">BulkPixel</h1>
+                    <h1 id="brand-title" class="oj-heading-3">BulkPixel</h1>
                 </button>
                 <div
                     id="global-watcher-status"
-                    class="global-watcher-status"
+                    class="oj-status global-watcher-status"
                     data-kind="idle"
                     aria-live="polite"
                     aria-atomic="true"
                     title="No watched folders are configured."
                 >
-                    <span class="watcher-status-dot" aria-hidden="true"></span>
+                    <span class="oj-status-dot watcher-status-dot" aria-hidden="true"></span>
                     <span id="global-watcher-status-label" class="watcher-status-label">No watched folders</span>
                 </div>
-                <nav id="app-mode-toggle" class="app-mode-toggle" aria-label="Main view">
-                    <button class="app-mode-button is-active" type="button" data-view="convert" aria-pressed="true">
+                <nav id="app-mode-toggle" class="oj-nav app-mode-toggle" aria-label="Main view">
+                    <button
+                        class="oj-nav-link app-mode-button"
+                        type="button"
+                        data-view="convert"
+                        aria-pressed="true"
+                    >
                         Convert
                     </button>
-                    <button class="app-mode-button" type="button" data-view="presets" aria-pressed="false">
+                    <button class="oj-nav-link app-mode-button" type="button" data-view="presets" aria-pressed="false">
                         Presets
                     </button>
-                    <button class="app-mode-button" type="button" data-view="magic" aria-pressed="false">
+                    <button class="oj-nav-link app-mode-button" type="button" data-view="magic" aria-pressed="false">
                         Watched Folders
                     </button>
                 </nav>
             </header>
 
             <main id="convert-view" class="workspace app-view">
-                <section class="panel upload-panel" aria-label="Image import and preview">
-                    <button id="dropzone" class="dropzone" type="button" aria-labelledby="dropzone-title">
-                        <div class="dropzone-icon" aria-hidden="true">
-                            <span></span>
-                            <span></span>
-                        </div>
+                <section class="oj-panel upload-panel" aria-label="Image import and preview">
+                    <button id="dropzone" class="oj-dropzone dropzone" type="button" aria-labelledby="dropzone-title">
+                        <i class="dropzone-icon fa-solid fa-images" aria-hidden="true"></i>
                         <div class="dropzone-copy">
-                            <p id="dropzone-title" class="dropzone-title">Drop images here</p>
-                            <p class="dropzone-meta">JPEG · PNG · WEBP · AVIF · SVG · HEIC · TIFF · GIF · JPEG XL · JPEG 2000</p>
-                            <span class="dropzone-choose">Choose Images</span>
-                            <p class="dropzone-helper">or drag files from Finder</p>
-                            <p class="dropzone-helper">GIF / JPEG XL: first frame · TIFF: first page</p>
+                            <p id="dropzone-title" class="oj-empty-state-title dropzone-title">Drop images here</p>
+                            <p class="oj-caption dropzone-meta">
+                                JPEG · PNG · WEBP · AVIF · SVG · HEIC · TIFF · GIF · JPEG XL · JPEG 2000
+                            </p>
+                            <span class="oj-button oj-button-primary dropzone-choose">Choose Images</span>
+                            <p class="oj-helper dropzone-helper">or drag files from Finder</p>
+                            <p class="oj-helper dropzone-helper">GIF / JPEG XL: first frame · TIFF: first page</p>
                         </div>
                     </button>
 
                     <div id="images-view" class="images-view" hidden>
                         <div class="images-header">
                             <div>
-                                <h2>Images</h2>
-                                <p id="preview-meta" class="section-meta"></p>
+                                <h2 class="oj-heading-3">Images</h2>
+                                <p id="preview-meta" class="oj-caption section-meta"></p>
                             </div>
                             <div class="images-header-actions">
                                 <button
                                     id="remove-all-button"
-                                    class="button secondary quiet compact"
+                                    class="oj-button oj-button-ghost oj-button-compact"
                                     type="button"
                                     hidden
                                 >
                                     Clear All
                                 </button>
-                                <button id="add-images-button" class="button secondary compact" type="button">
+                                <button
+                                    id="add-images-button"
+                                    class="oj-button oj-button-secondary oj-button-compact"
+                                    type="button"
+                                >
                                     Add Images
                                 </button>
                             </div>
                         </div>
-                        <div id="preview-list" class="preview-list" aria-live="polite"></div>
+                        <div id="preview-list" class="oj-scroll-area preview-list" aria-live="polite"></div>
                         <div id="loaded-drop-overlay" class="loaded-drop-overlay" hidden aria-hidden="true">
                             <span>Drop to add images</span>
                         </div>
                     </div>
                 </section>
 
-                <section class="panel settings-panel" aria-labelledby="settings-title">
-                    <div class="section-header settings-title-row">
+                <section class="oj-panel settings-panel" aria-labelledby="settings-title">
+                    <div class="oj-section-header settings-title-row">
                         <div>
-                            <p class="section-kicker">Settings</p>
-                            <h2 id="settings-title">Conversion Settings</h2>
+                            <p class="oj-kicker">Settings</p>
+                            <h2 id="settings-title" class="oj-heading-3">Conversion Settings</h2>
                         </div>
                     </div>
 
                     <label class="preset-picker settings-preset" for="preset-select">
-                        <span class="settings-section-label">Preset</span>
-                        <select id="preset-select" class="preset-select" aria-label="Conversion preset">
+                        <span class="oj-label">Preset</span>
+                        <select id="preset-select" class="oj-select preset-select" aria-label="Conversion preset">
                             <option value="custom">Custom</option>
                         </select>
                     </label>
 
                     <div class="settings-stack">
                         <div class="field-group">
-                            <span class="settings-section-label">Export Format</span>
-                            <div class="format-toggle" id="format-toggle" role="radiogroup" aria-label="Export format">
-                                <button type="button" class="format-option" data-format="jpeg">JPEG</button>
-                                <button type="button" class="format-option" data-format="png">PNG</button>
-                                <button type="button" class="format-option" data-format="webp">WEBP</button>
-                                <button type="button" class="format-option" data-format="avif">AVIF</button>
+                            <span class="oj-label">Export Format</span>
+                            <div
+                                class="oj-segmented format-toggle"
+                                id="format-toggle"
+                                role="radiogroup"
+                                aria-label="Export format"
+                            >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="format-option"
+                                        name="format-toggle"
+                                        value="jpeg"
+                                        data-format="jpeg"
+                                        checked
+                                    /><span>JPEG</span></label
+                                >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="format-option"
+                                        name="format-toggle"
+                                        value="png"
+                                        data-format="png"
+                                    /><span>PNG</span></label
+                                >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="format-option"
+                                        name="format-toggle"
+                                        value="webp"
+                                        data-format="webp"
+                                    /><span>WEBP</span></label
+                                >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="format-option"
+                                        name="format-toggle"
+                                        value="avif"
+                                        data-format="avif"
+                                    /><span>AVIF</span></label
+                                >
                             </div>
                         </div>
 
                         <div class="field-group">
-                            <span class="settings-section-label">Size</span>
+                            <span class="oj-label">Size</span>
                             <div
                                 id="resize-mode-toggle"
-                                class="filename-toggle-group resize-mode-toggle"
+                                class="oj-segmented filename-toggle-group resize-mode-toggle"
                                 role="radiogroup"
                                 aria-label="Resize mode"
                             >
-                                <button type="button" class="toggle-button" data-mode="none" aria-pressed="false">
-                                    Original
-                                </button>
-                                <button type="button" class="toggle-button" data-mode="width" aria-pressed="true">
-                                    Width
-                                </button>
-                                <button type="button" class="toggle-button" data-mode="height" aria-pressed="false">
-                                    Height
-                                </button>
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="toggle-button"
+                                        name="resize-mode-toggle"
+                                        value="none"
+                                        data-mode="none"
+                                    /><span>Original</span></label
+                                >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="toggle-button"
+                                        name="resize-mode-toggle"
+                                        value="width"
+                                        data-mode="width"
+                                        checked
+                                    /><span>Width</span></label
+                                >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="toggle-button"
+                                        name="resize-mode-toggle"
+                                        value="height"
+                                        data-mode="height"
+                                    /><span>Height</span></label
+                                >
                             </div>
 
                             <div class="field-row split">
-                                <label id="width-control" class="field resize-dimension-control" for="width-input">
-                                    <span class="field-label">Width</span>
-                                    <span class="resize-input-row">
+                                <label id="width-control" class="oj-field resize-dimension-control" for="width-input">
+                                    <span class="oj-label">Width</span>
+                                    <span class="oj-input-group">
                                         <input
+                                            class="oj-input"
                                             id="width-input"
                                             type="number"
                                             inputmode="numeric"
@@ -143,14 +215,15 @@
                                             step="1"
                                             placeholder="Waiting for images"
                                         />
-                                        <span class="resize-unit" aria-hidden="true">px</span>
+                                        <span class="oj-unit" aria-hidden="true">px</span>
                                     </span>
                                 </label>
 
-                                <label id="height-control" class="field resize-dimension-control" for="height-input">
-                                    <span class="field-label">Height</span>
-                                    <span class="resize-input-row">
+                                <label id="height-control" class="oj-field resize-dimension-control" for="height-input">
+                                    <span class="oj-label">Height</span>
+                                    <span class="oj-input-group">
                                         <input
+                                            class="oj-input"
                                             id="height-input"
                                             type="number"
                                             inputmode="numeric"
@@ -159,7 +232,7 @@
                                             step="1"
                                             placeholder="Waiting for images"
                                         />
-                                        <span class="resize-unit" aria-hidden="true">px</span>
+                                        <span class="oj-unit" aria-hidden="true">px</span>
                                     </span>
                                 </label>
                             </div>
@@ -167,34 +240,55 @@
 
                         <div class="field-group">
                             <div class="field-row label-row">
-                                <label class="settings-section-label" for="quality-slider">Quality</label>
-                                <span id="quality-value" class="value-badge">90</span>
+                                <label class="oj-label" for="quality-slider">Quality</label>
+                                <span id="quality-value" class="oj-badge oj-badge-accent">90</span>
                             </div>
                             <input
                                 id="quality-slider"
-                                class="slider"
+                                aria-describedby="quality-helper"
+                                class="oj-range"
                                 type="range"
                                 min="1"
                                 max="100"
                                 step="1"
                                 value="100"
                             />
-                            <p id="quality-helper" class="field-helper">
-                                JPEG, WEBP and AVIF respect this setting. PNG uses lossless compression and preserves 16-bit source channels.
+                            <p id="quality-helper" class="oj-helper">
+                                JPEG, WEBP and AVIF respect this setting. PNG uses lossless compression and preserves
+                                16-bit source channels.
                             </p>
                         </div>
 
                         <div class="field-group">
-                            <span class="settings-section-label">Filename</span>
-                            <div class="filename-toggle-group" id="filename-toggle">
-                                <button type="button" class="toggle-button" data-mode="prefix" aria-pressed="true">
-                                    Prefix
-                                </button>
-                                <button type="button" class="toggle-button" data-mode="postfix" aria-pressed="false">
-                                    Postfix
-                                </button>
+                            <label class="oj-label" for="prefix-input">Filename</label>
+                            <div
+                                class="oj-segmented filename-toggle-group"
+                                id="filename-toggle"
+                                role="radiogroup"
+                                aria-label="Filename component position"
+                            >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="toggle-button"
+                                        name="filename-toggle"
+                                        value="prefix"
+                                        data-mode="prefix"
+                                        checked
+                                    /><span>Prefix</span></label
+                                >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="toggle-button"
+                                        name="filename-toggle"
+                                        value="postfix"
+                                        data-mode="postfix"
+                                    /><span>Postfix</span></label
+                                >
                             </div>
                             <input
+                                class="oj-input"
                                 id="prefix-input"
                                 type="text"
                                 spellcheck="false"
@@ -203,16 +297,20 @@
                         </div>
 
                         <div class="field-group">
-                            <span class="settings-section-label">Output</span>
+                            <span class="oj-label">Output</span>
                             <div class="output-path-row">
-                                <div class="path-display" id="output-path" title=""></div>
+                                <div class="oj-path path-display" id="output-path" title=""></div>
                                 <div class="output-folder-actions">
-                                    <button id="choose-folder-button" class="button secondary compact" type="button">
+                                    <button
+                                        id="choose-folder-button"
+                                        class="oj-button oj-button-secondary oj-button-compact"
+                                        type="button"
+                                    >
                                         Choose Folder
                                     </button>
                                     <button
                                         id="show-output-folder-button"
-                                        class="button secondary compact"
+                                        class="oj-button oj-button-secondary oj-button-compact"
                                         type="button"
                                     >
                                         Show in Finder
@@ -233,191 +331,282 @@
 
                 <aside
                     id="image-inspector"
-                    class="panel image-inspector"
+                    class="oj-panel image-inspector"
                     aria-labelledby="image-inspector-title"
                     aria-busy="false"
                     hidden
                 >
                     <header class="image-inspector-header">
                         <div>
-                            <p class="section-kicker">Inspector</p>
-                            <h2 id="image-inspector-title">Image Info</h2>
+                            <p class="oj-kicker">Inspector</p>
+                            <h2 id="image-inspector-title" class="oj-heading-3">Image Info</h2>
                         </div>
                         <button
                             id="image-inspector-close"
-                            class="icon-button image-inspector-close"
+                            class="oj-icon-button image-inspector-close"
                             type="button"
                             aria-label="Close image information"
                         >
-                            <span aria-hidden="true">×</span>
+                            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                         </button>
                     </header>
-                    <div id="image-inspector-body" class="image-inspector-body"></div>
+                    <div id="image-inspector-body" class="oj-scroll-area image-inspector-body"></div>
                 </aside>
             </main>
 
             <main id="presets-view" class="presets-workspace app-view" hidden>
-                <section class="panel preset-editor-panel" aria-label="Preset editor">
-                    <form id="preset-form" class="preset-form">
-                            <div class="preset-form-header">
-                                <div>
-                                    <p class="section-kicker">Editor</p>
-                                    <h3 id="preset-form-title">Create Preset</h3>
-                                </div>
-                                <button id="preset-reset-button" class="button secondary compact" type="button">
-                                    New preset
+                <section class="oj-panel preset-editor-panel" aria-label="Preset editor">
+                    <form id="preset-form" class="oj-scroll-area preset-form">
+                        <div class="preset-form-header">
+                            <div>
+                                <p class="oj-kicker">Editor</p>
+                                <h3 id="preset-form-title" class="oj-heading-3">Create Preset</h3>
+                            </div>
+                            <button
+                                id="preset-reset-button"
+                                class="oj-button oj-button-secondary oj-button-compact"
+                                type="button"
+                            >
+                                New preset
+                            </button>
+                        </div>
+
+                        <label class="oj-field" for="preset-name-input">
+                            <span class="oj-label">Preset Name</span>
+                            <input
+                                class="oj-input"
+                                id="preset-name-input"
+                                type="text"
+                                spellcheck="false"
+                                placeholder="e.g. Website WEBP"
+                            />
+                        </label>
+
+                        <div class="field-group">
+                            <span class="oj-label">Export Format</span>
+                            <div
+                                class="oj-segmented format-toggle"
+                                id="preset-format-toggle"
+                                role="radiogroup"
+                                aria-label="Preset export format"
+                            >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="format-option"
+                                        name="preset-format-toggle"
+                                        value="jpeg"
+                                        data-format="jpeg"
+                                        checked
+                                    /><span>JPEG</span></label
+                                >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="format-option"
+                                        name="preset-format-toggle"
+                                        value="png"
+                                        data-format="png"
+                                    /><span>PNG</span></label
+                                >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="format-option"
+                                        name="preset-format-toggle"
+                                        value="webp"
+                                        data-format="webp"
+                                    /><span>WEBP</span></label
+                                >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="format-option"
+                                        name="preset-format-toggle"
+                                        value="avif"
+                                        data-format="avif"
+                                    /><span>AVIF</span></label
+                                >
+                            </div>
+                        </div>
+
+                        <div class="field-group">
+                            <span class="oj-label">Resolution</span>
+                            <div
+                                class="oj-segmented filename-toggle-group resize-mode-toggle"
+                                id="preset-resize-mode-toggle"
+                                role="radiogroup"
+                                aria-label="Preset resolution mode"
+                            >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="toggle-button"
+                                        name="preset-resize-mode-toggle"
+                                        value="none"
+                                        data-mode="none"
+                                        checked
+                                    /><span>Original</span></label
+                                >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="toggle-button"
+                                        name="preset-resize-mode-toggle"
+                                        value="width"
+                                        data-mode="width"
+                                    /><span>Width</span></label
+                                >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="toggle-button"
+                                        name="preset-resize-mode-toggle"
+                                        value="height"
+                                        data-mode="height"
+                                    /><span>Height</span></label
+                                >
+                            </div>
+                            <div class="field-row split">
+                                <label class="oj-field" for="preset-width-input">
+                                    <span class="oj-label">Width</span>
+                                    <input
+                                        class="oj-input"
+                                        id="preset-width-input"
+                                        type="number"
+                                        inputmode="numeric"
+                                        min="1"
+                                        max="9999"
+                                        step="1"
+                                        placeholder="Auto"
+                                    />
+                                </label>
+                                <label class="oj-field" for="preset-height-input">
+                                    <span class="oj-label">Height</span>
+                                    <input
+                                        class="oj-input"
+                                        id="preset-height-input"
+                                        type="number"
+                                        inputmode="numeric"
+                                        min="1"
+                                        max="9999"
+                                        step="1"
+                                        placeholder="Auto"
+                                    />
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="field-group">
+                            <div class="field-row label-row">
+                                <label class="oj-label" for="preset-quality-slider">Quality</label>
+                                <span id="preset-quality-value" class="oj-badge oj-badge-accent">100</span>
+                            </div>
+                            <input
+                                id="preset-quality-slider"
+                                class="oj-range"
+                                type="range"
+                                min="1"
+                                max="100"
+                                step="1"
+                                value="100"
+                            />
+                        </div>
+
+                        <div class="field-group">
+                            <label class="oj-label" for="preset-filename-input">Filename Component</label>
+                            <div
+                                class="oj-segmented filename-toggle-group"
+                                id="preset-filename-toggle"
+                                role="radiogroup"
+                                aria-label="Preset filename component position"
+                            >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="toggle-button"
+                                        name="preset-filename-toggle"
+                                        value="prefix"
+                                        data-mode="prefix"
+                                        checked
+                                    /><span>Prefix</span></label
+                                >
+                                <label
+                                    ><input
+                                        type="radio"
+                                        class="toggle-button"
+                                        name="preset-filename-toggle"
+                                        value="postfix"
+                                        data-mode="postfix"
+                                    /><span>Postfix</span></label
+                                >
+                            </div>
+                            <input
+                                class="oj-input"
+                                id="preset-filename-input"
+                                type="text"
+                                spellcheck="false"
+                                placeholder="Enter filename component"
+                            />
+                        </div>
+
+                        <div class="field-group">
+                            <div class="field-row label-row">
+                                <span class="oj-label">Output Folder</span>
+                                <button
+                                    id="preset-choose-folder-button"
+                                    class="oj-button oj-button-secondary oj-button-compact"
+                                    type="button"
+                                >
+                                    Choose Folder
                                 </button>
                             </div>
+                            <div class="oj-path path-display" id="preset-output-path" title=""></div>
+                        </div>
 
-                            <label class="field" for="preset-name-input">
-                                <span class="field-label">Preset Name</span>
-                                <input
-                                    id="preset-name-input"
-                                    type="text"
-                                    spellcheck="false"
-                                    placeholder="e.g. Website WEBP"
-                                />
-                            </label>
-
-                            <div class="field-group">
-                                <label class="field-label">Export Format</label>
-                                <div
-                                    class="format-toggle"
-                                    id="preset-format-toggle"
-                                    role="radiogroup"
-                                    aria-label="Preset export format"
-                                >
-                                    <button type="button" class="format-option" data-format="jpeg">JPEG</button>
-                                    <button type="button" class="format-option" data-format="png">PNG</button>
-                                    <button type="button" class="format-option" data-format="webp">WEBP</button>
-                                    <button type="button" class="format-option" data-format="avif">AVIF</button>
-                                </div>
-                            </div>
-
-                            <div class="field-group">
-                                <label class="field-label">Resolution</label>
-                                <div
-                                    class="filename-toggle-group resize-mode-toggle"
-                                    id="preset-resize-mode-toggle"
-                                    role="radiogroup"
-                                    aria-label="Preset resolution mode"
-                                >
-                                    <button type="button" class="toggle-button" data-mode="none" aria-pressed="true">
-                                        Original
-                                    </button>
-                                    <button type="button" class="toggle-button" data-mode="width" aria-pressed="false">
-                                        Width
-                                    </button>
-                                    <button type="button" class="toggle-button" data-mode="height" aria-pressed="false">
-                                        Height
-                                    </button>
-                                </div>
-                                <div class="field-row split">
-                                    <label class="field" for="preset-width-input">
-                                        <span class="field-label">Width</span>
-                                        <input
-                                            id="preset-width-input"
-                                            type="number"
-                                            inputmode="numeric"
-                                            min="1"
-                                            max="9999"
-                                            step="1"
-                                            placeholder="Auto"
-                                        />
-                                    </label>
-                                    <label class="field" for="preset-height-input">
-                                        <span class="field-label">Height</span>
-                                        <input
-                                            id="preset-height-input"
-                                            type="number"
-                                            inputmode="numeric"
-                                            min="1"
-                                            max="9999"
-                                            step="1"
-                                            placeholder="Auto"
-                                        />
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div class="field-group">
-                                <div class="field-row label-row">
-                                    <label class="field-label" for="preset-quality-slider">Quality</label>
-                                    <span id="preset-quality-value" class="value-badge">100</span>
-                                </div>
-                                <input
-                                    id="preset-quality-slider"
-                                    class="slider"
-                                    type="range"
-                                    min="1"
-                                    max="100"
-                                    step="1"
-                                    value="100"
-                                />
-                            </div>
-
-                            <div class="field-group">
-                                <label class="field-label">Filename Component</label>
-                                <div class="filename-toggle-group" id="preset-filename-toggle">
-                                    <button type="button" class="toggle-button" data-mode="prefix" aria-pressed="true">
-                                        Prefix
-                                    </button>
-                                    <button type="button" class="toggle-button" data-mode="postfix" aria-pressed="false">
-                                        Postfix
-                                    </button>
-                                </div>
-                                <input
-                                    id="preset-filename-input"
-                                    type="text"
-                                    spellcheck="false"
-                                    placeholder="Enter filename component"
-                                />
-                            </div>
-
-                            <div class="field-group">
-                                <div class="field-row label-row">
-                                    <label class="field-label" for="preset-output-path">Output Folder</label>
-                                    <button id="preset-choose-folder-button" class="button secondary compact" type="button">
-                                        Choose Folder
-                                    </button>
-                                </div>
-                                <div class="path-display" id="preset-output-path" title=""></div>
-                            </div>
-
-                            <button id="preset-save-button" class="button primary preset-save-button" type="submit">
-                                Save Preset
-                            </button>
+                        <button
+                            id="preset-save-button"
+                            class="oj-button oj-button-primary preset-save-button"
+                            type="submit"
+                        >
+                            Save Preset
+                        </button>
                     </form>
                 </section>
 
-                <section class="panel preset-library-panel" aria-labelledby="saved-presets-title">
-                            <div class="preset-list-header">
-                                <div>
-                                    <p class="section-kicker">Library</p>
-                                    <h3 id="saved-presets-title">Saved Presets</h3>
-                                </div>
-                                <span id="preset-count" class="value-badge">0</span>
-                            </div>
-                            <div id="preset-list" class="preset-list" aria-live="polite"></div>
+                <section class="oj-panel preset-library-panel" aria-labelledby="saved-presets-title">
+                    <div class="preset-list-header">
+                        <div>
+                            <p class="oj-kicker">Library</p>
+                            <h3 id="saved-presets-title" class="oj-heading-3">Saved Presets</h3>
+                        </div>
+                        <span id="preset-count" class="oj-badge oj-badge-accent">0</span>
+                    </div>
+                    <div id="preset-list" class="oj-scroll-area preset-list" aria-live="polite"></div>
                 </section>
             </main>
 
             <main id="magic-view" class="magic-workspace app-view" hidden>
-                <section class="panel magic-editor-panel" aria-label="Watched folder editor">
-                    <form id="magic-form" class="preset-form">
+                <section class="oj-panel magic-editor-panel" aria-label="Watched folder editor">
+                    <form id="magic-form" class="oj-scroll-area preset-form">
                         <div class="preset-form-header">
                             <div>
-                                <p class="section-kicker">Automation</p>
-                                <h3 id="magic-form-title">Add Watched Folder</h3>
+                                <p class="oj-kicker">Automation</p>
+                                <h3 id="magic-form-title" class="oj-heading-3">Add Watched Folder</h3>
                             </div>
-                            <button id="magic-reset-button" class="button secondary compact" type="button">
+                            <button
+                                id="magic-reset-button"
+                                class="oj-button oj-button-secondary oj-button-compact"
+                                type="button"
+                            >
                                 Clear
                             </button>
                         </div>
 
-                        <label class="field" for="magic-name-input">
-                            <span class="field-label">Name</span>
+                        <label class="oj-field" for="magic-name-input">
+                            <span class="oj-label">Name</span>
                             <input
+                                class="oj-input"
                                 id="magic-name-input"
                                 type="text"
                                 spellcheck="false"
@@ -427,160 +616,288 @@
 
                         <div class="field-group">
                             <div class="field-row label-row">
-                                <label class="field-label" for="magic-directory-path">Folder</label>
-                                <button id="magic-choose-directory-button" class="button secondary compact" type="button">
+                                <span class="oj-label">Folder</span>
+                                <button
+                                    id="magic-choose-directory-button"
+                                    class="oj-button oj-button-secondary oj-button-compact"
+                                    type="button"
+                                >
                                     Choose Folder
                                 </button>
                             </div>
-                            <div class="path-display" id="magic-directory-path" title=""></div>
+                            <div class="oj-path path-display" id="magic-directory-path" title=""></div>
                         </div>
 
                         <div class="field-group">
-                            <label class="field-label">Watch File Types</label>
-                            <div id="magic-format-options" class="format-toggle" aria-label="Watched file formats">
-                                <button type="button" class="format-option magic-format-option" data-format="svg" aria-pressed="false">SVG</button>
-                                <button type="button" class="format-option magic-format-option" data-format="jpeg" aria-pressed="false">JPEG</button>
-                                <button type="button" class="format-option magic-format-option" data-format="png" aria-pressed="false">PNG</button>
-                                <button type="button" class="format-option magic-format-option" data-format="webp" aria-pressed="false">WEBP</button>
-                                <button type="button" class="format-option magic-format-option" data-format="avif" aria-pressed="false">AVIF</button>
-                                <button type="button" class="format-option magic-format-option" data-format="heic" aria-pressed="false">HEIC</button>
-                                <button type="button" class="format-option magic-format-option" data-format="tiff" aria-pressed="false">TIFF</button>
-                                <button type="button" class="format-option magic-format-option" data-format="gif" aria-pressed="false">GIF</button>
-                                <button type="button" class="format-option magic-format-option" data-format="jxl" aria-pressed="false">JPEG XL</button>
-                                <button type="button" class="format-option magic-format-option" data-format="jp2" aria-pressed="false">JPEG 2000</button>
+                            <span class="oj-label">Watch File Types</span>
+                            <div id="magic-format-options" class="oj-cluster" aria-label="Watched file formats">
+                                <button
+                                    type="button"
+                                    class="oj-tag magic-format-option"
+                                    data-format="svg"
+                                    aria-pressed="false"
+                                >
+                                    SVG
+                                </button>
+                                <button
+                                    type="button"
+                                    class="oj-tag magic-format-option"
+                                    data-format="jpeg"
+                                    aria-pressed="false"
+                                >
+                                    JPEG
+                                </button>
+                                <button
+                                    type="button"
+                                    class="oj-tag magic-format-option"
+                                    data-format="png"
+                                    aria-pressed="false"
+                                >
+                                    PNG
+                                </button>
+                                <button
+                                    type="button"
+                                    class="oj-tag magic-format-option"
+                                    data-format="webp"
+                                    aria-pressed="false"
+                                >
+                                    WEBP
+                                </button>
+                                <button
+                                    type="button"
+                                    class="oj-tag magic-format-option"
+                                    data-format="avif"
+                                    aria-pressed="false"
+                                >
+                                    AVIF
+                                </button>
+                                <button
+                                    type="button"
+                                    class="oj-tag magic-format-option"
+                                    data-format="heic"
+                                    aria-pressed="false"
+                                >
+                                    HEIC
+                                </button>
+                                <button
+                                    type="button"
+                                    class="oj-tag magic-format-option"
+                                    data-format="tiff"
+                                    aria-pressed="false"
+                                >
+                                    TIFF
+                                </button>
+                                <button
+                                    type="button"
+                                    class="oj-tag magic-format-option"
+                                    data-format="gif"
+                                    aria-pressed="false"
+                                >
+                                    GIF
+                                </button>
+                                <button
+                                    type="button"
+                                    class="oj-tag magic-format-option"
+                                    data-format="jxl"
+                                    aria-pressed="false"
+                                >
+                                    JPEG XL
+                                </button>
+                                <button
+                                    type="button"
+                                    class="oj-tag magic-format-option"
+                                    data-format="jp2"
+                                    aria-pressed="false"
+                                >
+                                    JPEG 2000
+                                </button>
                             </div>
-                            <p class="field-helper">Select one or more formats. Files in subfolders are ignored.</p>
+                            <p class="oj-helper">Select one or more formats. Files in subfolders are ignored.</p>
                         </div>
 
                         <div class="field-group magic-presets-field">
-                            <label class="field-label">Run Presets</label>
-                            <div id="magic-preset-options" class="magic-preset-options"></div>
-                            <p class="field-helper">Select one or more presets to run for every matching file.</p>
+                            <span class="oj-label">Run Presets</span>
+                            <div id="magic-preset-options" class="oj-scroll-area magic-preset-options"></div>
+                            <p class="oj-helper">Select one or more presets to run for every matching file.</p>
                         </div>
 
                         <div class="field-group magic-enabled-setting">
                             <div class="magic-enabled-copy">
-                                <label id="magic-enabled-label" class="field-label" for="magic-enabled-button">
+                                <label id="magic-enabled-label" class="oj-label" for="magic-enabled-button">
                                     Enable this rule
                                 </label>
-                                <p class="field-helper">Disabled rules remain saved but do not process files.</p>
+                                <p class="oj-helper">Disabled rules remain saved but do not process files.</p>
                             </div>
-                            <button
-                                id="magic-enabled-button"
-                                class="magic-enabled-switch is-active"
-                                type="button"
-                                role="switch"
-                                aria-checked="true"
-                                aria-labelledby="magic-enabled-label"
-                            >
-                                <span class="magic-enabled-switch-thumb" aria-hidden="true"></span>
-                            </button>
+                            <label class="oj-switch">
+                                <input
+                                    id="magic-enabled-button"
+                                    type="checkbox"
+                                    role="switch"
+                                    aria-labelledby="magic-enabled-label"
+                                    checked
+                                />
+                                <span class="oj-switch-track" aria-hidden="true"></span>
+                            </label>
                         </div>
 
-                        <button id="magic-save-button" class="button primary preset-save-button" type="submit">
+                        <button
+                            id="magic-save-button"
+                            class="oj-button oj-button-primary preset-save-button"
+                            type="submit"
+                        >
                             Save Watched Folder
                         </button>
                     </form>
                 </section>
 
-                <section class="panel magic-library-panel" aria-labelledby="magic-directories-title">
+                <section class="oj-panel magic-library-panel" aria-labelledby="magic-directories-title">
                     <div class="preset-list-header">
                         <div>
-                            <p class="section-kicker">Watcher</p>
-                            <h3 id="magic-directories-title">Watched Folders</h3>
+                            <h3 id="magic-directories-title" class="oj-heading-3">Watched Folders</h3>
                         </div>
-                        <span id="magic-count" class="value-badge">0</span>
+                        <span id="magic-count" class="oj-badge oj-badge-accent">0</span>
                     </div>
-                    <div id="magic-activity" class="magic-activity" data-kind="info" aria-live="polite">
+                    <div
+                        id="magic-activity"
+                        class="oj-inline-message magic-activity"
+                        data-oj-kind="info"
+                        aria-live="polite"
+                    >
                         Watching starts when BulkPixel opens.
                     </div>
-                    <div id="magic-list" class="preset-list" aria-live="polite"></div>
+                    <div id="magic-list" class="oj-scroll-area preset-list" aria-live="polite"></div>
                 </section>
             </main>
 
-            <footer id="convert-action-bar" class="panel action-bar">
+            <footer id="convert-action-bar" class="oj-panel action-bar">
                 <div class="action-summary" role="status" aria-live="polite" aria-atomic="true">
                     <div class="status-line">
-                        <span id="status-spinner" class="spinner status-spinner" aria-hidden="true"></span>
+                        <span id="status-spinner" class="oj-spinner status-spinner" aria-hidden="true"></span>
                         <span id="status-symbol" class="status-symbol" aria-hidden="true"></span>
-                        <p id="status-text" class="status-text">No images selected</p>
+                        <p id="status-text" class="oj-inline-message status-text">No images selected</p>
                     </div>
-                    <p id="status-meta" class="status-meta">Add images to begin.</p>
+                    <p id="status-meta" class="oj-caption status-meta">Add images to begin.</p>
                 </div>
                 <div class="action-buttons">
-                    <button id="action-show-output-button" class="button secondary" type="button" hidden>
+                    <button id="action-show-output-button" class="oj-button oj-button-secondary" type="button" hidden>
                         Show in Finder
                     </button>
-                    <button id="convert-button" class="button primary" type="button" disabled>Convert</button>
+                    <button id="convert-button" class="oj-button oj-button-primary" type="button" disabled>
+                        Convert
+                    </button>
                 </div>
             </footer>
         </div>
 
-        <dialog id="statistics-dialog" class="statistics-dialog" aria-labelledby="statistics-title">
-            <div class="statistics-header">
+        <dialog
+            id="statistics-dialog"
+            class="oj-dialog statistics-dialog"
+            data-oj-dialog
+            aria-labelledby="statistics-title"
+        >
+            <div class="oj-dialog-header">
                 <div>
-                    <p class="section-kicker">Secret Menu</p>
-                    <h2 id="statistics-title">BulkPixel Statistics</h2>
+                    <p class="oj-kicker">Secret Menu</p>
+                    <h2 id="statistics-title" class="oj-dialog-title">BulkPixel Statistics</h2>
                 </div>
                 <button
                     id="statistics-close-button"
-                    class="icon-button statistics-close-button"
+                    data-oj-dialog-close
+                    class="oj-icon-button statistics-close-button"
                     type="button"
                     aria-label="Close statistics"
                 >
-                    ×
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                 </button>
             </div>
 
-            <p id="statistics-message" class="statistics-message" aria-live="polite">Loading statistics...</p>
-
-            <div id="statistics-content" class="statistics-content" hidden>
-                <section class="statistics-section">
-                    <h3>Conversions</h3>
-                    <div class="statistics-grid statistics-formats">
-                        <div class="statistics-total"><span>Total</span><strong id="statistics-total">0</strong></div>
-                        <div><span>WEBP</span><strong id="statistics-webp">0</strong></div>
-                        <div><span>PNG</span><strong id="statistics-png">0</strong></div>
-                        <div><span>AVIF</span><strong id="statistics-avif">0</strong></div>
-                        <div><span>JPEG</span><strong id="statistics-jpeg">0</strong></div>
-                    </div>
-                </section>
-
-                <section class="statistics-section">
-                    <h3>Usage</h3>
-                    <div class="statistics-grid statistics-usage">
-                        <div><span>CLI Uses</span><strong id="statistics-cli-uses">0</strong></div>
-                        <div><span>UI Uses</span><strong id="statistics-ui-uses">0</strong></div>
-                        <div>
-                            <span>Watched Folder Conversions</span>
-                            <strong id="statistics-watched-folder-conversions">0</strong>
+            <div class="oj-dialog-body">
+                <p id="statistics-message" class="oj-inline-message statistics-message" aria-live="polite">
+                    Loading statistics...
+                </p>
+                <div id="statistics-content" class="statistics-content" hidden>
+                    <section class="statistics-section">
+                        <h3 class="oj-heading-3">Conversions</h3>
+                        <div class="statistics-grid statistics-formats">
+                            <div class="oj-metric statistics-total">
+                                <span class="oj-metric-label">Total</span
+                                ><strong class="oj-metric-value" id="statistics-total">0</strong>
+                            </div>
+                            <div class="oj-metric">
+                                <span class="oj-metric-label">WEBP</span
+                                ><strong class="oj-metric-value" id="statistics-webp">0</strong>
+                            </div>
+                            <div class="oj-metric">
+                                <span class="oj-metric-label">PNG</span
+                                ><strong class="oj-metric-value" id="statistics-png">0</strong>
+                            </div>
+                            <div class="oj-metric">
+                                <span class="oj-metric-label">AVIF</span
+                                ><strong class="oj-metric-value" id="statistics-avif">0</strong>
+                            </div>
+                            <div class="oj-metric">
+                                <span class="oj-metric-label">JPEG</span
+                                ><strong class="oj-metric-value" id="statistics-jpeg">0</strong>
+                            </div>
                         </div>
-                    </div>
-                </section>
-
-                <section class="statistics-section">
-                    <h3>Storage</h3>
-                    <div class="statistics-grid">
-                        <div><span>Input</span><strong id="statistics-input">0 B</strong></div>
-                        <div><span>Output</span><strong id="statistics-output">0 B</strong></div>
-                        <div class="statistics-saved"><span>Saved</span><strong id="statistics-saved">0 B</strong></div>
-                    </div>
-                </section>
-
-                <section class="statistics-section statistics-section-row">
-                    <div>
-                        <h3>Performance</h3>
-                        <span>Processing Time</span>
-                        <strong id="statistics-processing-time">0sec</strong>
-                    </div>
-                    <div>
-                        <h3>Timeline</h3>
-                        <dl class="statistics-timeline">
-                            <div><dt>First Conversion</dt><dd id="statistics-first-conversion">—</dd></div>
-                            <div><dt>Last Conversion</dt><dd id="statistics-last-conversion">—</dd></div>
-                        </dl>
-                    </div>
-                </section>
+                    </section>
+                    <section class="statistics-section">
+                        <h3 class="oj-heading-3">Usage</h3>
+                        <div class="statistics-grid statistics-usage">
+                            <div class="oj-metric">
+                                <span class="oj-metric-label">CLI Uses</span
+                                ><strong class="oj-metric-value" id="statistics-cli-uses">0</strong>
+                            </div>
+                            <div class="oj-metric">
+                                <span class="oj-metric-label">UI Uses</span
+                                ><strong class="oj-metric-value" id="statistics-ui-uses">0</strong>
+                            </div>
+                            <div class="oj-metric">
+                                <span class="oj-metric-label">Watched Folder Conversions</span>
+                                <strong class="oj-metric-value" id="statistics-watched-folder-conversions">0</strong>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="statistics-section">
+                        <h3 class="oj-heading-3">Storage</h3>
+                        <div class="statistics-grid">
+                            <div class="oj-metric">
+                                <span class="oj-metric-label">Input</span
+                                ><strong class="oj-metric-value" id="statistics-input">0 B</strong>
+                            </div>
+                            <div class="oj-metric">
+                                <span class="oj-metric-label">Output</span
+                                ><strong class="oj-metric-value" id="statistics-output">0 B</strong>
+                            </div>
+                            <div class="oj-metric statistics-saved">
+                                <span class="oj-metric-label">Saved</span
+                                ><strong class="oj-metric-value" id="statistics-saved">0 B</strong>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="statistics-section statistics-section-row">
+                        <div>
+                            <h3 class="oj-heading-3">Performance</h3>
+                            <div class="oj-metric">
+                                <span class="oj-metric-label">Processing Time</span>
+                                <strong class="oj-metric-value" id="statistics-processing-time">0sec</strong>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="oj-heading-3">Timeline</h3>
+                            <dl class="oj-key-value statistics-timeline">
+                                <div>
+                                    <dt>First Conversion</dt>
+                                    <dd class="oj-mono" id="statistics-first-conversion">—</dd>
+                                </div>
+                                <div>
+                                    <dt>Last Conversion</dt>
+                                    <dd class="oj-mono" id="statistics-last-conversion">—</dd>
+                                </div>
+                            </dl>
+                        </div>
+                    </section>
+                </div>
             </div>
         </dialog>
     </body>

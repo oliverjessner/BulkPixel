@@ -92,6 +92,19 @@ brew install --cask bulkpixel
 
 See [docs/CLI.md](docs/CLI.md) for commands, flags, preset usage, overwrite rules, and statistics output.
 
+## UI development
+
+The desktop UI uses [oj-designsystem](https://github.com/oliverjessner/oj-designsystem), pinned in `package.json`. Use its `oj-*` components and tokens for shared controls and keep `src/styles.css` focused on BulkPixel layouts, previews, and the image inspector. The product accent is `--oj-accent`.
+
+```sh
+npm ci
+npm run dev
+```
+
+Node.js 22.12 or newer is required. Installation and Tauri's dev/build hooks run `npm run prepare:ui`, which copies the installed design system into the ignored `src/vendor/oj-designsystem/` directory. CSS, JavaScript, Comfortaa/JetBrains Mono fonts, Font Awesome icons, and license notices are bundled locally; no network access is needed by the app. Do not edit the generated files. Run `npm run prepare:ui` after changing the dependency when serving `src/` directly.
+
+Run `npm test` for frontend checks and `npm run screenshots` to capture all six views with the Tauri mock.
+
 ## macOS Open With test cases
 
 1. BulkPixel is closed:

@@ -1,13 +1,17 @@
 {
     "name": "bulkpixel",
     "private": true,
-    "version": "3.1.1",
+    "version": "3.1.2",
     "type": "module",
     "scripts": {
+        "prepare:ui": "node scripts/sync-designsystem.mjs",
+        "postinstall": "npm run prepare:ui",
         "tauri": "tauri",
         "dev": "tauri dev",
         "build": "tauri build",
+        "pretest": "npm run prepare:ui",
         "test": "node --test",
+        "prescreenshots": "npm run prepare:ui",
         "screenshots": "node scripts/screenshots.mjs",
         "publish": "sh scripts/publish.sh"
     },
@@ -25,5 +29,8 @@
     },
     "devDependencies": {
         "@tauri-apps/cli": "^2.12.0"
+    },
+    "dependencies": {
+        "oj-designsystem": "0.1.0"
     }
 }

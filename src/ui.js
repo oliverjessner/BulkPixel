@@ -9,6 +9,10 @@ import {
     formatMegapixels,
     pluralize,
 } from './formatters.js';
+import { initDropdowns } from './vendor/oj-designsystem/index.js';
+
+const presetDropdownCleanups = new WeakMap();
+const presetListSnapshots = new WeakMap();
 
 export function renderApp(state, elements) {
     renderBrand(elements);
@@ -32,6 +36,16 @@ function renderBrand(elements) {
 function renderGlobalWatcherStatus(state, elements) {
     const watcherStatus = buildGlobalWatcherStatus(state);
     elements.globalWatcherStatus.dataset.kind = watcherStatus.kind;
+    const activeTone = watcherStatus.kind === 'error'
+        ? 'error'
+        : watcherStatus.kind === 'watching'
+          ? 'success'
+          : watcherStatus.kind === 'processing'
+            ? 'info'
+            : '';
+    for (const tone of ['success', 'error', 'info']) {
+        elements.globalWatcherStatus.classList.toggle(`oj-status-${tone}`, activeTone === tone);
+    }
     elements.globalWatcherStatus.title = watcherStatus.detail;
     elements.globalWatcherStatusLabel.textContent = watcherStatus.label;
 }
@@ -90,20 +104,24 @@ function renderControls(state, elements) {
     elements.dropzone.hidden = hasImages;
     elements.imagesView.hidden = !hasImages;
     elements.loadedDropOverlay.hidden = !hasImages || !state.dragActive;
-    elements.dropzone.classList.toggle('is-active', state.dragActive);
+    elements.dropzone.dataset.ojState = state.dragActive
+        ? 'drag-active'
+        : state.isImporting
+          ? 'loading'
+          : 'idle';
     elements.dropzone.disabled = state.isProcessing || state.isImporting;
+    elements.dropzone.setAttribute('aria-disabled', String(elements.dropzone.disabled));
     elements.dropzoneTitle.textContent = state.dragActive ? 'Drop images to add them' : 'Drop images here';
 
     for (const option of elements.formatOptions) {
         const isActive = option.dataset.format === state.format;
-        option.classList.toggle('is-active', isActive);
-        option.setAttribute('aria-checked', isActive ? 'true' : 'false');
+        option.checked = isActive;
         option.disabled = state.isProcessing;
     }
 
     for (const option of elements.resizeModeOptions) {
         const isActive = option.dataset.mode === state.resizeMode;
-        option.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        option.checked = isActive;
         option.disabled = state.isProcessing;
     }
 
@@ -131,7 +149,7 @@ function renderControls(state, elements) {
         const toggleButtons = elements.filenameToggle.querySelectorAll('.toggle-button');
         for (const button of toggleButtons) {
             const isActive = button.dataset.mode === state.filenameMode;
-            button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            button.checked = isActive;
             button.disabled = state.isProcessing;
         }
     }
@@ -155,7 +173,6 @@ function renderView(state, elements) {
 
     for (const button of elements.appModeButtons) {
         const isActive = button.dataset.view === state.view;
-        button.classList.toggle('is-active', isActive);
         button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     }
 }
@@ -174,7 +191,6 @@ function renderMagicDirectoryForm(state, elements) {
 
     for (const option of elements.magicFormatOptions) {
         const isActive = form.formats.includes(option.dataset.format);
-        option.classList.toggle('is-active', isActive);
         option.setAttribute('aria-pressed', isActive ? 'true' : 'false');
         option.disabled = isSaving;
     }
@@ -191,8 +207,7 @@ function renderMagicDirectoryForm(state, elements) {
         );
     }
 
-    elements.magicEnabledButton.classList.toggle('is-active', form.enabled);
-    elements.magicEnabledButton.setAttribute('aria-checked', form.enabled ? 'true' : 'false');
+    elements.magicEnabledButton.checked = form.enabled;
     elements.magicEnabledButton.disabled = isSaving;
     elements.magicSaveButton.disabled = isSaving || !state.presets.length;
     elements.magicSaveButton.textContent = isSaving
@@ -205,7 +220,7 @@ function renderMagicDirectoryForm(state, elements) {
 function renderMagicDirectoryList(state, elements) {
     elements.magicCount.textContent = String(state.magicDirectories.length);
     elements.magicActivity.textContent = state.magicActivity.text;
-    elements.magicActivity.dataset.kind = state.magicActivity.kind;
+    elements.magicActivity.dataset.ojKind = state.magicActivity.kind;
 
     if (state.magicDirectoriesLoading) {
         elements.magicList.replaceChildren(buildPresetEmptyState('Loading watched folders...'));
@@ -243,14 +258,13 @@ function renderPresetForm(state, elements) {
 
     for (const option of elements.presetFormatOptions) {
         const isActive = option.dataset.format === form.format;
-        option.classList.toggle('is-active', isActive);
-        option.setAttribute('aria-checked', isActive ? 'true' : 'false');
+        option.checked = isActive;
         option.disabled = isSaving;
     }
 
     for (const button of elements.presetResizeModeOptions) {
         const isActive = button.dataset.mode === form.resizeMode;
-        button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        button.checked = isActive;
         button.disabled = isSaving;
     }
 
@@ -267,7 +281,7 @@ function renderPresetForm(state, elements) {
 
     for (const button of elements.presetFilenameModeOptions) {
         const isActive = button.dataset.mode === form.filenameMode;
-        button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        button.checked = isActive;
         button.disabled = isSaving;
     }
 
@@ -284,6 +298,16 @@ function renderPresetForm(state, elements) {
 
 function renderPresetList(state, elements) {
     elements.presetCount.textContent = String(state.presets.length);
+    const previous = presetListSnapshots.get(elements.presetList);
+    if (previous?.presets === state.presets && previous.loading === state.presetsLoading) {
+        return;
+    }
+    presetDropdownCleanups.get(elements.presetList)?.();
+    presetDropdownCleanups.delete(elements.presetList);
+    presetListSnapshots.set(elements.presetList, {
+        presets: state.presets,
+        loading: state.presetsLoading,
+    });
 
     if (state.presetsLoading) {
         elements.presetList.replaceChildren(buildPresetEmptyState('Loading presets...'));
@@ -296,25 +320,29 @@ function renderPresetList(state, elements) {
     }
 
     elements.presetList.replaceChildren(...state.presets.map(buildPresetCard));
+    presetDropdownCleanups.set(elements.presetList, initDropdowns(elements.presetList));
 }
 
 function renderConversionActionBar(state, elements) {
     const actionBar = buildConversionActionBar(state);
 
     elements.statusText.textContent = actionBar.primary;
-    elements.statusText.dataset.kind = actionBar.tone;
+    elements.statusText.dataset.ojKind = actionBar.tone;
     elements.statusMeta.textContent = actionBar.secondary;
     elements.statusMeta.hidden = !actionBar.secondary;
-    elements.statusSymbol.textContent = actionBar.symbol;
-    elements.statusSymbol.dataset.kind = actionBar.tone;
+    elements.statusSymbol.replaceChildren(...(actionBar.symbol ? [buildIcon(
+        actionBar.tone === 'success' ? 'check' : actionBar.tone === 'error' ? 'xmark' : 'exclamation',
+    )] : []));
+    elements.statusSymbol.dataset.ojKind = actionBar.tone;
     elements.statusSymbol.hidden = !actionBar.symbol;
-    elements.statusSpinner.classList.toggle('is-visible', actionBar.showSpinner);
+    elements.statusSpinner.hidden = !actionBar.showSpinner;
 
     elements.removeAllButton.hidden = !actionBar.showClear;
     elements.removeAllButton.disabled = state.isProcessing || state.isImporting;
     elements.actionShowOutputButton.hidden = !actionBar.showFinder;
     elements.actionShowOutputButton.disabled = state.isProcessing || !state.outputDirectory;
     elements.convertButton.textContent = actionBar.convertLabel;
+    elements.convertButton.setAttribute('aria-busy', String(state.isProcessing));
     elements.convertButton.disabled = actionBar.convertDisabled;
 }
 
@@ -559,24 +587,25 @@ function buildPresetSelectValue(state) {
 
 function buildPresetCard(preset) {
     const card = document.createElement('article');
-    card.className = 'preset-card preset-library-card';
+    card.className = 'oj-panel oj-panel-compact preset-card preset-library-card';
 
     const body = document.createElement('div');
     body.className = 'preset-card-body';
 
     const name = document.createElement('h4');
+    name.className = 'oj-heading-4';
     name.textContent = preset.name;
 
     const summary = document.createElement('p');
-    summary.className = 'preset-card-summary';
+    summary.className = 'oj-small oj-muted preset-card-summary';
     summary.textContent = buildPresetLibrarySummary(preset);
 
     const filename = document.createElement('p');
-    filename.className = 'preset-card-filename';
+    filename.className = 'oj-small oj-muted preset-card-filename';
     filename.textContent = buildPresetFilenameText(preset);
 
     const output = document.createElement('span');
-    output.className = 'preset-card-path';
+    output.className = 'oj-path preset-card-path';
     output.title = preset.outputDirectory;
     output.textContent = preset.outputDirectory;
 
@@ -592,26 +621,30 @@ function buildPresetCard(preset) {
     body.append(name, summary, details);
 
     const actions = document.createElement('div');
-    actions.className = 'preset-card-actions';
+    actions.className = 'oj-inline preset-card-actions';
     actions.append(buildPresetActionButton('apply', preset.id, 'Use', 'preset-use-button'));
 
     const menuWrap = document.createElement('div');
-    menuWrap.className = 'preset-action-menu-wrap';
+    menuWrap.className = 'oj-dropdown';
+    menuWrap.dataset.ojDropdown = '';
 
     const menuId = `preset-actions-${String(preset.id).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
     const menuTrigger = document.createElement('button');
-    menuTrigger.className = 'button secondary compact preset-menu-trigger';
+    menuTrigger.className = 'oj-icon-button preset-menu-trigger';
     menuTrigger.type = 'button';
     menuTrigger.setAttribute('aria-label', `More actions for ${preset.name}`);
     menuTrigger.setAttribute('aria-haspopup', 'menu');
     menuTrigger.setAttribute('aria-expanded', 'false');
     menuTrigger.setAttribute('aria-controls', menuId);
-    menuTrigger.textContent = '···';
+    menuTrigger.dataset.ojDropdownTrigger = '';
+    menuTrigger.append(buildIcon('ellipsis'));
 
     const menu = document.createElement('div');
     menu.id = menuId;
-    menu.className = 'preset-action-menu';
+    menu.className = 'oj-menu';
+    menu.dataset.ojDropdownMenu = '';
     menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-label', `Actions for ${preset.name}`);
     menu.hidden = true;
     menu.append(
         buildPresetMenuItem('edit', preset.id, 'Edit'),
@@ -628,7 +661,7 @@ function buildPresetCard(preset) {
 
 function buildPresetActionButton(action, presetId, label, className) {
     const button = document.createElement('button');
-    button.className = `button compact preset-action-button ${className}`;
+    button.className = `oj-button oj-button-primary oj-button-compact preset-action-button ${className}`;
     button.type = 'button';
     button.dataset.action = action;
     button.dataset.presetId = String(presetId);
@@ -638,9 +671,10 @@ function buildPresetActionButton(action, presetId, label, className) {
 
 function buildPresetMenuItem(action, presetId, label, destructive = false) {
     const button = document.createElement('button');
-    button.className = `preset-action-button preset-menu-item${destructive ? ' is-destructive' : ''}`;
+    button.className = `oj-menu-item${destructive ? ' oj-menu-item-danger' : ''}`;
     button.type = 'button';
     button.dataset.action = action;
+    button.dataset.ojValue = action;
     button.dataset.presetId = String(presetId);
     button.setAttribute('role', 'menuitem');
     button.textContent = label;
@@ -649,9 +683,13 @@ function buildPresetMenuItem(action, presetId, label, destructive = false) {
 
 function buildMagicPresetOption(preset, selected, disabled) {
     const label = document.createElement('label');
-    label.className = 'magic-preset-option';
+    label.className = 'oj-check oj-panel oj-panel-compact oj-panel-interactive magic-preset-option';
+    if (selected) {
+        label.dataset.ojState = 'selected';
+    }
 
     const input = document.createElement('input');
+    input.className = 'oj-checkbox';
     input.type = 'checkbox';
     input.dataset.presetId = String(preset.id);
     input.checked = selected;
@@ -661,6 +699,7 @@ function buildMagicPresetOption(preset, selected, disabled) {
     const name = document.createElement('strong');
     name.textContent = preset.name;
     const details = document.createElement('small');
+    details.className = 'oj-small oj-muted';
     details.textContent = `${preset.format.toUpperCase()} · ${buildPresetResolutionText(preset)}`;
     copy.append(name, details);
     label.append(input, copy);
@@ -669,32 +708,35 @@ function buildMagicPresetOption(preset, selected, disabled) {
 
 function buildMagicDirectoryCard(directory, presets) {
     const card = document.createElement('article');
-    card.className = 'preset-card magic-directory-card';
+    card.className = 'oj-panel oj-panel-compact preset-card magic-directory-card';
 
     const body = document.createElement('div');
     body.className = 'preset-card-body';
     const title = document.createElement('h4');
+    title.className = 'oj-heading-4';
     title.textContent = directory.name;
     const status = document.createElement('p');
-    status.className = directory.enabled ? 'magic-status-enabled' : 'magic-status-disabled';
+    status.className = `oj-badge${directory.enabled ? ' oj-badge-success' : ''}`;
     status.textContent = directory.enabled ? 'Watching' : 'Disabled';
     const formats = document.createElement('p');
+    formats.className = 'oj-small oj-muted';
     formats.textContent = `Formats: ${directory.formats.map(format => format.toUpperCase()).join(', ')}`;
     const selectedPresetNames = directory.presetIds
         .map(id => presets.find(preset => preset.id === id)?.name)
         .filter(Boolean);
     const presetSummary = document.createElement('p');
+    presetSummary.className = 'oj-small oj-muted';
     presetSummary.textContent = selectedPresetNames.length
         ? `Presets: ${selectedPresetNames.join(', ')}`
         : 'No presets selected';
     const path = document.createElement('p');
-    path.className = 'preset-card-path';
+    path.className = 'oj-path preset-card-path';
     path.title = directory.path;
     path.textContent = directory.path;
     body.append(title, status, formats, presetSummary, path);
 
     const actions = document.createElement('div');
-    actions.className = 'preset-card-actions';
+    actions.className = 'oj-inline preset-card-actions';
     actions.append(
         buildMagicActionButton('edit', directory.id, 'Edit'),
         buildMagicActionButton('delete', directory.id, 'Delete'),
@@ -705,7 +747,7 @@ function buildMagicDirectoryCard(directory, presets) {
 
 function buildMagicActionButton(action, id, label) {
     const button = document.createElement('button');
-    button.className = 'button secondary compact magic-action-button';
+    button.className = `oj-button oj-button-${action === 'delete' ? 'danger' : 'secondary'} oj-button-compact magic-action-button`;
     button.type = 'button';
     button.dataset.action = action;
     button.dataset.magicDirectoryId = String(id);
@@ -715,10 +757,10 @@ function buildMagicActionButton(action, id, label) {
 
 function buildPresetEmptyState(message) {
     const emptyState = document.createElement('div');
-    emptyState.className = 'empty-state preset-empty-state';
+    emptyState.className = 'oj-empty-state preset-empty-state';
 
     const title = document.createElement('p');
-    title.className = 'empty-title';
+    title.className = 'oj-empty-state-description';
     title.textContent = message;
 
     emptyState.append(title);
@@ -729,9 +771,10 @@ function buildPreviewCard(image, selected = false) {
     const result = image.result;
 
     const card = document.createElement('article');
-    card.className = `preview-card${selected ? ' is-selected' : ''}`;
+    card.className = 'oj-card oj-panel-interactive preview-card';
     card.dataset.imageId = image.id;
     if (selected) {
+        card.dataset.ojState = 'selected';
         card.setAttribute('aria-current', 'true');
     }
 
@@ -743,20 +786,17 @@ function buildPreviewCard(image, selected = false) {
     previewImage.alt = `${image.name} preview`;
 
     const removeButton = document.createElement('button');
-    removeButton.className = 'thumb-remove-button remove-image-button';
+    removeButton.className = 'oj-icon-button thumb-remove-button remove-image-button';
     removeButton.type = 'button';
     removeButton.dataset.imageId = image.id;
     removeButton.setAttribute('aria-label', `Remove ${image.name}`);
 
-    const removeIcon = document.createElement('span');
-    removeIcon.setAttribute('aria-hidden', 'true');
-    removeIcon.textContent = '×';
-    removeButton.append(removeIcon);
+    removeButton.append(buildIcon('xmark'));
 
     thumbWrap.append(previewImage, removeButton);
 
     const body = document.createElement('div');
-    body.className = 'preview-body';
+    body.className = 'oj-card-body preview-body';
 
     const titleRow = document.createElement('div');
     titleRow.className = 'preview-title-row';
@@ -764,22 +804,22 @@ function buildPreviewCard(image, selected = false) {
     const titleContent = document.createElement('div');
 
     const name = document.createElement('h3');
-    name.className = 'preview-name';
+    name.className = 'oj-heading-4 preview-name';
     name.title = image.name;
     name.textContent = image.name;
 
     const subtitle = document.createElement('p');
-    subtitle.className = 'preview-subtitle';
+    subtitle.className = 'oj-caption oj-muted preview-subtitle';
     subtitle.textContent = `${image.fileType} · ${formatDimensions(image.width, image.height)} · ${formatBytes(image.fileSize)}`;
 
     titleContent.append(name, subtitle);
 
     const infoButton = document.createElement('button');
-    infoButton.className = 'icon-button image-info-button';
+    infoButton.className = 'oj-icon-button image-info-button';
     infoButton.type = 'button';
     infoButton.dataset.imageId = image.id;
     infoButton.setAttribute('aria-label', `Show image information for ${image.name}`);
-    infoButton.textContent = 'ⓘ';
+    infoButton.append(buildIcon('circle-info'));
 
     titleRow.append(titleContent, infoButton);
     body.append(titleRow);
@@ -824,9 +864,11 @@ function buildInspectorSummary(image, inspector, images) {
     thumbnail.src = image.previewDataUrl;
     thumbnail.alt = `${image.name} preview`;
     const filename = document.createElement('h3');
+    filename.className = 'oj-heading-4';
     filename.title = image.name;
     filename.textContent = image.name;
     const summary = document.createElement('p');
+    summary.className = 'oj-caption oj-muted';
     summary.textContent = [
         formatDimensions(image.width, image.height),
         formatMegapixels(image.width, image.height),
@@ -878,27 +920,29 @@ function buildInspectorSummary(image, inspector, images) {
 
     if (inspector.loading) {
         const loading = document.createElement('p');
-        loading.className = 'image-inspector-message';
+        loading.className = 'oj-inline-message image-inspector-message';
         loading.textContent = 'Loading metadata...';
         container.append(loading);
     }
     if (inspector.error) {
         const error = document.createElement('p');
-        error.className = 'image-inspector-message is-error';
+        error.className = 'oj-inline-message image-inspector-message';
+        error.dataset.ojKind = 'error';
         error.textContent = 'Metadata could not be read.';
         error.title = inspector.error;
         container.append(error);
     }
     for (const warningText of metadata?.warnings ?? []) {
         const warning = document.createElement('p');
-        warning.className = 'image-inspector-message is-warning';
+        warning.className = 'oj-inline-message image-inspector-message';
+        warning.dataset.ojKind = 'warning';
         warning.textContent = warningText;
         container.append(warning);
     }
 
     if (metadata?.raw?.length) {
         const viewAllButton = document.createElement('button');
-        viewAllButton.className = 'button secondary image-inspector-view-all';
+        viewAllButton.className = 'oj-button oj-button-secondary image-inspector-view-all';
         viewAllButton.type = 'button';
         viewAllButton.dataset.inspectorAction = 'view-all';
         viewAllButton.textContent = `View all metadata (${metadata.raw.length})`;
@@ -913,17 +957,20 @@ function buildInspectorImageNavigation(image, images) {
     const navigation = document.createElement('div');
     navigation.className = 'image-inspector-navigation';
     const previous = document.createElement('button');
+    previous.className = 'oj-button oj-button-ghost oj-button-compact';
     previous.type = 'button';
     previous.dataset.inspectorImageDirection = 'previous';
     previous.setAttribute('aria-label', 'Show previous image information');
-    previous.textContent = '← Previous';
+    previous.append(buildIcon('arrow-left'), 'Previous');
     const position = document.createElement('span');
+    position.className = 'oj-caption oj-muted';
     position.textContent = `${currentIndex + 1} of ${images.length}`;
     const next = document.createElement('button');
+    next.className = 'oj-button oj-button-ghost oj-button-compact';
     next.type = 'button';
     next.dataset.inspectorImageDirection = 'next';
     next.setAttribute('aria-label', 'Show next image information');
-    next.textContent = 'Next →';
+    next.append('Next', buildIcon('arrow-right'));
     navigation.append(previous, position, next);
     return navigation;
 }
@@ -932,9 +979,10 @@ function buildInspectorSection(title, rows, className = '') {
     const section = document.createElement('section');
     section.className = `image-inspector-section${className ? ` ${className}` : ''}`;
     const heading = document.createElement('h3');
+    heading.className = 'oj-heading-4';
     heading.textContent = title;
     const list = document.createElement('dl');
-    list.className = 'image-metadata-rows';
+    list.className = 'oj-key-value image-metadata-rows';
     for (const [label, value, tone] of rows) {
         list.append(buildMetadataRow(label, value, tone));
     }
@@ -944,10 +992,14 @@ function buildInspectorSection(title, rows, className = '') {
 
 function buildMetadataRow(label, value, tone = '') {
     const row = document.createElement('div');
-    row.className = `image-metadata-row${tone ? ` is-${tone}` : ''}`;
+    row.className = 'image-metadata-row';
     const term = document.createElement('dt');
     term.textContent = label;
     const description = document.createElement('dd');
+    if (tone) {
+        description.className = 'oj-inline-message';
+        description.dataset.ojKind = tone;
+    }
     description.textContent = String(value);
     description.title = String(value);
     row.append(term, description);
@@ -958,6 +1010,7 @@ function buildMetadataSummarySection(metadata) {
     const section = document.createElement('section');
     section.className = 'image-inspector-section';
     const heading = document.createElement('h3');
+    heading.className = 'oj-heading-4';
     heading.textContent = 'Metadata';
     section.append(heading);
 
@@ -974,27 +1027,34 @@ function buildMetadataSummarySection(metadata) {
 
 function buildMetadataAccordion(label, group) {
     const details = document.createElement('details');
-    details.className = 'metadata-accordion';
+    details.className = 'oj-accordion metadata-accordion';
     const summary = document.createElement('summary');
     const name = document.createElement('span');
     name.textContent = label;
     const status = document.createElement('span');
+    status.className = 'oj-caption oj-muted';
     status.textContent = metadataGroupSummary(group);
     summary.append(name, status);
     details.append(summary);
 
+    const content = document.createElement('div');
+    content.className = 'oj-accordion-body';
     if (group.error) {
         const error = document.createElement('p');
-        error.className = 'image-inspector-message is-warning';
+        error.className = 'oj-inline-message';
+        error.dataset.ojKind = 'warning';
         error.textContent = group.error;
-        details.append(error);
+        content.append(error);
     } else if (group.entries.length) {
         const rows = document.createElement('dl');
-        rows.className = 'image-metadata-rows metadata-accordion-rows';
+        rows.className = 'oj-key-value image-metadata-rows';
         for (const entry of selectReadableEntries(group.entries)) {
             rows.append(buildMetadataRow(entry.label, entry.value));
         }
-        details.append(rows);
+        content.append(rows);
+    }
+    if (content.childElementCount) {
+        details.append(content);
     }
     return details;
 }
@@ -1030,19 +1090,20 @@ function buildPrivacySection(privacy) {
     const section = document.createElement('section');
     section.className = 'image-inspector-section';
     const heading = document.createElement('h3');
+    heading.className = 'oj-heading-4';
     heading.textContent = 'Privacy';
     section.append(heading);
 
     if (!summary.findings.length) {
         const empty = document.createElement('p');
-        empty.className = 'privacy-empty';
+        empty.className = 'oj-small oj-muted';
         empty.textContent = summary.emptyText;
         section.append(empty);
         return section;
     }
 
     const rows = document.createElement('dl');
-    rows.className = 'image-metadata-rows';
+    rows.className = 'oj-key-value image-metadata-rows';
     for (const finding of summary.findings) {
         rows.append(buildMetadataRow(finding.label, 'Present', finding.warning ? 'warning' : ''));
     }
@@ -1056,7 +1117,7 @@ function buildContentCredentialsSection(credentials) {
         [['C2PA', credentials.status === 'notChecked' ? 'Not checked' : credentials.status]],
     );
     const helper = document.createElement('p');
-    helper.className = 'image-inspector-section-helper';
+    helper.className = 'oj-helper image-inspector-section-helper';
     helper.textContent = credentials.summary;
     section.append(helper);
     return section;
@@ -1066,36 +1127,36 @@ function buildAllMetadataView(inspector) {
     const container = document.createElement('div');
     container.className = 'all-metadata-view';
     const backButton = document.createElement('button');
-    backButton.className = 'image-inspector-back';
+    backButton.className = 'oj-button oj-button-ghost oj-button-compact image-inspector-back';
     backButton.type = 'button';
     backButton.dataset.inspectorAction = 'summary';
-    backButton.textContent = '← Image Info';
+    backButton.append(buildIcon('arrow-left'), 'Image Info');
 
     const search = document.createElement('input');
-    search.className = 'metadata-search-input';
+    search.className = 'oj-input metadata-search-input';
     search.type = 'search';
     search.placeholder = 'Search metadata...';
     search.setAttribute('aria-label', 'Search metadata');
     search.value = inspector.query;
 
     const modeToggle = document.createElement('div');
-    modeToggle.className = 'metadata-view-toggle';
-    modeToggle.setAttribute('role', 'group');
+    modeToggle.className = 'oj-segmented metadata-view-toggle';
+    modeToggle.setAttribute('role', 'radiogroup');
     modeToggle.setAttribute('aria-label', 'Metadata labels');
     modeToggle.append(
-        buildMetadataModeButton('readable', 'Readable', inspector.metadataMode),
-        buildMetadataModeButton('raw', 'Raw', inspector.metadataMode),
+        buildMetadataModeOption('readable', 'Readable', inspector.metadataMode),
+        buildMetadataModeOption('raw', 'Raw', inspector.metadataMode),
     );
 
     const entries = filterMetadataEntries(inspector.data?.raw ?? [], inspector.query);
     const resultCount = document.createElement('p');
-    resultCount.className = 'metadata-result-count';
+    resultCount.className = 'oj-caption oj-muted metadata-result-count';
     resultCount.textContent = pluralize('result', entries.length);
     container.append(backButton, search, modeToggle, resultCount);
 
     if (!entries.length) {
         const empty = document.createElement('p');
-        empty.className = 'image-inspector-message';
+        empty.className = 'oj-inline-message image-inspector-message';
         empty.textContent = inspector.query ? 'No metadata matches this search.' : 'No metadata fields found.';
         container.append(empty);
         return container;
@@ -1109,9 +1170,10 @@ function buildAllMetadataView(inspector) {
         const section = document.createElement('section');
         section.className = 'image-inspector-section all-metadata-section';
         const heading = document.createElement('h3');
+        heading.className = 'oj-heading-4';
         heading.textContent = groupName;
         const rows = document.createElement('dl');
-        rows.className = 'image-metadata-rows all-metadata-rows';
+        rows.className = 'oj-key-value image-metadata-rows all-metadata-rows';
         for (const entry of groupEntries) {
             rows.append(
                 buildMetadataRow(
@@ -1126,26 +1188,37 @@ function buildAllMetadataView(inspector) {
     return container;
 }
 
-function buildMetadataModeButton(mode, label, selectedMode) {
-    const button = document.createElement('button');
-    button.className = 'toggle-button';
-    button.type = 'button';
-    button.dataset.inspectorMetadataMode = mode;
-    button.setAttribute('aria-pressed', mode === selectedMode ? 'true' : 'false');
-    button.textContent = label;
-    return button;
+function buildMetadataModeOption(mode, text, selectedMode) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'inspector-metadata-mode';
+    input.dataset.inspectorMetadataMode = mode;
+    input.checked = mode === selectedMode;
+    const copy = document.createElement('span');
+    copy.textContent = text;
+    label.append(input, copy);
+    return label;
 }
 
 function buildPreviewResult(image, result) {
     const resultElement = document.createElement('div');
-    resultElement.className = `preview-result tone-${buildResultTone(result)}`;
+    resultElement.className = 'preview-result';
 
     const chip = document.createElement('span');
-    chip.className = 'result-chip';
+    const tone = buildResultTone(result);
+    chip.className = `oj-badge oj-badge-${tone === 'failure' ? 'danger' : tone === 'negative' ? 'warning' : 'success'}`;
     chip.textContent = result.success ? buildResultChipText(image, result) : result.message;
 
     resultElement.append(chip);
     return resultElement;
+}
+
+function buildIcon(name) {
+    const icon = document.createElement('i');
+    icon.className = `fa-solid fa-${name}`;
+    icon.setAttribute('aria-hidden', 'true');
+    return icon;
 }
 
 export function buildResizeInputState(state) {

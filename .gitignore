@@ -1,5 +1,6 @@
 scripts/screenshots
 node_modules/
+src/vendor/
 dist/
 build/
 .next/

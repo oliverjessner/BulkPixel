@@ -9,6 +9,7 @@ import {
     sanitizeNumberInput,
 } from './formatters.js';
 import { renderApp } from './ui.js';
+import { closeDialog, confirmDialog, initDialogs, openDialog } from './vendor/oj-designsystem/index.js';
 
 const { invoke } = window.__TAURI__.core;
 const dialogApi = window.__TAURI__.dialog;
@@ -77,6 +78,8 @@ let inspectorReturnFocusImageId = null;
 
 window.addEventListener('DOMContentLoaded', async () => {
     cacheElements();
+    const cleanupDialogs = initDialogs(document);
+    window.addEventListener('pagehide', cleanupDialogs, { once: true });
     bindEvents();
     render();
     await hydrateAppVersion();
@@ -99,7 +102,6 @@ function cacheElements() {
     elements.statisticsTrigger = document.querySelector('#statistics-trigger');
     elements.statisticsDialog = document.querySelector('#statistics-dialog');
     elements.statisticsTitle = document.querySelector('#statistics-title');
-    elements.statisticsCloseButton = document.querySelector('#statistics-close-button');
     elements.statisticsMessage = document.querySelector('#statistics-message');
     elements.statisticsContent = document.querySelector('#statistics-content');
     elements.statisticsTotal = document.querySelector('#statistics-total');
@@ -190,13 +192,9 @@ function bindEvents() {
         void openStatistics();
     });
 
-    elements.statisticsCloseButton.addEventListener('click', () => {
-        elements.statisticsDialog.close();
-    });
-
     elements.statisticsDialog.addEventListener('click', event => {
         if (event.target === elements.statisticsDialog) {
-            elements.statisticsDialog.close();
+            closeDialog(elements.statisticsDialog);
         }
     });
 
@@ -236,7 +234,7 @@ function bindEvents() {
     });
 
     elements.formatOptions.forEach(option => {
-        option.addEventListener('click', () => {
+        option.addEventListener('change', () => {
             if (state.isProcessing) {
                 return;
             }
@@ -254,7 +252,7 @@ function bindEvents() {
     });
 
     elements.resizeModeOptions.forEach(button => {
-        button.addEventListener('click', () => {
+        button.addEventListener('change', () => {
             selectResizeMode(button.dataset.mode);
         });
     });
@@ -297,7 +295,7 @@ function bindEvents() {
         render();
     });
 
-    elements.filenameToggle.addEventListener('click', event => {
+    elements.filenameToggle.addEventListener('change', event => {
         const button = event.target.closest('.toggle-button');
         if (!button || state.isProcessing) {
             return;
@@ -376,12 +374,20 @@ function bindEvents() {
             render();
             return;
         }
+    });
 
-        const modeButton = event.target.closest('[data-inspector-metadata-mode]');
-        if (modeButton) {
-            state.inspector.metadataMode = modeButton.dataset.inspectorMetadataMode;
-            render();
+    elements.imageInspectorBody.addEventListener('change', event => {
+        const modeInput = event.target.closest('[data-inspector-metadata-mode]');
+        if (!modeInput) {
+            return;
         }
+        state.inspector.metadataMode = modeInput.dataset.inspectorMetadataMode;
+        render();
+        requestAnimationFrame(() => {
+            elements.imageInspectorBody
+                .querySelector('[data-inspector-metadata-mode]:checked')
+                ?.focus();
+        });
     });
 
     elements.imageInspectorBody.addEventListener('input', event => {
@@ -540,9 +546,7 @@ async function openStatistics() {
     state.statisticsLoading = true;
     state.statisticsError = '';
 
-    if (!elements.statisticsDialog.open) {
-        elements.statisticsDialog.showModal();
-    }
+    openDialog(elements.statisticsDialog, { trigger: elements.statisticsTrigger });
     renderStatistics();
 
     try {
@@ -566,7 +570,7 @@ async function hydrateAppVersion() {
 function renderStatistics() {
     elements.statisticsTitle.textContent = buildStatisticsTitle(state.appVersion);
     elements.statisticsMessage.hidden = !state.statisticsLoading && !state.statisticsError;
-    elements.statisticsMessage.dataset.kind = state.statisticsError ? 'error' : 'info';
+    elements.statisticsMessage.dataset.ojKind = state.statisticsError ? 'error' : 'info';
     elements.statisticsMessage.textContent = state.statisticsError || 'Loading statistics...';
     elements.statisticsContent.hidden =
         state.statisticsLoading || Boolean(state.statisticsError) || !state.statistics;
@@ -606,7 +610,7 @@ function bindPresetEvents() {
     });
 
     elements.presetFormatOptions.forEach(option => {
-        option.addEventListener('click', () => {
+        option.addEventListener('change', () => {
             if (state.isPresetSaving) {
                 return;
             }
@@ -617,7 +621,7 @@ function bindPresetEvents() {
     });
 
     elements.presetResizeModeOptions.forEach(button => {
-        button.addEventListener('click', () => {
+        button.addEventListener('change', () => {
             if (state.isPresetSaving) {
                 return;
             }
@@ -653,7 +657,7 @@ function bindPresetEvents() {
         render();
     });
 
-    elements.presetFilenameToggle.addEventListener('click', event => {
+    elements.presetFilenameToggle.addEventListener('change', event => {
         const button = event.target.closest('.toggle-button');
         if (!button || state.isPresetSaving) {
             return;
@@ -673,27 +677,18 @@ function bindPresetEvents() {
     });
 
     elements.presetList.addEventListener('click', event => {
-        const menuTrigger = event.target.closest('.preset-menu-trigger');
-        if (menuTrigger) {
-            togglePresetActionMenu(menuTrigger);
-            return;
-        }
-
         const button = event.target.closest('.preset-action-button');
         if (!button) {
             return;
         }
-
-        closePresetActionMenus();
         handlePresetAction(button.dataset.action, button.dataset.presetId);
     });
 
-    elements.presetList.addEventListener('keydown', handlePresetMenuKeydown);
-
-    document.addEventListener('click', event => {
-        if (!event.target.closest('.preset-action-menu-wrap')) {
-            closePresetActionMenus();
-        }
+    elements.presetList.addEventListener('oj:select', event => {
+        const { item, value } = event.detail;
+        const presetId = item.dataset.presetId;
+        // Let the menu close and restore its trigger before rendering or opening a dialog.
+        queueMicrotask(() => handlePresetAction(value, presetId));
     });
 
     elements.magicForm.addEventListener('submit', event => {
@@ -734,11 +729,11 @@ function bindPresetEvents() {
         render();
     });
 
-    elements.magicEnabledButton.addEventListener('click', () => {
+    elements.magicEnabledButton.addEventListener('change', () => {
         if (state.isMagicDirectorySaving) {
             return;
         }
-        state.magicDirectoryForm.enabled = !state.magicDirectoryForm.enabled;
+        state.magicDirectoryForm.enabled = elements.magicEnabledButton.checked;
         render();
     });
 
@@ -749,84 +744,6 @@ function bindPresetEvents() {
         }
         handleMagicDirectoryAction(button.dataset.action, button.dataset.magicDirectoryId);
     });
-}
-
-function togglePresetActionMenu(trigger) {
-    const menuWrap = trigger.closest('.preset-action-menu-wrap');
-    const menu = menuWrap?.querySelector('.preset-action-menu');
-    if (!menu) {
-        return;
-    }
-
-    const shouldOpen = menu.hidden;
-    closePresetActionMenus();
-    if (!shouldOpen) {
-        return;
-    }
-
-    menu.hidden = false;
-    menuWrap.classList.add('is-open');
-    menuWrap.closest('.preset-library-card')?.classList.add('has-open-menu');
-    trigger.setAttribute('aria-expanded', 'true');
-    menu.classList.remove('is-above');
-
-    const listBounds = elements.presetList.getBoundingClientRect();
-    const triggerBounds = trigger.getBoundingClientRect();
-    const menuBounds = menu.getBoundingClientRect();
-    const fitsAbove = triggerBounds.top - menuBounds.height - 6 >= listBounds.top;
-    if (menuBounds.bottom > listBounds.bottom && fitsAbove) {
-        menu.classList.add('is-above');
-    }
-
-    menu.querySelector('.preset-menu-item')?.focus();
-}
-
-function closePresetActionMenus(options = {}) {
-    const { returnFocus = false } = options;
-    for (const menu of elements.presetList.querySelectorAll('.preset-action-menu:not([hidden])')) {
-        const menuWrap = menu.closest('.preset-action-menu-wrap');
-        const trigger = menuWrap?.querySelector('.preset-menu-trigger');
-        menu.hidden = true;
-        menu.classList.remove('is-above');
-        menuWrap?.classList.remove('is-open');
-        menuWrap?.closest('.preset-library-card')?.classList.remove('has-open-menu');
-        trigger?.setAttribute('aria-expanded', 'false');
-        if (returnFocus) {
-            trigger?.focus();
-        }
-    }
-}
-
-function handlePresetMenuKeydown(event) {
-    const menu = event.target.closest('.preset-action-menu');
-    if (!menu || menu.hidden) {
-        return;
-    }
-
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        closePresetActionMenus({ returnFocus: true });
-        return;
-    }
-
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-        return;
-    }
-
-    event.preventDefault();
-    const items = [...menu.querySelectorAll('.preset-menu-item')];
-    const currentIndex = items.indexOf(document.activeElement);
-    let nextIndex;
-    if (event.key === 'Home') {
-        nextIndex = 0;
-    } else if (event.key === 'End') {
-        nextIndex = items.length - 1;
-    } else if (event.key === 'ArrowDown') {
-        nextIndex = (currentIndex + 1) % items.length;
-    } else {
-        nextIndex = (currentIndex - 1 + items.length) % items.length;
-    }
-    items[nextIndex]?.focus();
 }
 
 async function hydrateDefaultOutputDirectory() {
@@ -1083,7 +1000,13 @@ async function deletePresetById(id) {
         return;
     }
 
-    const confirmed = window.confirm(buildDeletePresetConfirmation(preset.name));
+    const confirmed = await confirmDialog({
+        title: 'Delete preset?',
+        message: buildDeletePresetConfirmation(preset.name),
+        confirmLabel: 'Delete',
+        variant: 'danger',
+        root: document.body,
+    });
     if (!confirmed) {
         return;
     }
@@ -1148,7 +1071,14 @@ async function deleteMagicDirectoryById(id) {
         return;
     }
     const message = ['Delete watched folder "', directory.name, '"?'].join('');
-    if (!window.confirm(message)) {
+    const confirmed = await confirmDialog({
+        title: 'Delete watched folder?',
+        message,
+        confirmLabel: 'Delete',
+        variant: 'danger',
+        root: document.body,
+    });
+    if (!confirmed) {
         return;
     }
 

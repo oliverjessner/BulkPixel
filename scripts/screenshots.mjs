@@ -164,6 +164,10 @@ function mimeTypeFor(filePath) {
             return 'text/javascript; charset=utf-8';
         case '.css':
             return 'text/css; charset=utf-8';
+        case '.woff2':
+            return 'font/woff2';
+        case '.svg':
+            return 'image/svg+xml';
         case '.png':
             return 'image/png';
         case '.webp':
@@ -302,6 +306,7 @@ async function captureScenario(cdp, origin, scenario, filename, format = 'png') 
         })()`,
     });
     await waitForExpression(cdp, `[...document.images].every(image => image.complete)`);
+    await evaluate(cdp, `document.fonts.ready.then(() => true)`);
     await delay(120);
 
     const screenshot = await cdp.send('Page.captureScreenshot', {
@@ -386,6 +391,7 @@ async function evaluate(cdp, expression) {
 }
 
 function buildTauriMock(origin, fixtures) {
+    const { version: appVersion } = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf8'));
     const loadedImages = fixtures.map(fixture => ({
         path: fixture.path,
         name: fixture.name,
@@ -459,7 +465,7 @@ function buildTauriMock(origin, fixtures) {
             core: {
                 invoke: async (command, args = {}) => {
                     const scenario = new URL(window.location.href).searchParams.get('screenshot');
-                    if (command === 'get_app_version') return '3.0.0';
+                    if (command === 'get_app_version') return ${JSON.stringify(appVersion)};
                     if (command === 'get_default_output_directory') return '/Users/oli/Downloads';
                     if (command === 'get_opened_files') {
                         return ['convert', 'inspector'].includes(scenario)

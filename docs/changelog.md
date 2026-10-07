@@ -1,3 +1,7 @@
+# 3.1.2
+
+- moving to https://github.com/oliverjessner/oj-designsystem
+
 # 3.1.1
 
 - JPEG 2000 (`.jp2`) input support in the desktop app, CLI, Finder, and Watched Folders
