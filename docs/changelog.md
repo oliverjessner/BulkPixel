@@ -22,26 +22,7 @@
 - click on the image opens a modal window for infos like exif
 - Rename the automatic-folder feature to Watched Folders and add required names to every rule.
 - Track successful Watched Folder conversions in shared statistics.
-
-## UX overhaul
-
-from
-![](/docs/ux_overhaul/convert_v2.1.1.webp)
-
-to
-![](/src/assets/mockups/bulkpixel.webp)
-
-from
-![](/docs/ux_overhaul/magic_directory_v2.1.1.webp)
-
-to
-![](/src/assets/mockups/watched_folders_directory.webp)
-
-from
-![](/docs/ux_overhaul/presets_v2.1.1.webp)
-
-to
-![](/src/assets/mockups/presets.webp)
+- UX overhaul
 
 # 2.1.1
 
