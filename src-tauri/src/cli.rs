@@ -47,6 +47,10 @@ Export formats:
 
 Watched formats:
   jpeg (jpg), png, webp, avif, svg, heic (heif), tiff (tif), gif, jxl, jp2
+
+Watched-folder overwrite options:
+  --overwrite     Replace existing output files (default: off)
+  --no-overwrite  Keep existing files and choose unique filenames
 "
 );
 
@@ -85,6 +89,7 @@ struct MagicDirectoryOptions {
     formats: Vec<String>,
     preset_names: Vec<String>,
     enabled: Option<bool>,
+    overwrite: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -187,34 +192,11 @@ fn handle_convert(args: &[String]) -> Result<i32, String> {
 }
 
 fn run_direct_conversion(options: ConvertOptions) -> Result<i32, String> {
-    let inputs = require_inputs(&options.inputs)?;
-    let output_dir = options
-        .output_dir
-        .clone()
-        .ok_or_else(|| "--output-dir is required.".to_string())?;
-    let format = parse_optional_format(options.format.as_deref())?.unwrap_or(ExportFormat::Webp);
-    let quality = parse_optional_quality(options.quality.as_deref())?.unwrap_or(100);
-    let resize = parse_resize(options.width.as_deref(), options.height.as_deref())?;
-    let (filename_mode, filename_component) =
-        parse_filename_options(options.prefix.as_deref(), options.postfix.as_deref())?;
-    let input_format = input_format_label(&inputs);
+    let request = build_direct_conversion_request(&options)?;
+    let input_format = input_format_label(&options.inputs);
+    let format = request.format.clone();
     let output_format = format.label().to_string();
-    let collision_mode = if options.overwrite {
-        CollisionMode::Overwrite
-    } else {
-        CollisionMode::Error
-    };
-
-    let request = ConversionRequest {
-        images: conversion_inputs(inputs),
-        format: format.clone(),
-        resize,
-        quality,
-        filename_component,
-        filename_mode,
-        output_dir: output_dir.clone(),
-        collision_mode,
-    };
+    let output_dir = request.output_dir.clone();
 
     let started_at = Instant::now();
     let response = convert_images(request).map_err(|error| error.to_string())?;
@@ -234,6 +216,35 @@ fn run_direct_conversion(options: ConvertOptions) -> Result<i32, String> {
     }
 
     Ok(if has_failures { 1 } else { 0 })
+}
+
+fn build_direct_conversion_request(options: &ConvertOptions) -> Result<ConversionRequest, String> {
+    let inputs = require_inputs(&options.inputs)?;
+    let output_dir = options
+        .output_dir
+        .clone()
+        .ok_or_else(|| "--output-dir is required.".to_string())?;
+    let format = parse_optional_format(options.format.as_deref())?.unwrap_or(ExportFormat::Webp);
+    let quality = parse_optional_quality(options.quality.as_deref())?.unwrap_or(100);
+    let resize = parse_resize(options.width.as_deref(), options.height.as_deref())?;
+    let (filename_mode, filename_component) =
+        parse_filename_options(options.prefix.as_deref(), options.postfix.as_deref())?;
+    let collision_mode = if options.overwrite {
+        CollisionMode::Overwrite
+    } else {
+        CollisionMode::Error
+    };
+
+    Ok(ConversionRequest {
+        images: conversion_inputs(inputs),
+        format,
+        resize,
+        quality,
+        filename_component,
+        filename_mode,
+        output_dir,
+        collision_mode,
+    })
 }
 
 fn run_preset_conversion(options: ConvertOptions) -> Result<i32, String> {
@@ -517,6 +528,20 @@ fn parse_magic_directory_options(args: &[String]) -> Result<MagicDirectoryOption
                 options.enabled = Some(false);
                 index += 1;
             }
+            "--overwrite" => {
+                if options.overwrite == Some(false) {
+                    return Err("Use either --overwrite or --no-overwrite, not both.".into());
+                }
+                options.overwrite = Some(true);
+                index += 1;
+            }
+            "--no-overwrite" => {
+                if options.overwrite == Some(true) {
+                    return Err("Use either --overwrite or --no-overwrite, not both.".into());
+                }
+                options.overwrite = Some(false);
+                index += 1;
+            }
             flag => return Err(format!("Unknown watched-folders flag: {flag}")),
         }
     }
@@ -548,6 +573,7 @@ fn build_create_magic_directory_request(
         formats: options.formats,
         preset_ids: presets.into_iter().map(|preset| preset.id).collect(),
         enabled: options.enabled.unwrap_or(true),
+        overwrite: options.overwrite.unwrap_or(false),
     })
 }
 
@@ -560,6 +586,14 @@ fn build_update_magic_directory_request(
         .into_iter()
         .find(|directory| directory.id == id)
         .ok_or_else(|| "Watched folder not found.".to_string())?;
+
+    build_update_magic_directory_request_from_existing(options, existing)
+}
+
+fn build_update_magic_directory_request_from_existing(
+    options: MagicDirectoryOptions,
+    existing: MagicDirectory,
+) -> Result<SaveMagicDirectoryRequest, String> {
     let preset_ids = if options.preset_names.is_empty() {
         existing.preset_ids
     } else {
@@ -571,7 +605,7 @@ fn build_update_magic_directory_request(
     };
 
     Ok(SaveMagicDirectoryRequest {
-        id: Some(id),
+        id: Some(existing.id),
         name: options.name.unwrap_or(existing.name),
         path: options.path.unwrap_or(existing.path),
         formats: if options.formats.is_empty() {
@@ -581,6 +615,7 @@ fn build_update_magic_directory_request(
         },
         preset_ids,
         enabled: options.enabled.unwrap_or(existing.enabled),
+        overwrite: options.overwrite.unwrap_or(existing.overwrite),
     })
 }
 
@@ -1030,6 +1065,7 @@ fn print_magic_directories(directories: &[MagicDirectory]) {
             "Formats: {}",
             directory.formats.join(", ").to_ascii_uppercase()
         );
+        println!("Overwrite: {}", directory.overwrite);
         println!(
             "Preset IDs: {}",
             directory
@@ -1162,7 +1198,15 @@ fn format_arrow() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::HELP_TEXT;
+    use super::{
+        build_direct_conversion_request, build_update_magic_directory_request_from_existing,
+        convert_images, parse_convert_options, parse_magic_directory_options, MagicDirectory,
+        HELP_TEXT,
+    };
+    use std::{
+        fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     #[test]
     fn help_includes_the_package_version() {
@@ -1174,5 +1218,109 @@ mod tests {
         assert!(HELP_TEXT.contains("bulkpixel watched-folders list"));
         assert!(HELP_TEXT.contains("watched-folders create --name <name>"));
         assert!(!HELP_TEXT.contains("Magic Directories"));
+    }
+
+    #[test]
+    fn watched_folder_overwrite_flags_are_optional_and_explicit() {
+        for (args, expected) in [
+            (vec![], None),
+            (vec!["--overwrite"], Some(true)),
+            (vec!["--no-overwrite"], Some(false)),
+        ] {
+            let args = args.into_iter().map(String::from).collect::<Vec<_>>();
+            let options = parse_magic_directory_options(&args).unwrap();
+            assert_eq!(options.overwrite, expected);
+        }
+    }
+
+    #[test]
+    fn watched_folder_overwrite_flags_reject_conflicts_in_either_order() {
+        for flags in [
+            ["--overwrite", "--no-overwrite"],
+            ["--no-overwrite", "--overwrite"],
+        ] {
+            let args = flags.into_iter().map(String::from).collect::<Vec<_>>();
+            let error = parse_magic_directory_options(&args).unwrap_err();
+            assert_eq!(error, "Use either --overwrite or --no-overwrite, not both.");
+        }
+    }
+
+    #[test]
+    fn watched_folder_updates_preserve_or_explicitly_change_overwrite() {
+        for (existing_overwrite, flags, expected) in [
+            (false, vec![], false),
+            (true, vec![], true),
+            (false, vec!["--overwrite"], true),
+            (true, vec!["--no-overwrite"], false),
+        ] {
+            let existing = MagicDirectory {
+                id: 42,
+                name: "Incoming Images".into(),
+                path: "/tmp/incoming".into(),
+                formats: vec!["png".into()],
+                preset_ids: vec![7],
+                enabled: true,
+                overwrite: existing_overwrite,
+                created_at: String::new(),
+                updated_at: String::new(),
+            };
+            let args = flags.into_iter().map(String::from).collect::<Vec<_>>();
+            let options = parse_magic_directory_options(&args).unwrap();
+            let request =
+                build_update_magic_directory_request_from_existing(options, existing).unwrap();
+            assert_eq!(request.overwrite, expected);
+            assert_eq!(request.id, Some(42));
+            assert_eq!(request.preset_ids, vec![7]);
+        }
+    }
+
+    #[test]
+    fn cli_conversion_requires_overwrite_opt_in_to_replace_an_existing_output() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "bulkpixel-cli-overwrite-{}-{nonce}",
+            std::process::id()
+        ));
+        let output_directory = directory.join("output");
+        fs::create_dir_all(&output_directory).unwrap();
+        let input = directory.join("1.png");
+        let output = output_directory.join("1.png");
+        let source = image::RgbImage::from_pixel(3, 2, image::Rgb([220, 30, 10]));
+        source.save(&input).unwrap();
+        image::RgbImage::from_pixel(1, 1, image::Rgb([10, 30, 220]))
+            .save(&output)
+            .unwrap();
+        let original_output = fs::read(&output).unwrap();
+        let mut args = vec![
+            "--input".into(),
+            input.to_string_lossy().to_string(),
+            "--output-dir".into(),
+            output_directory.to_string_lossy().to_string(),
+            "--format".into(),
+            "png".into(),
+        ];
+
+        let options = parse_convert_options(&args).unwrap();
+        let response = convert_images(build_direct_conversion_request(&options).unwrap()).unwrap();
+        assert_eq!(response.summary.success_count, 0);
+        assert_eq!(response.summary.failure_count, 1);
+        assert!(response.results[0]
+            .message
+            .contains("Output file already exists"));
+        assert_eq!(fs::read(&output).unwrap(), original_output);
+        assert!(!output_directory.join("1_1.png").exists());
+
+        args.push("--overwrite".into());
+        let options = parse_convert_options(&args).unwrap();
+        let response = convert_images(build_direct_conversion_request(&options).unwrap()).unwrap();
+        assert_eq!(response.summary.success_count, 1);
+        assert_eq!(response.summary.failure_count, 0);
+        assert_eq!(response.results[0].output_name.as_deref(), Some("1.png"));
+        assert_eq!(image::open(&output).unwrap().to_rgb8(), source);
+        assert_eq!(fs::read_dir(&output_directory).unwrap().count(), 1);
+        fs::remove_dir_all(directory).unwrap();
     }
 }

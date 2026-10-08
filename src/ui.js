@@ -210,6 +210,8 @@ function renderMagicDirectoryForm(state, elements) {
 
     elements.magicEnabledButton.checked = form.enabled;
     elements.magicEnabledButton.disabled = isSaving;
+    elements.magicOverwriteButton.checked = form.overwrite;
+    elements.magicOverwriteButton.disabled = isSaving;
     elements.magicSaveButton.disabled = isSaving || !state.presets.length;
     elements.magicSaveButton.textContent = isSaving
         ? 'Saving Watched Folder...'
@@ -723,12 +725,15 @@ function buildMagicDirectoryCard(directory, presets) {
 
     const body = document.createElement('div');
     body.className = 'preset-card-body';
+    const header = document.createElement('div');
+    header.className = 'magic-directory-header';
     const title = document.createElement('h4');
     title.className = 'oj-heading-4';
     title.textContent = directory.name;
-    const status = document.createElement('p');
+    const status = document.createElement('span');
     status.className = `oj-badge${directory.enabled ? ' oj-badge-success' : ''}`;
     status.textContent = directory.enabled ? 'Watching' : 'Disabled';
+    header.append(title, status);
     const formats = document.createElement('p');
     formats.className = 'oj-small oj-muted';
     formats.textContent = `Formats: ${directory.formats.map(format => format.toUpperCase()).join(', ')}`;
@@ -740,11 +745,14 @@ function buildMagicDirectoryCard(directory, presets) {
     presetSummary.textContent = selectedPresetNames.length
         ? `Presets: ${selectedPresetNames.join(', ')}`
         : 'No presets selected';
+    const existingOutputs = document.createElement('p');
+    existingOutputs.className = 'oj-small oj-muted';
+    existingOutputs.textContent = `Existing outputs: ${directory.overwrite ? 'Overwrite' : 'Keep both'}`;
     const path = document.createElement('p');
     path.className = 'oj-path preset-card-path';
     path.title = directory.path;
     path.textContent = directory.path;
-    body.append(title, status, formats, presetSummary, path);
+    body.append(formats, presetSummary, existingOutputs, path);
 
     const actions = document.createElement('div');
     actions.className = 'oj-inline preset-card-actions';
@@ -752,7 +760,7 @@ function buildMagicDirectoryCard(directory, presets) {
         buildMagicActionButton('edit', directory.id, 'Edit'),
         buildMagicActionButton('delete', directory.id, 'Delete'),
     );
-    card.append(body, actions);
+    card.append(header, body, actions);
     return card;
 }
 

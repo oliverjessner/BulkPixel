@@ -96,6 +96,8 @@ const CREATE_MAGIC_DIRECTORIES_TABLE_SQL: &str = "
             CHECK (length(trim(path)) > 0),
         enabled INTEGER NOT NULL DEFAULT 1
             CHECK (enabled IN (0, 1)),
+        overwrite INTEGER NOT NULL DEFAULT 0
+            CHECK (overwrite IN (0, 1)),
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -499,6 +501,15 @@ fn migrate_magic_directories_schema(connection: &Connection) -> Result<(), Prese
         )?;
         connection.execute(
             "UPDATE magic_directories SET name = 'Watched Folder ' || id",
+            [],
+        )?;
+    }
+
+    if !columns.iter().any(|column| column == "overwrite") {
+        connection.execute(
+            "ALTER TABLE magic_directories
+             ADD COLUMN overwrite INTEGER NOT NULL DEFAULT 0
+             CHECK (overwrite IN (0, 1))",
             [],
         )?;
     }
@@ -950,6 +961,64 @@ mod tests {
             )
             .expect("migrated name");
         assert_eq!(name, "Watched Folder 1");
+    }
+
+    #[test]
+    fn migrates_existing_watched_folders_with_overwrite_disabled() {
+        let mut connection = Connection::open_in_memory().expect("database");
+        connection
+            .execute_batch(
+                "CREATE TABLE magic_directories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL DEFAULT 'Watched Folder'
+                        CHECK (length(trim(name)) > 0),
+                    path TEXT NOT NULL UNIQUE CHECK (length(trim(path)) > 0),
+                    enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+                INSERT INTO magic_directories (name, path, enabled)
+                VALUES ('Legacy Folder', '/tmp/legacy-watched-folder', 1);",
+            )
+            .expect("legacy watched folder schema");
+
+        initialize_schema(&mut connection).expect("migration");
+        let legacy: (String, String, bool, bool) = connection
+            .query_row(
+                "SELECT name, path, enabled, overwrite FROM magic_directories WHERE id = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("migrated folder");
+        assert_eq!(
+            legacy,
+            (
+                "Legacy Folder".into(),
+                "/tmp/legacy-watched-folder".into(),
+                true,
+                false
+            )
+        );
+        assert!(connection
+            .execute(
+                "UPDATE magic_directories SET overwrite = 2 WHERE id = 1",
+                []
+            )
+            .is_err());
+        connection
+            .execute(
+                "UPDATE magic_directories SET overwrite = 1 WHERE id = 1",
+                [],
+            )
+            .expect("enable overwrite");
+        initialize_schema(&mut connection).expect("idempotent migration");
+        assert!(connection
+            .query_row(
+                "SELECT overwrite FROM magic_directories WHERE id = 1",
+                [],
+                |row| row.get::<_, bool>(0)
+            )
+            .expect("preserved overwrite setting"));
     }
 
     #[test]

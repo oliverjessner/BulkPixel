@@ -740,7 +740,22 @@
                             <p class="oj-helper">Select one or more presets to run for every matching file.</p>
                         </div>
 
-                        <div class="field-group magic-enabled-setting">
+                        <div class="field-group magic-rule-setting">
+                            <label id="magic-overwrite-label" class="oj-label" for="magic-overwrite-button">
+                                Overwrite existing output files
+                            </label>
+                            <label class="oj-switch">
+                                <input
+                                    id="magic-overwrite-button"
+                                    type="checkbox"
+                                    role="switch"
+                                    aria-labelledby="magic-overwrite-label"
+                                />
+                                <span class="oj-switch-track" aria-hidden="true"></span>
+                            </label>
+                        </div>
+
+                        <div class="field-group magic-rule-setting">
                             <div class="magic-enabled-copy">
                                 <label id="magic-enabled-label" class="oj-label" for="magic-enabled-button">
                                     Enable this rule

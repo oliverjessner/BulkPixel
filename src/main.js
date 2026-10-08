@@ -186,6 +186,7 @@ function cacheElements() {
     elements.magicFormatOptions = [...document.querySelectorAll('.magic-format-option')];
     elements.magicPresetOptions = document.querySelector('#magic-preset-options');
     elements.magicEnabledButton = document.querySelector('#magic-enabled-button');
+    elements.magicOverwriteButton = document.querySelector('#magic-overwrite-button');
     elements.magicSaveButton = document.querySelector('#magic-save-button');
     elements.magicCount = document.querySelector('#magic-count');
     elements.magicActivity = document.querySelector('#magic-activity');
@@ -739,6 +740,14 @@ function bindPresetEvents() {
             return;
         }
         state.magicDirectoryForm.enabled = elements.magicEnabledButton.checked;
+        render();
+    });
+
+    elements.magicOverwriteButton.addEventListener('change', () => {
+        if (state.isMagicDirectorySaving) {
+            return;
+        }
+        state.magicDirectoryForm.overwrite = elements.magicOverwriteButton.checked;
         render();
     });
 
@@ -1367,6 +1376,7 @@ function buildEmptyMagicDirectoryForm(overrides = {}) {
         formats: [],
         presetIds: [],
         enabled: true,
+        overwrite: false,
         ...overrides,
     };
 }
@@ -1379,6 +1389,7 @@ function buildMagicDirectoryFormFromDirectory(directory) {
         formats: [...directory.formats],
         presetIds: [...directory.presetIds],
         enabled: Boolean(directory.enabled),
+        overwrite: Boolean(directory.overwrite),
     });
 }
 
@@ -1391,6 +1402,7 @@ function buildMagicDirectoryRequest() {
         formats: [...form.formats],
         presetIds: [...form.presetIds],
         enabled: form.enabled,
+        overwrite: form.overwrite,
     };
 }
 

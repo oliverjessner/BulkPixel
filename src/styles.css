@@ -727,6 +727,24 @@ body {
     min-height: 180px;
 }
 
+.magic-directory-header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--oj-space-2);
+    min-width: 0;
+}
+
+.magic-directory-header h4 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.magic-directory-header .oj-badge {
+    flex-shrink: 0;
+}
+
 .magic-presets-field {
     min-height: 0;
 }
@@ -752,7 +770,7 @@ body {
     gap: var(--oj-space-1);
 }
 
-.magic-enabled-setting {
+.magic-rule-setting {
     display: flex;
     flex-direction: row;
     align-items: flex-start;
@@ -768,7 +786,7 @@ body {
     margin-top: var(--oj-space-1);
 }
 
-.magic-enabled-setting .oj-switch {
+.magic-rule-setting .oj-switch {
     flex: 0 0 auto;
 }
 

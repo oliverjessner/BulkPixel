@@ -123,7 +123,7 @@ fn list_magic_directories_with_connection(
     connection: &Connection,
 ) -> Result<Vec<MagicDirectory>, PresetError> {
     let mut statement = connection.prepare(
-        "SELECT id, name, path, enabled, created_at, updated_at
+        "SELECT id, name, path, enabled, overwrite, created_at, updated_at
          FROM magic_directories
          ORDER BY lower(name) ASC, id ASC",
     )?;
@@ -134,25 +134,29 @@ fn list_magic_directories_with_connection(
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
                 row.get::<_, bool>(3)?,
-                row.get::<_, String>(4)?,
+                row.get::<_, bool>(4)?,
                 row.get::<_, String>(5)?,
+                row.get::<_, String>(6)?,
             ))
         })?
         .collect::<Result<Vec<_>, _>>()?;
 
     rows.into_iter()
-        .map(|(id, name, path, enabled, created_at, updated_at)| {
-            Ok(MagicDirectory {
-                id,
-                name,
-                path,
-                formats: load_formats(connection, id)?,
-                preset_ids: load_preset_ids(connection, id)?,
-                enabled,
-                created_at,
-                updated_at,
-            })
-        })
+        .map(
+            |(id, name, path, enabled, overwrite, created_at, updated_at)| {
+                Ok(MagicDirectory {
+                    id,
+                    name,
+                    path,
+                    formats: load_formats(connection, id)?,
+                    preset_ids: load_preset_ids(connection, id)?,
+                    enabled,
+                    overwrite,
+                    created_at,
+                    updated_at,
+                })
+            },
+        )
         .collect()
 }
 
@@ -182,9 +186,16 @@ fn save_magic_directory_with_connection(
         Some(id) => {
             let changed = transaction.execute(
                 "UPDATE magic_directories
-                 SET name = ?1, path = ?2, enabled = ?3, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?4",
-                params![request.name, request.path, request.enabled, id],
+                 SET name = ?1, path = ?2, enabled = ?3, overwrite = ?4,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?5",
+                params![
+                    request.name,
+                    request.path,
+                    request.enabled,
+                    request.overwrite,
+                    id
+                ],
             )?;
             if changed == 0 {
                 return Err(PresetError::Validation("Watched folder not found.".into()));
@@ -193,8 +204,14 @@ fn save_magic_directory_with_connection(
         }
         None => {
             transaction.execute(
-                "INSERT INTO magic_directories (name, path, enabled) VALUES (?1, ?2, ?3)",
-                params![request.name, request.path, request.enabled],
+                "INSERT INTO magic_directories (name, path, enabled, overwrite)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    request.name,
+                    request.path,
+                    request.enabled,
+                    request.overwrite
+                ],
             )?;
             transaction.last_insert_rowid()
         }
@@ -251,7 +268,7 @@ fn delete_magic_directory_with_connection(
 fn get_magic_directory(connection: &Connection, id: i64) -> Result<MagicDirectory, PresetError> {
     let row = connection
         .query_row(
-            "SELECT id, name, path, enabled, created_at, updated_at
+            "SELECT id, name, path, enabled, overwrite, created_at, updated_at
              FROM magic_directories WHERE id = ?1",
             params![id],
             |row| {
@@ -260,8 +277,9 @@ fn get_magic_directory(connection: &Connection, id: i64) -> Result<MagicDirector
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
                     row.get::<_, bool>(3)?,
-                    row.get::<_, String>(4)?,
+                    row.get::<_, bool>(4)?,
                     row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
                 ))
             },
         )
@@ -275,8 +293,9 @@ fn get_magic_directory(connection: &Connection, id: i64) -> Result<MagicDirector
         formats: load_formats(connection, id)?,
         preset_ids: load_preset_ids(connection, id)?,
         enabled: row.3,
-        created_at: row.4,
-        updated_at: row.5,
+        overwrite: row.4,
+        created_at: row.5,
+        updated_at: row.6,
     })
 }
 
@@ -623,7 +642,7 @@ fn process_magic_job(
     let mut failure_count = 0_usize;
     let mut output_paths = Vec::new();
     for preset in presets {
-        match run_preset(app, &job.path, &preset, ignored_paths) {
+        match run_preset(app, &job.path, &preset, directory.overwrite, ignored_paths) {
             Ok(result) => {
                 success_count += result.success_count;
                 failure_count += result.failure_count;
@@ -661,38 +680,11 @@ fn run_preset(
     app: &AppHandle,
     path: &Path,
     preset: &ConversionPreset,
+    overwrite: bool,
     ignored_paths: &IgnoredPaths,
 ) -> Result<PresetRunResult, String> {
-    let format = ExportFormat::from_value(&preset.format)
-        .ok_or_else(|| format!("Unsupported preset format: {}", preset.format))?;
-    let resize = match preset.resize_mode.as_str() {
-        "width" => ResizeOptions {
-            width: preset.width,
-            height: None,
-        },
-        "height" => ResizeOptions {
-            width: None,
-            height: preset.height,
-        },
-        "none" => ResizeOptions {
-            width: None,
-            height: None,
-        },
-        mode => return Err(format!("Unsupported preset resize mode: {mode}")),
-    };
-    let request = ConversionRequest {
-        images: vec![ConversionImageInput {
-            path: path.to_string_lossy().to_string(),
-        }],
-        format: format.clone(),
-        resize,
-        quality: preset.quality,
-        filename_component: preset.filename_component.clone(),
-        filename_mode: preset.filename_mode.clone(),
-        output_dir: preset.output_directory.clone(),
-        collision_mode: CollisionMode::Rename,
-    };
-
+    let request = preset_conversion_request(path, preset, overwrite)?;
+    let format = request.format.clone();
     let started_at = Instant::now();
     let response = convert_images(request).map_err(|error| error.to_string())?;
     let output_paths = response
@@ -721,6 +713,46 @@ fn run_preset(
         success_count: response.summary.success_count,
         failure_count: response.summary.failure_count,
         output_paths,
+    })
+}
+
+fn preset_conversion_request(
+    path: &Path,
+    preset: &ConversionPreset,
+    overwrite: bool,
+) -> Result<ConversionRequest, String> {
+    let format = ExportFormat::from_value(&preset.format)
+        .ok_or_else(|| format!("Unsupported preset format: {}", preset.format))?;
+    let resize = match preset.resize_mode.as_str() {
+        "width" => ResizeOptions {
+            width: preset.width,
+            height: None,
+        },
+        "height" => ResizeOptions {
+            width: None,
+            height: preset.height,
+        },
+        "none" => ResizeOptions {
+            width: None,
+            height: None,
+        },
+        mode => return Err(format!("Unsupported preset resize mode: {mode}")),
+    };
+    Ok(ConversionRequest {
+        images: vec![ConversionImageInput {
+            path: path.to_string_lossy().to_string(),
+        }],
+        format,
+        resize,
+        quality: preset.quality,
+        filename_component: preset.filename_component.clone(),
+        filename_mode: preset.filename_mode.clone(),
+        output_dir: preset.output_directory.clone(),
+        collision_mode: if overwrite {
+            CollisionMode::Overwrite
+        } else {
+            CollisionMode::Rename
+        },
     })
 }
 
@@ -800,14 +832,14 @@ fn path_string(path: &Path) -> Option<String> {
 mod tests {
     use super::{
         list_magic_directories_with_connection, load_formats, matching_magic_directory,
-        save_magic_directory_with_connection, watched_extension, CascadeContext, CascadeStop,
-        SaveMagicDirectoryRequest, MAX_CASCADE_DEPTH,
+        preset_conversion_request, save_magic_directory_with_connection, watched_extension,
+        CascadeContext, CascadeStop, SaveMagicDirectoryRequest, MAX_CASCADE_DEPTH,
     };
     use crate::{
         image_pipeline::convert_images,
         models::{
-            CollisionMode, ConversionImageInput, ConversionRequest, ExportFormat, MagicDirectory,
-            ResizeOptions,
+            CollisionMode, ConversionImageInput, ConversionPreset, ConversionRequest, ExportFormat,
+            MagicDirectory, ResizeOptions,
         },
         presets::initialize_schema,
     };
@@ -846,6 +878,7 @@ mod tests {
                 ],
                 preset_ids: vec![preset_id, preset_id],
                 enabled: true,
+                overwrite: false,
             },
         )
         .expect("saved magic directory");
@@ -857,6 +890,7 @@ mod tests {
         );
         assert_eq!(saved.preset_ids, vec![preset_id]);
         assert!(saved.enabled);
+        assert!(!saved.overwrite);
         assert_eq!(
             list_magic_directories_with_connection(&connection)
                 .expect("listed magic directories")
@@ -864,6 +898,63 @@ mod tests {
             1
         );
 
+        fs::remove_dir_all(directory).expect("remove temporary directory");
+    }
+
+    #[test]
+    fn defaults_missing_overwrite_setting_to_false() {
+        let request: SaveMagicDirectoryRequest = serde_json::from_value(serde_json::json!({
+            "id": null,
+            "name": "Legacy Folder",
+            "path": "/tmp/incoming",
+            "formats": ["png"],
+            "presetIds": [1],
+            "enabled": true
+        }))
+        .expect("legacy watched folder request");
+        assert!(!request.overwrite);
+    }
+
+    #[test]
+    fn persists_overwrite_on_create_and_update() {
+        let mut connection = Connection::open_in_memory().expect("in-memory database");
+        initialize_schema(&mut connection).expect("schema");
+        let preset_id = insert_preset(&connection, "Overwrite Preset", "_webp");
+        let directory = temporary_directory("persists-overwrite");
+        let mut request = SaveMagicDirectoryRequest {
+            id: None,
+            name: "Replace Output".into(),
+            path: directory.to_string_lossy().to_string(),
+            formats: vec!["png".into()],
+            preset_ids: vec![preset_id],
+            enabled: true,
+            overwrite: true,
+        };
+
+        let saved = save_magic_directory_with_connection(&mut connection, request.clone())
+            .expect("create overwrite rule");
+        assert!(saved.overwrite);
+        assert!(
+            list_magic_directories_with_connection(&connection).expect("list overwrite rule")[0]
+                .overwrite
+        );
+
+        request.id = Some(saved.id);
+        request.overwrite = false;
+        let updated = save_magic_directory_with_connection(&mut connection, request.clone())
+            .expect("disable overwrite");
+        assert!(!updated.overwrite);
+        assert!(
+            !list_magic_directories_with_connection(&connection).expect("list rename rule")[0]
+                .overwrite
+        );
+
+        request.overwrite = true;
+        assert!(
+            save_magic_directory_with_connection(&mut connection, request)
+                .expect("enable overwrite again")
+                .overwrite
+        );
         fs::remove_dir_all(directory).expect("remove temporary directory");
     }
 
@@ -883,6 +974,7 @@ mod tests {
                 formats: vec!["png".into()],
                 preset_ids: vec![preset_id],
                 enabled: true,
+                overwrite: false,
             },
         )
         .expect_err("missing watched folder name");
@@ -956,6 +1048,69 @@ mod tests {
     }
 
     #[test]
+    fn watcher_renames_by_default_and_can_repeatedly_overwrite_existing_outputs() {
+        let directory = temporary_directory("overwrite-conversion");
+        let output_directory = directory.join("output");
+        fs::create_dir_all(&output_directory).expect("create output directory");
+        let input_path = directory.join("1.png");
+        let output_path = output_directory.join("1.png");
+        image::RgbImage::from_pixel(2, 3, image::Rgb([32, 64, 96]))
+            .save(&input_path)
+            .expect("write PNG input");
+        let original_output = b"existing output must be preserved by default";
+        fs::write(&output_path, original_output).expect("write existing output");
+        let preset = ConversionPreset {
+            id: 1,
+            name: "PNG Output".into(),
+            format: "png".into(),
+            resize_mode: "none".into(),
+            width: None,
+            height: None,
+            quality: 90,
+            filename_component: String::new(),
+            filename_mode: "postfix".into(),
+            output_directory: output_directory.to_string_lossy().into_owned(),
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+
+        let renamed = convert_images(
+            preset_conversion_request(&input_path, &preset, false).expect("rename request"),
+        )
+        .expect("convert with rename mode");
+        assert_eq!(renamed.summary.success_count, 1);
+        assert!(output_directory.join("1_1.png").is_file());
+        assert_eq!(
+            fs::read(&output_path).expect("read existing output"),
+            original_output
+        );
+        fs::remove_file(output_directory.join("1_1.png")).expect("remove renamed output");
+
+        for (width, height, color) in [(4, 5, [255, 0, 0]), (6, 7, [0, 255, 0])] {
+            image::RgbImage::from_pixel(width, height, image::Rgb(color))
+                .save(&input_path)
+                .expect("replace watched input");
+            let overwritten = convert_images(
+                preset_conversion_request(&input_path, &preset, true).expect("overwrite request"),
+            )
+            .expect("convert with overwrite mode");
+            assert_eq!(overwritten.summary.success_count, 1);
+            assert_eq!(overwritten.summary.failure_count, 0);
+            assert_eq!(
+                overwritten.results[0].output_path.as_deref(),
+                output_path.to_str()
+            );
+            let output = image::open(&output_path)
+                .expect("read overwritten output")
+                .to_rgb8();
+            assert_eq!(output.dimensions(), (width, height));
+            assert_eq!(*output.get_pixel(0, 0), image::Rgb(color));
+            assert!(!output_directory.join("1_1.png").exists());
+        }
+        fs::remove_dir_all(directory).expect("remove temporary directory");
+    }
+
+    #[test]
     fn migrates_watched_formats_schema_to_accept_new_inputs() {
         let mut connection = Connection::open_in_memory().expect("in-memory database");
         initialize_schema(&mut connection).expect("initial schema");
@@ -1018,6 +1173,7 @@ mod tests {
                 formats: vec!["svg".into()],
                 preset_ids: vec![first_id, second_id],
                 enabled: true,
+                overwrite: false,
             },
         )
         .expect_err("collision validation");
@@ -1134,6 +1290,7 @@ mod tests {
             formats: vec![format.into()],
             preset_ids: vec![id],
             enabled: true,
+            overwrite: false,
             created_at: String::new(),
             updated_at: String::new(),
         }

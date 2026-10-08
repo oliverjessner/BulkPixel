@@ -227,6 +227,8 @@ Watched Folder rules use the same SQLite database as the desktop app. Every rule
 
 Supported watched formats are `jpeg` (or its `jpg` alias), `png`, `webp`, `avif`, `svg`, `heic` (or its `heif` alias), `tiff` (or its `tif` alias), `gif`, `jxl`, and `jp2`. Both `.jpg` and `.jpeg` files match JPEG; both `.heic` and `.heif` files match HEIC; both `.tif` and `.tiff` files match TIFF. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
 
+Overwrite is disabled by default for each Watched Folder. When an output filename already exists, the watcher keeps it and adds a suffix to the new file, such as `1_1.png`. Enable **Overwrite existing output files** in the desktop rule or pass `--overwrite` when creating or updating a CLI rule to replace the existing output instead. The setting applies to every preset assigned to that rule. `watched-folders list` shows each rule's `Overwrite` value.
+
 Watched Folder rules can be chained: when one rule writes a supported output directly into another enabled Watched Folder, the matching downstream rule runs automatically. BulkPixel deduplicates the native file event, stops a chain before it repeats a rule, and limits each chain to eight rules.
 
 Create a rule:
@@ -237,6 +239,17 @@ bulkpixel watched-folders create \
   --path ./incoming-images \
   --formats jpg png webp \
   --presets "Website WEBP" "Archive AVIF"
+```
+
+To create a rule that replaces existing output files, add `--overwrite`:
+
+```sh
+bulkpixel watched-folders create \
+  --name "Replace Website Images" \
+  --path ./incoming-images \
+  --formats png \
+  --presets "Website WEBP" \
+  --overwrite
 ```
 
 List rules and their IDs:
@@ -254,6 +267,15 @@ bulkpixel watched-folders update \
   --formats svg png \
   --disabled
 ```
+
+Enable or disable overwriting on an existing rule:
+
+```sh
+bulkpixel watched-folders update --id 1 --overwrite
+bulkpixel watched-folders update --id 1 --no-overwrite
+```
+
+Omitting both overwrite flags preserves the saved setting. Passing both flags is an error.
 
 Use `--enabled` to reactivate a saved rule. Delete a rule with:
 

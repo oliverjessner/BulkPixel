@@ -291,6 +291,8 @@ pub struct MagicDirectory {
     pub formats: Vec<String>,
     pub preset_ids: Vec<i64>,
     pub enabled: bool,
+    #[serde(default)]
+    pub overwrite: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -304,6 +306,8 @@ pub struct SaveMagicDirectoryRequest {
     pub formats: Vec<String>,
     pub preset_ids: Vec<i64>,
     pub enabled: bool,
+    #[serde(default)]
+    pub overwrite: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
