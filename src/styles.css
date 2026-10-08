@@ -727,22 +727,40 @@ body {
     min-height: 180px;
 }
 
-.magic-directory-header {
-    grid-column: 1 / -1;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--oj-space-2);
-    min-width: 0;
+.magic-directory-card {
+    container: magic-directory / inline-size;
 }
 
-.magic-directory-header h4 {
+.magic-directory-header {
+    --oj-gap: var(--oj-space-2);
+    align-items: flex-start;
+}
+
+.magic-directory-title {
+    flex: 1 1 16rem;
     min-width: 0;
     overflow-wrap: anywhere;
 }
 
-.magic-directory-header .oj-badge {
-    flex-shrink: 0;
+.magic-directory-status {
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+}
+
+.magic-directory-preset-list {
+    --oj-gap: var(--oj-space-1);
+    min-width: 0;
+}
+
+.magic-directory-actions {
+    --oj-gap: var(--oj-space-2);
+    justify-content: flex-end;
+}
+
+@container magic-directory (max-width: 24rem) {
+    .magic-directory-metadata {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .magic-presets-field {

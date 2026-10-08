@@ -721,55 +721,74 @@ function buildMagicPresetOption(preset, selected, disabled) {
 
 function buildMagicDirectoryCard(directory, presets) {
     const card = document.createElement('article');
-    card.className = 'oj-panel oj-panel-compact preset-card magic-directory-card';
+    card.className = 'oj-panel oj-stack magic-directory-card';
 
-    const body = document.createElement('div');
-    body.className = 'preset-card-body';
-    const header = document.createElement('div');
-    header.className = 'magic-directory-header';
+    const header = document.createElement('header');
+    header.className = 'oj-toolbar magic-directory-header';
     const title = document.createElement('h4');
-    title.className = 'oj-heading-4';
+    title.id = `magic-directory-title-${directory.id}`;
+    title.className = 'oj-heading-4 magic-directory-title';
     title.textContent = directory.name;
+    card.setAttribute('aria-labelledby', title.id);
     const status = document.createElement('span');
-    status.className = `oj-badge${directory.enabled ? ' oj-badge-success' : ''}`;
+    status.className = `oj-badge magic-directory-status${directory.enabled ? ' oj-badge-success' : ''}`;
     status.textContent = directory.enabled ? 'Watching' : 'Disabled';
     header.append(title, status);
-    const formats = document.createElement('p');
-    formats.className = 'oj-small oj-muted';
-    formats.textContent = `Formats: ${directory.formats.map(format => format.toUpperCase()).join(', ')}`;
+
+    const path = document.createElement('span');
+    path.className = 'oj-path';
+    path.title = directory.path;
+    path.textContent = directory.path;
+
+    const metadata = document.createElement('dl');
+    metadata.className = 'oj-definition-list magic-directory-metadata';
+    const formatsLabel = document.createElement('dt');
+    formatsLabel.textContent = 'Formats';
+    const formats = document.createElement('dd');
+    formats.textContent = directory.formats.map(format => format.toUpperCase()).join(', ');
+
+    const overwriteLabel = document.createElement('dt');
+    overwriteLabel.textContent = 'Overwrite';
+    const overwrite = document.createElement('dd');
+    overwrite.textContent = Boolean(directory.overwrite) ? 'Enabled' : 'Disabled';
+
+    const presetsLabel = document.createElement('dt');
+    presetsLabel.textContent = 'Presets';
+    const presetsValue = document.createElement('dd');
     const selectedPresetNames = directory.presetIds
         .map(id => presets.find(preset => preset.id === id)?.name)
         .filter(Boolean);
-    const presetSummary = document.createElement('p');
-    presetSummary.className = 'oj-small oj-muted';
-    presetSummary.textContent = selectedPresetNames.length
-        ? `Presets: ${selectedPresetNames.join(', ')}`
-        : 'No presets selected';
-    const overwriteSetting = document.createElement('p');
-    overwriteSetting.className = 'oj-small oj-muted';
-    overwriteSetting.textContent = `Overwrite: ${Boolean(directory.overwrite)}`;
-    const path = document.createElement('p');
-    path.className = 'oj-path preset-card-path';
-    path.title = directory.path;
-    path.textContent = directory.path;
-    body.append(formats, presetSummary, overwriteSetting, path);
+    if (selectedPresetNames.length) {
+        const presetList = document.createElement('ul');
+        presetList.className = 'oj-list oj-stack magic-directory-preset-list';
+        for (const name of selectedPresetNames) {
+            const preset = document.createElement('li');
+            preset.textContent = name;
+            presetList.append(preset);
+        }
+        presetsValue.append(presetList);
+    } else {
+        presetsValue.textContent = 'No presets selected';
+    }
+    metadata.append(formatsLabel, formats, overwriteLabel, overwrite, presetsLabel, presetsValue);
 
-    const actions = document.createElement('div');
-    actions.className = 'oj-inline preset-card-actions';
+    const actions = document.createElement('footer');
+    actions.className = 'oj-cluster magic-directory-actions';
     actions.append(
-        buildMagicActionButton('edit', directory.id, 'Edit'),
-        buildMagicActionButton('delete', directory.id, 'Delete'),
+        buildMagicActionButton('edit', directory.id, 'Edit', directory.name),
+        buildMagicActionButton('delete', directory.id, 'Delete', directory.name),
     );
-    card.append(header, body, actions);
+    card.append(header, path, metadata, actions);
     return card;
 }
 
-function buildMagicActionButton(action, id, label) {
+function buildMagicActionButton(action, id, label, directoryName) {
     const button = document.createElement('button');
-    button.className = `oj-button oj-button-${action === 'delete' ? 'danger' : 'secondary'} oj-button-compact magic-action-button`;
+    button.className = `oj-button oj-button-${action === 'delete' ? 'danger' : 'secondary'} magic-action-button`;
     button.type = 'button';
     button.dataset.action = action;
     button.dataset.magicDirectoryId = String(id);
+    button.setAttribute('aria-label', `${label} ${directoryName}`);
     button.textContent = label;
     return button;
 }
