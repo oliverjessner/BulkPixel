@@ -9,7 +9,7 @@ import {
     sanitizeNumberInput,
 } from './formatters.js';
 import { renderApp } from './ui.js';
-import { closeDialog, confirmDialog, initDialogs, openDialog } from './vendor/oj-designsystem/index.js';
+import { closeDialog, confirmDialog, initDialogs, initDropdowns, openDialog } from './vendor/oj-designsystem/index.js';
 
 const { invoke } = window.__TAURI__.core;
 const dialogApi = window.__TAURI__.dialog;
@@ -82,6 +82,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('pagehide', cleanupDialogs, { once: true });
     bindEvents();
     render();
+    const cleanupPresetDropdown = initDropdowns(elements.presetDropdown);
+    window.addEventListener('pagehide', cleanupPresetDropdown, { once: true });
     await hydrateAppVersion();
     await bindOpenedFiles();
     await hydrateDefaultOutputDirectory();
@@ -126,7 +128,10 @@ function cacheElements() {
     elements.dropzoneTitle = document.querySelector('#dropzone-title');
     elements.imagesView = document.querySelector('#images-view');
     elements.loadedDropOverlay = document.querySelector('#loaded-drop-overlay');
-    elements.presetSelect = document.querySelector('#preset-select');
+    elements.presetDropdown = document.querySelector('#preset-dropdown');
+    elements.presetSelectTrigger = document.querySelector('#preset-select');
+    elements.presetSelectLabel = document.querySelector('#preset-select-label');
+    elements.presetSelectMenu = document.querySelector('#preset-select-menu');
     elements.formatOptions = [...document.querySelectorAll('#format-toggle .format-option')];
     elements.resizeModeOptions = [...document.querySelectorAll('#resize-mode-toggle .toggle-button')];
     elements.widthInput = document.querySelector('#width-input');
@@ -247,8 +252,8 @@ function bindEvents() {
         });
     });
 
-    elements.presetSelect.addEventListener('change', event => {
-        applyPresetSelection(event.target.value);
+    elements.presetDropdown.addEventListener('oj:select', event => {
+        queueMicrotask(() => applyPresetSelection(event.detail.value));
     });
 
     elements.resizeModeOptions.forEach(button => {

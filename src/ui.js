@@ -13,6 +13,7 @@ import { initDropdowns } from './vendor/oj-designsystem/index.js';
 
 const presetDropdownCleanups = new WeakMap();
 const presetListSnapshots = new WeakMap();
+const presetPickerSnapshots = new WeakMap();
 
 export function renderApp(state, elements) {
     renderBrand(elements);
@@ -237,15 +238,25 @@ function renderMagicDirectoryList(state, elements) {
 
 function renderPresetPicker(state, elements) {
     const selectedValue = buildPresetSelectValue(state);
-    const options = [
-        buildOption('custom', 'Custom'),
-        buildOption('default', 'Default'),
-        ...state.presets.map(preset => buildOption(String(preset.id), preset.name)),
-    ];
+    const isDisabled = state.isProcessing || state.presetsLoading;
+    if (presetPickerSnapshots.get(elements.presetSelectMenu) !== state.presets) {
+        elements.presetSelectMenu.replaceChildren(
+            buildPresetPickerItem('custom', 'Custom'),
+            buildPresetPickerItem('default', 'Default'),
+            ...state.presets.map(preset => buildPresetPickerItem(String(preset.id), preset.name)),
+        );
+        presetPickerSnapshots.set(elements.presetSelectMenu, state.presets);
+    }
 
-    elements.presetSelect.replaceChildren(...options);
-    elements.presetSelect.value = selectedValue;
-    elements.presetSelect.disabled = state.isProcessing || state.presetsLoading;
+    for (const item of elements.presetSelectMenu.children) {
+        const isSelected = item.dataset.ojValue === selectedValue;
+        item.setAttribute('aria-checked', String(isSelected));
+        item.disabled = isDisabled;
+        if (isSelected) {
+            elements.presetSelectLabel.textContent = item.textContent;
+        }
+    }
+    elements.presetSelectTrigger.disabled = isDisabled;
 }
 
 function renderPresetForm(state, elements) {
@@ -566,11 +577,16 @@ function renderPreview(state, elements) {
     );
 }
 
-function buildOption(value, label) {
-    const option = document.createElement('option');
-    option.value = value;
-    option.textContent = label;
-    return option;
+function buildPresetPickerItem(value, label) {
+    const item = document.createElement('button');
+    item.className = 'oj-menu-item';
+    item.type = 'button';
+    item.dataset.ojValue = value;
+    item.setAttribute('role', 'menuitemradio');
+    item.setAttribute('aria-checked', 'false');
+    item.tabIndex = -1;
+    item.textContent = label;
+    return item;
 }
 
 function buildPresetSelectValue(state) {
@@ -612,12 +628,7 @@ function buildPresetCard(preset) {
     const details = document.createElement('div');
     details.className = 'preset-card-details';
 
-    const separator = document.createElement('span');
-    separator.className = 'preset-card-detail-separator';
-    separator.setAttribute('aria-hidden', 'true');
-    separator.textContent = '·';
-
-    details.append(filename, separator, output);
+    details.append(filename, output);
     body.append(name, summary, details);
 
     const actions = document.createElement('div');

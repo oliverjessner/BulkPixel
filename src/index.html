@@ -107,12 +107,32 @@
                         </div>
                     </div>
 
-                    <label class="preset-picker settings-preset" for="preset-select">
-                        <span class="oj-label">Preset</span>
-                        <select id="preset-select" class="oj-select preset-select" aria-label="Conversion preset">
-                            <option value="custom">Custom</option>
-                        </select>
-                    </label>
+                    <div class="preset-picker settings-preset">
+                        <span id="preset-picker-label" class="oj-label">Preset</span>
+                        <div id="preset-dropdown" class="oj-dropdown preset-dropdown" data-oj-dropdown>
+                            <button
+                                id="preset-select"
+                                class="oj-button oj-button-secondary preset-select"
+                                type="button"
+                                data-oj-dropdown-trigger
+                                aria-labelledby="preset-picker-label preset-select-label"
+                                aria-haspopup="menu"
+                                aria-expanded="false"
+                                aria-controls="preset-select-menu"
+                            >
+                                <span id="preset-select-label" class="oj-truncate">Custom</span>
+                                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                            </button>
+                            <div
+                                id="preset-select-menu"
+                                class="oj-menu preset-select-menu"
+                                data-oj-dropdown-menu
+                                role="menu"
+                                aria-labelledby="preset-picker-label"
+                                hidden
+                            ></div>
+                        </div>
+                    </div>
 
                     <div class="settings-stack">
                         <div class="field-group">
@@ -712,7 +732,6 @@
                                     JPEG 2000
                                 </button>
                             </div>
-                            <p class="oj-helper">Select one or more formats. Files in subfolders are ignored.</p>
                         </div>
 
                         <div class="field-group magic-presets-field">
@@ -726,7 +745,6 @@
                                 <label id="magic-enabled-label" class="oj-label" for="magic-enabled-button">
                                     Enable this rule
                                 </label>
-                                <p class="oj-helper">Disabled rules remain saved but do not process files.</p>
                             </div>
                             <label class="oj-switch">
                                 <input

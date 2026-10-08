@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
 import {
     buildFixtureData,
+    clearMockupImages,
     FIXTURE_NAMES,
+    SCREENSHOT_DIR,
     SCREENSHOT_SPECS,
 } from '../scripts/screenshots.mjs';
 
@@ -35,12 +38,25 @@ test('defines exactly the requested screenshot outputs', () => {
     assert.deepEqual(
         SCREENSHOT_SPECS.map(({ filename, format }) => ({ filename, format })),
         [
-            { filename: 'bulkpixel.png', format: 'png' },
-            { filename: 'bulkpixel_empty.png', format: 'png' },
-            { filename: 'presets.png', format: 'png' },
-            { filename: 'watched_folders_directory.png', format: 'png' },
-            { filename: 'statistics.png', format: 'png' },
-            { filename: 'image_inspector.png', format: 'png' },
+            { filename: 'bulkpixel.webp', format: 'webp' },
+            { filename: 'bulkpixel_empty.webp', format: 'webp' },
+            { filename: 'presets.webp', format: 'webp' },
+            { filename: 'watched_folders_directory.webp', format: 'webp' },
+            { filename: 'statistics.webp', format: 'webp' },
+            { filename: 'image_inspector.webp', format: 'webp' },
         ],
     );
+    assert.equal(SCREENSHOT_DIR, path.resolve('src/assets/mockups'));
+});
+
+test('clears previous mockup images before generation while preserving other files', async t => {
+    const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'bulkpixel-mockups-test-'));
+    t.after(() => fs.promises.rm(directory, { recursive: true, force: true }));
+    for (const filename of ['old.png', 'old.webp', 'old.JPEG', 'old.svg', 'README.md']) {
+        await fs.promises.writeFile(path.join(directory, filename), 'fixture');
+    }
+
+    await clearMockupImages(directory);
+
+    assert.deepEqual(await fs.promises.readdir(directory), ['README.md']);
 });

@@ -1,3 +1,7 @@
+# 3.1.3
+
+- some minor fixes to ui
+
 # 3.1.2
 
 - moving to https://github.com/oliverjessner/oj-designsystem

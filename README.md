@@ -103,7 +103,7 @@ npm run dev
 
 Node.js 22.12 or newer is required. Installation and Tauri's dev/build hooks run `npm run prepare:ui`, which copies the installed design system into the ignored `src/vendor/oj-designsystem/` directory. CSS, JavaScript, Comfortaa/JetBrains Mono fonts, Font Awesome icons, and license notices are bundled locally; no network access is needed by the app. Do not edit the generated files. Run `npm run prepare:ui` after changing the dependency when serving `src/` directly.
 
-Run `npm test` for frontend checks and `npm run screenshots` to capture all six views with the Tauri mock.
+Run `npm test` for frontend checks and `npm run screenshots` to capture all six views with the Tauri mock. Screenshot generation first deletes the existing images in `src/assets/mockups/`, then writes the new screenshots there as WebP files.
 
 ## macOS Open With test cases
 

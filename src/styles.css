@@ -185,6 +185,26 @@ body {
     gap: var(--oj-space-2);
 }
 
+.preset-dropdown,
+.preset-select {
+    width: 100%;
+    min-width: 0;
+}
+
+.preset-select {
+    justify-content: space-between;
+    text-align: left;
+}
+
+.preset-select-menu {
+    min-width: min(320px, calc(100vw - var(--oj-space-4)));
+}
+
+.preset-select-menu .oj-menu-item[aria-checked='true'] {
+    background: var(--oj-accent-soft);
+    color: var(--oj-accent-text);
+}
+
 .settings-preset {
     margin-bottom: var(--oj-space-1);
 }
@@ -653,6 +673,20 @@ body {
 
 .preset-library-card {
     position: relative;
+    padding: var(--oj-space-4);
+}
+
+.preset-library-panel .preset-list {
+    gap: var(--oj-space-3);
+}
+
+.preset-library-card .preset-card-body {
+    display: grid;
+    gap: var(--oj-space-2);
+}
+
+.preset-library-card p {
+    margin: 0;
 }
 
 .preset-card-body {
@@ -664,24 +698,17 @@ body {
 }
 
 .preset-card-details {
-    display: flex;
-    align-items: baseline;
+    display: grid;
     gap: var(--oj-space-2);
     min-width: 0;
-    margin-top: var(--oj-space-1);
 }
 
 .preset-card-details .preset-card-filename {
-    flex: 0 1 auto;
     min-width: 0;
     margin: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.preset-card-detail-separator {
-    flex: 0 0 auto;
 }
 
 .preset-card-path {

@@ -10,7 +10,11 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(SCRIPT_DIR, '..');
-const SCREENSHOT_DIR = path.join(SCRIPT_DIR, 'screenshots');
+export const SCREENSHOT_DIR = path.join(ROOT_DIR, 'src', 'assets', 'mockups');
+const IMAGE_EXTENSIONS = new Set([
+    '.avif', '.bmp', '.gif', '.heic', '.heif', '.ico', '.jpeg', '.jpg',
+    '.jp2', '.jxl', '.png', '.svg', '.tif', '.tiff', '.webp',
+]);
 const VIEWPORT = { width: 1920, height: 1080 };
 export const FIXTURE_NAMES = Object.freeze([
     'ayn_hor_akkutes.webp',
@@ -20,16 +24,16 @@ export const FIXTURE_NAMES = Object.freeze([
     'rentahuman.png',
 ]);
 export const SCREENSHOT_SPECS = Object.freeze([
-    { scenario: 'convert', filename: 'bulkpixel.png', format: 'png' },
-    { scenario: 'empty', filename: 'bulkpixel_empty.png', format: 'png' },
-    { scenario: 'presets', filename: 'presets.png', format: 'png' },
+    { scenario: 'convert', filename: 'bulkpixel.webp', format: 'webp' },
+    { scenario: 'empty', filename: 'bulkpixel_empty.webp', format: 'webp' },
+    { scenario: 'presets', filename: 'presets.webp', format: 'webp' },
     {
         scenario: 'watched-folders',
-        filename: 'watched_folders_directory.png',
-        format: 'png',
+        filename: 'watched_folders_directory.webp',
+        format: 'webp',
     },
-    { scenario: 'statistics', filename: 'statistics.png', format: 'png' },
-    { scenario: 'inspector', filename: 'image_inspector.png', format: 'png' },
+    { scenario: 'statistics', filename: 'statistics.webp', format: 'webp' },
+    { scenario: 'inspector', filename: 'image_inspector.webp', format: 'webp' },
 ]);
 
 let browserProcess;
@@ -45,14 +49,14 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
 }
 
 async function main() {
-    await emptyScreenshotDirectory();
-
     const fixtures = buildFixtureData();
+    const chromePath = findChromeExecutable();
+    await clearMockupImages();
+
     server = await startStaticServer();
     const serverAddress = server.address();
     const appOrigin = `http://127.0.0.1:${serverAddress.port}`;
 
-    const chromePath = findChromeExecutable();
     const debugPort = await reservePort();
     browserProfile = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'bulkpixel-screenshots-'));
     browserProcess = startChrome(chromePath, debugPort, browserProfile);
@@ -86,9 +90,12 @@ async function main() {
     }
 }
 
-async function emptyScreenshotDirectory() {
-    await fs.promises.rm(SCREENSHOT_DIR, { recursive: true, force: true });
-    await fs.promises.mkdir(SCREENSHOT_DIR, { recursive: true });
+export async function clearMockupImages(directory = SCREENSHOT_DIR) {
+    await fs.promises.mkdir(directory, { recursive: true });
+    const entries = await fs.promises.readdir(directory, { withFileTypes: true });
+    await Promise.all(entries
+        .filter(entry => entry.isFile() && IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
+        .map(entry => fs.promises.unlink(path.join(directory, entry.name))));
 }
 
 export function buildFixtureData() {
@@ -291,7 +298,7 @@ async function createCdpClient(webSocketUrl) {
     };
 }
 
-async function captureScenario(cdp, origin, scenario, filename, format = 'png') {
+async function captureScenario(cdp, origin, scenario, filename, format = 'webp') {
     console.log(`Creating ${filename}...`);
     await cdp.send('Page.navigate', {
         url: `${origin}/src/index.html?screenshot=${encodeURIComponent(scenario)}`,
@@ -311,6 +318,7 @@ async function captureScenario(cdp, origin, scenario, filename, format = 'png') 
 
     const screenshot = await cdp.send('Page.captureScreenshot', {
         format,
+        quality: 100,
         captureBeyondViewport: false,
         fromSurface: true,
     });
