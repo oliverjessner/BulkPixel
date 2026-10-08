@@ -745,14 +745,14 @@ function buildMagicDirectoryCard(directory, presets) {
     presetSummary.textContent = selectedPresetNames.length
         ? `Presets: ${selectedPresetNames.join(', ')}`
         : 'No presets selected';
-    const existingOutputs = document.createElement('p');
-    existingOutputs.className = 'oj-small oj-muted';
-    existingOutputs.textContent = `Existing outputs: ${directory.overwrite ? 'Overwrite' : 'Keep both'}`;
+    const overwriteSetting = document.createElement('p');
+    overwriteSetting.className = 'oj-small oj-muted';
+    overwriteSetting.textContent = `Overwrite: ${Boolean(directory.overwrite)}`;
     const path = document.createElement('p');
     path.className = 'oj-path preset-card-path';
     path.title = directory.path;
     path.textContent = directory.path;
-    body.append(formats, presetSummary, existingOutputs, path);
+    body.append(formats, presetSummary, overwriteSetting, path);
 
     const actions = document.createElement('div');
     actions.className = 'oj-inline preset-card-actions';

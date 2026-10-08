@@ -1,6 +1,7 @@
 # 3.1.3
 
 - some minor fixes to ui
+- overwriting setting for watched folders
 
 # 3.1.2
 
