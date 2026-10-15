@@ -41,8 +41,7 @@ body {
 .brand-logo {
     width: 28px;
     height: 28px;
-    border-radius: var(--oj-radius-md);
-    object-fit: cover;
+    object-fit: contain;
 }
 
 .global-watcher-status {

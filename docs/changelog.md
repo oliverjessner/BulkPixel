@@ -1,3 +1,7 @@
+# 3.1.4
+
+- new logo
+
 # 3.1.3
 
 - some minor fixes to ui

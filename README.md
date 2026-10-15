@@ -105,6 +105,8 @@ Node.js 22.12 or newer is required. Installation and Tauri's dev/build hooks run
 
 Run `npm test` for frontend checks and `npm run screenshots` to capture all six views with the Tauri mock. Screenshot generation first deletes the existing images in `src/assets/mockups/`, then writes the new screenshots there as WebP files.
 
+The logo master is `src/assets/icons/logo.png`, cropped to the artwork with transparent rounded corners. Run `npm run icons` (requires ImageMagick) after replacing it to regenerate the logo copies and all Tauri PNG, ICNS, and ICO assets. The app icon uses a centered 856px surface on a transparent 1024px canvas for macOS spacing; `src/assets/icons/icon_app_artboard.html` previews that layout.
+
 ## macOS Open With test cases
 
 1. BulkPixel is closed:
