@@ -8,8 +8,8 @@ use std::{
 use crate::image_pipeline::SUPPORTED_EXTENSIONS;
 use image::{
     codecs::{
-        avif::AvifDecoder, gif::GifDecoder, jpeg::JpegDecoder, png::PngDecoder, tiff::TiffDecoder,
-        webp::WebPDecoder,
+        avif::AvifDecoder, gif::GifDecoder, ico::IcoDecoder, jpeg::JpegDecoder, png::PngDecoder,
+        tiff::TiffDecoder, webp::WebPDecoder,
     },
     ExtendedColorType, ImageDecoder,
 };
@@ -61,7 +61,7 @@ pub fn inspect_image_metadata(path: String) -> Result<ImageMetadataResponse, Str
 
     let exif = if let Some(exif) = container.exif.take() {
         exif
-    } else if extension == "jp2" {
+    } else if matches!(extension.as_str(), "jp2" | "ico") {
         not_checked_group()
     } else if matches!(extension.as_str(), "svg" | "gif") {
         empty_group()
@@ -165,6 +165,11 @@ fn read_container_metadata(path: &Path, extension: &str) -> Result<ContainerMeta
             // The image decoder exposes the first frame but no animation flag.
             collect_decoder_metadata(decoder, None, extension)
         }
+        "ico" => {
+            let decoder = IcoDecoder::new(BufReader::new(open_file(path)?))
+                .map_err(|error| error.to_string())?;
+            collect_decoder_metadata(decoder, Some(false), extension)
+        }
         "jxl" => {
             let decoder = JxlDecoder::new(BufReader::new(open_file(path)?))
                 .map_err(|error| error.to_string())?;
@@ -231,7 +236,7 @@ fn collect_decoder_metadata<D: ImageDecoder>(
 
     Ok(ContainerMetadata {
         color_type: Some(color_type),
-        icc_checked: extension != "gif",
+        icc_checked: !matches!(extension, "gif" | "ico"),
         icc,
         xmp,
         iptc,
@@ -676,6 +681,7 @@ fn format_and_mime(extension: &str) -> (String, String) {
         "gif" => ("GIF".into(), "image/gif".into()),
         "jxl" => ("JPEG XL".into(), "image/jxl".into()),
         "jp2" => ("JPEG 2000".into(), "image/jp2".into()),
+        "ico" => ("ICO".into(), "image/vnd.microsoft.icon".into()),
         other => (
             other.to_ascii_uppercase(),
             "application/octet-stream".into(),
@@ -745,6 +751,32 @@ mod tests {
             if format != "TIFF" {
                 assert_eq!(metadata.exif.status, MetadataGroupStatus::None, "{name}");
             }
+        }
+    }
+
+    #[test]
+    fn inspects_ico_color_without_claiming_unchecked_metadata_is_absent() {
+        for name in ["multi-size.ico", "color-depth.ico", "bitmap.ico"] {
+            let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures")
+                .join(name);
+            let metadata =
+                inspect_image_metadata(path.to_string_lossy().to_string()).expect("inspect ICO");
+            assert_eq!(metadata.general.format, "ICO");
+            assert_eq!(metadata.general.mime_type, "image/vnd.microsoft.icon");
+            assert_eq!(metadata.general.bit_depth, Some(8));
+            assert_eq!(metadata.general.channels, Some(4));
+            assert_eq!(metadata.general.animated, Some(false));
+            assert_eq!(metadata.color.alpha, Some(true));
+            assert!(!metadata.color.icc_profile_checked);
+            assert_eq!(metadata.exif.status, MetadataGroupStatus::NotChecked);
+            assert_eq!(metadata.xmp.status, MetadataGroupStatus::NotChecked);
+            assert_eq!(metadata.iptc.status, MetadataGroupStatus::NotChecked);
+            assert!(
+                metadata.warnings.is_empty(),
+                "{name}: {:?}",
+                metadata.warnings
+            );
         }
     }
 

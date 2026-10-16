@@ -32,8 +32,9 @@ It is local-first, fast, and intentionally restrained.
 
 - Drag and drop images into the app
 - Native file picker support
+- macOS Dock menu shortcuts for Convert, Presets, and Watched Folders
 - Batch conversion for multiple images at once
-- Input support for `jpg`, `jpeg`, `png`, `avif`, `webp`, `svg`, `heic`, `heif`, `tif`, `tiff`, `gif`, `jxl` (JPEG XL), and `jp2` (JPEG 2000)
+- Input support for `jpg`, `jpeg`, `png`, `avif`, `webp`, `svg`, `heic`, `heif`, `tif`, `tiff`, `gif`, `jxl` (JPEG XL), `jp2` (JPEG 2000), and `ico`
 - Export to `jpg`, `png`, `avif` or `webp`
 - Resize by width or height
 - Automatic aspect-ratio preservation
@@ -42,7 +43,7 @@ It is local-first, fast, and intentionally restrained.
 - Optional filename prefix or postfix (toggle between modes)
 - Output folder selection
 - Presets for saving reusable conversion settings
-- Watched Folders for automatically running presets when new JPEG, PNG, WEBP, AVIF, SVG, HEIC, TIFF, GIF, JPEG XL, or JPEG 2000 files arrive
+- Watched Folders for automatically running presets when new JPEG, PNG, WEBP, AVIF, SVG, HEIC, TIFF, GIF, JPEG XL, JPEG 2000, or ICO files arrive
 - Terminal CLI for scripted conversion, preset and Watched Folder management, and statistics
 - Collision-safe saving with `_1`, `_2`, and so on
 - Per-image and total savings analysis

@@ -1,3 +1,10 @@
+# 3.1.5
+
+- macOS Dock menu shortcuts for Convert, Presets, and Watched Folders
+- ico support
+- context menu from dock
+- input url
+
 # 3.1.4
 
 - new logo

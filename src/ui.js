@@ -16,7 +16,6 @@ const presetListSnapshots = new WeakMap();
 const presetPickerSnapshots = new WeakMap();
 
 export function renderApp(state, elements) {
-    renderBrand(elements);
     renderGlobalWatcherStatus(state, elements);
     renderView(state, elements);
     renderControls(state, elements);
@@ -28,10 +27,6 @@ export function renderApp(state, elements) {
     renderConversionActionBar(state, elements);
     renderPreview(state, elements);
     renderImageInspector(state, elements);
-}
-
-function renderBrand(elements) {
-    elements.brandTitle.textContent = 'BulkPixel';
 }
 
 function renderGlobalWatcherStatus(state, elements) {

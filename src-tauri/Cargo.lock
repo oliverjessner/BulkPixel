@@ -322,7 +322,7 @@ checksum = "f4ad8f11f288f48ca24471bbd51ac257aaeaaa07adae295591266b792902ae64"
 
 [[package]]
 name = "bulkpixel"
-version = "3.1.4"
+version = "3.1.5"
 dependencies = [
  "base64 0.22.1",
  "dirs",
@@ -331,6 +331,7 @@ dependencies = [
  "kamadak-exif",
  "notify",
  "objc2",
+ "objc2-app-kit",
  "objc2-core-graphics",
  "objc2-core-image",
  "objc2-foundation",

@@ -14,6 +14,7 @@ BulkPixel uses the same conversion pipeline in the desktop app and CLI. The tabl
 | GIF         | `.gif`           | Yes    | No           | Yes             |
 | JPEG XL     | `.jxl`           | Yes    | No           | Yes             |
 | JPEG 2000   | `.jp2`           | Yes    | No           | Yes             |
+| ICO         | `.ico`           | Yes    | No           | Yes             |
 
 ## Format Notes
 
@@ -25,4 +26,5 @@ BulkPixel uses the same conversion pipeline in the desktop app and CLI. The tabl
 - GIF and JPEG XL import the first frame of an animated file and export a still image. Transparency is preserved in PNG, WebP, and AVIF exports; JPEG composites it onto white.
 - JPEG XL supports both raw codestreams and container files, including 16-bit channels and alpha. Decoding uses [jxl-oxide](https://github.com/tirr-c/jxl-oxide), without requiring an installed native JPEG XL library.
 - JPEG 2000 (`.jp2`) uses the shared native macOS decoder, applies image orientation, and produces 8-bit sRGB output. JPEG 2000 source EXIF, ICC, XMP, and IPTC metadata are not currently inspected.
+- ICO imports PNG- or BMP-backed icons. For files containing multiple images, it selects the highest color depth, then the largest dimensions at that depth, and exports one still image. Transparency is preserved in PNG, WebP, and AVIF; JPEG composites it onto white. The inspector shows the selected image's decoded color information; source EXIF, ICC, XMP, and IPTC metadata are not currently inspected.
 - Watched Folders treat `.jpg` and `.jpeg` as JPEG, `.heic` and `.heif` as HEIC, and `.tif` and `.tiff` as TIFF. Extensions are case-insensitive.

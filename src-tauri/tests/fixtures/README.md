@@ -2,7 +2,7 @@
 
 These small, synthetic images are included so conversion tests do not need
 ImageMagick, `cjxl`, network access, or a native JPEG XL library at runtime.
-All images are 8 × 4 pixels.
+GIF, TIFF, and JPEG XL images are 8 × 4 pixels.
 
 - `rgb8-codestream.jxl` and `rgb8-container.jxl`: lossless RGB8 images with
   constant pixel values `[48, 96, 144]`. Encoded with libjxl `cjxl` 0.12.0 using
@@ -19,6 +19,17 @@ All images are 8 × 4 pixels.
   in the right half. The second frame is solid `[16, 32, 240, 255]`.
 - `animated.jxl`: the same animation, converted with
   `cjxl animated.gif animated.jxl -d 0 -e 1 --container=1`.
+- `multi-size.ico`: PNG-backed entries in directory order 256 × 256 RGBA8
+  `[40, 80, 120, 128]`, 64 × 64 RGB8 `[10, 220, 30]`, and 16 × 16 RGBA8
+  `[240, 10, 20, 255]`. Exercises the 256-pixel zero dimension encoding and
+  selection of the largest entry at the highest color depth.
+- `color-depth.ico`: 16 × 16 RGBA8 `[40, 80, 120, 128]` followed by 64 × 64
+  RGB8 `[10, 220, 30]`. Verifies that color depth takes priority over size.
+- `bitmap.ico`: a 16 × 16 24-bit BMP DIB with RGB `[40, 80, 120]` and an AND
+  mask making the right half transparent. Verifies legacy bitmap transparency.
+  The ICO fixtures were generated with Python's `struct` and `zlib`: standard
+  ICO headers plus PNG chunks or a 40-byte BITMAPINFOHEADER, bottom-up BGR pixels,
+  and 32-bit-aligned AND-mask rows. No third-party assets are included.
 
 The tests verify first-frame/first-page import, extension aliases, previews,
 resizing, PNG channel-depth preservation, transparency, and inspector metadata.

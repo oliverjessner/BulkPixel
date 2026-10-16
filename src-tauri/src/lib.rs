@@ -1,10 +1,14 @@
+mod app_navigation;
 mod cli;
+#[cfg(target_os = "macos")]
+mod dock_menu;
 mod image_metadata;
 mod image_pipeline;
 mod magic_directories;
 mod models;
 mod presets;
 
+use app_navigation::{AppNavigationState, AppView};
 use image_metadata::inspect_image_metadata;
 use image_pipeline::{convert_images, default_output_directory, probe_images};
 use magic_directories::{
@@ -194,15 +198,23 @@ fn get_opened_files(opened_files: tauri::State<'_, OpenedFilesState>) -> Vec<Str
     opened_files.take_initial_files()
 }
 
+#[tauri::command]
+fn get_initial_view(navigation: tauri::State<'_, AppNavigationState>) -> Option<AppView> {
+    navigation.take_initial_view()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
         .manage(OpenedFilesState::default())
+        .manage(AppNavigationState::default())
         .manage(MagicWatcherState::default())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let menu = Menu::default(app.handle())?;
             app.set_menu(menu)?;
+            #[cfg(target_os = "macos")]
+            dock_menu::install(app.handle())?;
             if let Err(error) = refresh_watcher(app.handle(), &app.state::<MagicWatcherState>()) {
                 eprintln!("failed to start watched folder watcher: {error}");
             }
@@ -222,7 +234,8 @@ pub fn run() {
             list_magic_directories,
             save_magic_directory,
             delete_magic_directory,
-            get_opened_files
+            get_opened_files,
+            get_initial_view
         ])
         .build(tauri::generate_context!())
         .expect("error while running BulkPixel");
@@ -241,6 +254,17 @@ pub fn run() {
 
 pub fn run_cli_from_env() -> i32 {
     cli::run_from_env()
+}
+
+#[cfg(target_os = "macos")]
+fn navigate_to_view(app: &tauri::AppHandle, view: AppView) {
+    let frontend_ready = app.state::<AppNavigationState>().request_view(view);
+    focus_main_window(app);
+    if frontend_ready {
+        if let Err(error) = app.emit_to("main", "navigate-view", view) {
+            eprintln!("failed to navigate from the Dock menu: {error}");
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]

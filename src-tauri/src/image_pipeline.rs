@@ -21,7 +21,8 @@ use crate::models::{
 };
 
 pub(crate) const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "jpg", "jpeg", "png", "webp", "avif", "svg", "heic", "heif", "tif", "tiff", "gif", "jxl", "jp2",
+    "jpg", "jpeg", "png", "webp", "avif", "svg", "heic", "heif", "tif", "tiff", "gif", "jxl",
+    "jp2", "ico",
 ];
 const THUMBNAIL_WIDTH: u32 = 220;
 const THUMBNAIL_HEIGHT: u32 = 140;
@@ -543,6 +544,7 @@ pub(crate) fn format_label_from_extension(path: &Path) -> String {
         Some("gif") => "GIF".into(),
         Some("jxl") => "JPEG XL".into(),
         Some("jp2") => "JPEG 2000".into(),
+        Some("ico") => "ICO".into(),
         _ => "Image".into(),
     }
 }
@@ -988,6 +990,103 @@ mod tests {
     }
 
     #[test]
+    fn probes_and_converts_png_and_bitmap_ico_inputs() {
+        let directory =
+            std::env::temp_dir().join(format!("bulkpixel-ico-inputs-{}", std::process::id()));
+        fs::create_dir_all(&directory).expect("create ICO input directory");
+        for (name, bytes, size, alpha) in [
+            (
+                "multi-size.ICO",
+                include_bytes!("../tests/fixtures/multi-size.ico").as_slice(),
+                256,
+                128,
+            ),
+            (
+                "color-depth.ico",
+                include_bytes!("../tests/fixtures/color-depth.ico").as_slice(),
+                16,
+                128,
+            ),
+            (
+                "bitmap.ico",
+                include_bytes!("../tests/fixtures/bitmap.ico").as_slice(),
+                16,
+                255,
+            ),
+        ] {
+            let path = directory.join(name);
+            fs::write(&path, bytes).expect("write ICO input");
+            let input = path.to_string_lossy().to_string();
+            let probe = super::probe_images(vec![input.clone()]).expect("probe ICO");
+            assert!(probe.rejected.is_empty(), "{name}: {:?}", probe.rejected);
+            assert_eq!(probe.loaded.len(), 1, "one image per ICO");
+            assert_eq!(probe.loaded[0].file_type, "ICO");
+            assert_eq!(
+                (probe.loaded[0].width, probe.loaded[0].height),
+                (size, size)
+            );
+            assert!(probe.loaded[0]
+                .preview_data_url
+                .starts_with("data:image/png;base64,"));
+
+            for (format, width) in [
+                (ExportFormat::Png, None),
+                (ExportFormat::Png, Some(8)),
+                (ExportFormat::Jpeg, Some(8)),
+                (ExportFormat::Webp, Some(8)),
+                (ExportFormat::Avif, Some(8)),
+            ] {
+                let response = super::convert_images(ConversionRequest {
+                    images: vec![ConversionImageInput {
+                        path: input.clone(),
+                    }],
+                    format: format.clone(),
+                    resize: ResizeOptions {
+                        width,
+                        height: None,
+                    },
+                    quality: 100,
+                    filename_component: String::new(),
+                    filename_mode: "prefix".into(),
+                    output_dir: directory
+                        .join(format!("{}-{}", format.extension(), width.unwrap_or(0)))
+                        .to_string_lossy()
+                        .to_string(),
+                    collision_mode: CollisionMode::Error,
+                })
+                .expect("convert ICO");
+                assert_eq!(
+                    response.summary.success_count, 1,
+                    "{name}: {:?}",
+                    response.results
+                );
+                assert_eq!(response.summary.failure_count, 0);
+                let output = image::open(response.results[0].output_path.as_ref().unwrap())
+                    .expect("read ICO export");
+                assert_eq!(
+                    output.dimensions(),
+                    (width.unwrap_or(size), width.unwrap_or(size))
+                );
+                if matches!(format, ExportFormat::Png) && width.is_none() {
+                    let rgba = output.to_rgba8();
+                    assert_eq!(rgba.get_pixel(0, 0).0, [40, 80, 120, alpha]);
+                    let right_alpha = if name == "bitmap.ico" { 0 } else { alpha };
+                    assert_eq!(rgba.get_pixel(size - 1, 0)[3], right_alpha);
+                }
+                if !matches!(format, ExportFormat::Jpeg) {
+                    assert_eq!(
+                        output.to_rgba8().get_pixel(0, 0)[3],
+                        alpha,
+                        "{name}: {} alpha",
+                        format.label()
+                    );
+                }
+            }
+        }
+        fs::remove_dir_all(directory).expect("remove ICO test directory");
+    }
+
+    #[test]
     fn reports_invalid_new_inputs_as_partial_batch_failures() {
         let directory =
             std::env::temp_dir().join(format!("bulkpixel-invalid-inputs-{}", std::process::id()));
@@ -999,14 +1098,14 @@ mod tests {
         )
         .expect("write valid input");
         let mut paths = vec![valid.to_string_lossy().to_string()];
-        for extension in ["tiff", "gif", "jxl", "jp2"] {
+        for extension in ["tiff", "gif", "jxl", "jp2", "ico"] {
             let path = directory.join(format!("broken.{extension}"));
             fs::write(&path, b"not an image").expect("write invalid input");
             paths.push(path.to_string_lossy().to_string());
         }
         let probe = super::probe_images(paths.clone()).expect("probe mixed batch");
         assert_eq!(probe.loaded.len(), 1);
-        assert_eq!(probe.rejected.len(), 4);
+        assert_eq!(probe.rejected.len(), 5);
         let response = super::convert_images(ConversionRequest {
             images: paths
                 .into_iter()
@@ -1025,7 +1124,7 @@ mod tests {
         })
         .expect("convert partial batch");
         assert_eq!(response.summary.success_count, 1);
-        assert_eq!(response.summary.failure_count, 4);
+        assert_eq!(response.summary.failure_count, 5);
         assert!(response.results[1..].iter().all(|result| !result.success
             && !result.message.is_empty()
             && result.output_path.is_none()));

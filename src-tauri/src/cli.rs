@@ -39,14 +39,15 @@ Usage:
   bulkpixel --version
 
 Input formats:
-  jpeg (jpg), png, webp, avif, svg, heic (heif), tiff (tif), gif, jxl (JPEG XL), jp2 (JPEG 2000)
+  jpeg (jpg), png, webp, avif, svg, heic (heif), tiff (tif), gif, jxl (JPEG XL), jp2 (JPEG 2000), ico
   Animated GIF/JPEG XL: first frame only. Multipage TIFF: first page only.
+  ICO: highest color depth, then largest size; one image per file.
 
 Export formats:
   jpeg, png, webp, avif
 
 Watched formats:
-  jpeg (jpg), png, webp, avif, svg, heic (heif), tiff (tif), gif, jxl, jp2
+  jpeg (jpg), png, webp, avif, svg, heic (heif), tiff (tif), gif, jxl, jp2, ico
 
 Watched-folder overwrite options:
   --overwrite     Replace existing output files (default: off)
@@ -1272,6 +1273,41 @@ mod tests {
             assert_eq!(request.id, Some(42));
             assert_eq!(request.preset_ids, vec![7]);
         }
+    }
+
+    #[test]
+    fn converts_ico_through_cli_options_with_resize_and_prefix() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("bulkpixel-cli-ico-{}-{nonce}", std::process::id()));
+        let input =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/multi-size.ico");
+        let args = vec![
+            "--input".into(),
+            input.to_string_lossy().to_string(),
+            "--output-dir".into(),
+            directory.to_string_lossy().to_string(),
+            "--format".into(),
+            "png".into(),
+            "--width".into(),
+            "32".into(),
+            "--prefix".into(),
+            "icon_".into(),
+        ];
+        let options = parse_convert_options(&args).unwrap();
+        assert_eq!(super::input_format_label(&options.inputs), "ICO");
+        let response = convert_images(build_direct_conversion_request(&options).unwrap()).unwrap();
+        assert_eq!(response.summary.success_count, 1);
+        assert_eq!(response.summary.failure_count, 0);
+        let output = image::open(directory.join("icon_multi-size.png"))
+            .unwrap()
+            .to_rgba8();
+        assert_eq!(output.dimensions(), (32, 32));
+        assert_eq!(output.get_pixel(0, 0).0, [40, 80, 120, 128]);
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

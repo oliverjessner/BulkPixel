@@ -3,6 +3,8 @@
 BulkPixel ships with a CLI. In the DMG, it is included as a `bulkpixel` symlink next to `BulkPixel.app`.
 The symlink points to the app binary. Running the binary without arguments opens the desktop app; running CLI commands executes BulkPixel in the terminal.
 
+The macOS Dock menu provides `Convert`, `Presets`, and `Watched Folders` shortcuts for navigating the running desktop app. The CLI exposes the same workflows through `bulkpixel convert`, `bulkpixel presets`, and `bulkpixel watched-folders`; these commands operate in the terminal instead of switching desktop views.
+
 ## Install
 
 Install BulkPixel and the CLI with Homebrew:
@@ -23,7 +25,7 @@ bulkpixel --version
 
 See [Supported Formats](FORMATS.md) for the complete import/export matrix, Watched Folder compatibility, and format-specific behavior.
 
-Inputs include JPEG, PNG, WebP, AVIF, SVG, HEIC/HEIF, TIFF (`.tif`/`.tiff`), GIF, JPEG XL (`.jxl`), and JPEG 2000 (`.jp2`). Animated GIF and JPEG XL files convert their first frame; multipage TIFF files convert their first page. The desktop app uses the same behavior. TIFF and JPEG XL retain decoded 16-bit channels when exporting to PNG. JPEG 2000 uses the native macOS decoder and produces 8-bit sRGB output.
+Inputs include JPEG, PNG, WebP, AVIF, SVG, HEIC/HEIF, TIFF (`.tif`/`.tiff`), GIF, JPEG XL (`.jxl`), JPEG 2000 (`.jp2`), and ICO (`.ico`). Animated GIF and JPEG XL files convert their first frame; multipage TIFF files convert their first page. ICO supports PNG- and BMP-backed images and selects the highest color depth, then the largest dimensions at that depth, producing one image per file. The desktop app uses the same behavior. TIFF and JPEG XL retain decoded 16-bit channels when exporting to PNG. JPEG 2000 uses the native macOS decoder and produces 8-bit sRGB output.
 
 Required:
 
@@ -225,7 +227,7 @@ bulkpixel presets delete \
 
 Watched Folder rules use the same SQLite database as the desktop app. Every rule has a required name. The desktop app performs the actual watching while it is running, and rules created or changed through the CLI are loaded the next time the desktop app starts.
 
-Supported watched formats are `jpeg` (or its `jpg` alias), `png`, `webp`, `avif`, `svg`, `heic` (or its `heif` alias), `tiff` (or its `tif` alias), `gif`, `jxl`, and `jp2`. Both `.jpg` and `.jpeg` files match JPEG; both `.heic` and `.heif` files match HEIC; both `.tif` and `.tiff` files match TIFF. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
+Supported watched formats are `jpeg` (or its `jpg` alias), `png`, `webp`, `avif`, `svg`, `heic` (or its `heif` alias), `tiff` (or its `tif` alias), `gif`, `jxl`, `jp2`, and `ico`. Both `.jpg` and `.jpeg` files match JPEG; both `.heic` and `.heif` files match HEIC; both `.tif` and `.tiff` files match TIFF. Files in subfolders are not watched. Multiple selected presets must have unique non-empty prefixes or postfixes.
 
 Overwrite is disabled by default for each Watched Folder. When an output filename already exists, the watcher keeps it and adds a suffix to the new file, such as `1_1.png`. Enable **Overwrite existing output files** in the desktop rule or pass `--overwrite` when creating or updating a CLI rule to replace the existing output instead. The setting applies to every preset assigned to that rule. `watched-folders list` shows each rule's `Overwrite` value.
 

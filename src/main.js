@@ -84,6 +84,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     render();
     const cleanupPresetDropdown = initDropdowns(elements.presetDropdown);
     window.addEventListener('pagehide', cleanupPresetDropdown, { once: true });
+    await bindAppNavigation();
     await hydrateAppVersion();
     await bindOpenedFiles();
     await hydrateDefaultOutputDirectory();
@@ -98,7 +99,6 @@ function cacheElements() {
     elements.convertView = document.querySelector('#convert-view');
     elements.presetsView = document.querySelector('#presets-view');
     elements.magicView = document.querySelector('#magic-view');
-    elements.brandTitle = document.querySelector('#brand-title');
     elements.globalWatcherStatus = document.querySelector('#global-watcher-status');
     elements.globalWatcherStatusLabel = document.querySelector('#global-watcher-status-label');
     elements.statisticsTrigger = document.querySelector('#statistics-trigger');
@@ -206,14 +206,7 @@ function bindEvents() {
 
     elements.appModeButtons.forEach(button => {
         button.addEventListener('click', () => {
-            state.view = button.dataset.view;
-            if (state.view !== 'convert' && state.inspector.open) {
-                closeImageInspector({ restoreFocus: false });
-            }
-            if (state.view === 'presets' && !state.presetForm.id && !state.presetForm.name.trim()) {
-                resetPresetFormToCurrentSettings();
-            }
-            render();
+            selectAppView(button.dataset.view);
         });
     });
 
@@ -801,6 +794,44 @@ async function loadMagicDirectories(options = {}) {
     }
 }
 
+function selectAppView(view, { fromDock = false } = {}) {
+    if (!['convert', 'presets', 'magic'].includes(view)) {
+        return;
+    }
+    state.view = view;
+    if (view !== 'convert' && state.inspector.open) {
+        closeImageInspector({ restoreFocus: false });
+    }
+    if (view === 'presets' && !state.presetForm.id && !state.presetForm.name.trim()) {
+        resetPresetFormToCurrentSettings();
+    }
+    if (fromDock) {
+        closeDialog(elements.statisticsDialog);
+    }
+    render();
+    if (fromDock) {
+        elements.appModeButtons.find(button => button.dataset.view === view)?.focus();
+    }
+}
+
+async function bindAppNavigation() {
+    if (!eventApi?.listen) {
+        return;
+    }
+    try {
+        const unlisten = await eventApi.listen('navigate-view', event => {
+            selectAppView(event.payload, { fromDock: true });
+        });
+        window.addEventListener('pagehide', unlisten, { once: true });
+        const initialView = await invoke('get_initial_view');
+        if (initialView) {
+            selectAppView(initialView, { fromDock: true });
+        }
+    } catch (error) {
+        console.error('Unable to initialize Dock navigation:', error);
+    }
+}
+
 async function bindMagicDirectoryEvents() {
     if (!eventApi?.listen) {
         return;
@@ -887,7 +918,7 @@ async function pickImages() {
             filters: [
                 {
                     name: 'Images',
-                    extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg', 'heic', 'heif', 'tif', 'tiff', 'gif', 'jxl', 'jp2'],
+                    extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg', 'heic', 'heif', 'tif', 'tiff', 'gif', 'jxl', 'jp2', 'ico'],
                 },
             ],
         });
