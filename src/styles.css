@@ -17,7 +17,7 @@ body {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
     gap: var(--oj-space-3);
-    padding: var(--oj-space-3);
+    padding: var(--oj-space-5) var(--oj-space-6);
 }
 
 .app-header {
