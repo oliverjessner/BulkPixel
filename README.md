@@ -32,6 +32,7 @@ It is local-first, fast, and intentionally restrained.
 
 - Drag and drop images into the app
 - Native file picker support
+- Import original images from public HTTP/HTTPS URLs, including clipboard paste, batch downloads, progress, cancel, and retry
 - macOS Dock menu shortcuts for Convert, Presets, and Watched Folders
 - Batch conversion for multiple images at once
 - Input support for `jpg`, `jpeg`, `png`, `avif`, `webp`, `svg`, `heic`, `heif`, `tif`, `tiff`, `gif`, `jxl` (JPEG XL), `jp2` (JPEG 2000), and `ico`
@@ -50,6 +51,16 @@ It is local-first, fast, and intentionally restrained.
 - Clear success, partial-success, and error feedback
 
 See the [supported import and export formats](docs/FORMATS.md) for the complete compatibility matrix and format-specific behavior.
+
+## Import from URLs
+
+Click **Add from URL** beside **Choose Images**, or in the image list toolbar, and paste one image URL per line. On macOS, **Cmd+V** outside an editable field opens the same dialog with clipboard URLs; downloads start only after clicking **Import Images**.
+
+Downloads appear in the existing image queue and use the same previews, presets, resizing, quality, filenames, and export settings as local files. Failed downloads can be retried while successful imports remain loaded. URLs without file extensions and image responses with incorrect Content-Type headers are supported through content detection.
+
+The default limit is 50 MB per image, configurable from 1–200 MB in the dialog, with a 30-second timeout and at most five redirects. Only public HTTP/HTTPS destinations are allowed. URL-imported SVGs must be self-contained. Temporary originals are removed when an imported image is removed from the queue or the app exits; abandoned sessions are cleaned up on the next URL import. No proxy or third-party download service is used.
+
+The CLI supports the same importer with `bulkpixel convert --url <url...>` and `--url-max-mb`; see [CLI documentation](docs/CLI.md#import-from-urls).
 
 ## Image Inspector
 

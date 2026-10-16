@@ -9,6 +9,7 @@ import {
     sanitizeNumberInput,
 } from './formatters.js';
 import { renderApp } from './ui.js';
+import { createUrlImporter } from './url-import.js';
 import { closeDialog, confirmDialog, initDialogs, initDropdowns, openDialog } from './vendor/oj-designsystem/index.js';
 
 const { invoke } = window.__TAURI__.core;
@@ -81,6 +82,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     const cleanupDialogs = initDialogs(document);
     window.addEventListener('pagehide', cleanupDialogs, { once: true });
     bindEvents();
+    createUrlImporter({
+        invoke, eventApi,
+        isBusy: () => state.isProcessing || state.isImporting,
+        loadedUrls: () => new Set(state.images.map(image => image.sourceUrl).filter(Boolean)),
+        onBusy: importing => { state.isImporting = importing; validateState(); render(); },
+        onImages: (images, sourceUrl) => {
+            if (appendLoadedImages(images, sourceUrl).length) {
+                selectAppView('convert');
+            }
+        },
+        onStatus: (kind, text) => { setStatus(kind, text); render(); },
+    });
     render();
     const cleanupPresetDropdown = initDropdowns(elements.presetDropdown);
     window.addEventListener('pagehide', cleanupPresetDropdown, { once: true });
@@ -125,6 +138,8 @@ function cacheElements() {
     elements.convertActionBar = document.querySelector('#convert-action-bar');
     elements.appModeButtons = [...document.querySelectorAll('.app-mode-button')];
     elements.dropzone = document.querySelector('#dropzone');
+    elements.chooseImagesButton = document.querySelector('#choose-images-button');
+    elements.urlImportButtons = [...document.querySelectorAll('[data-add-from-url]')];
     elements.dropzoneTitle = document.querySelector('#dropzone-title');
     elements.imagesView = document.querySelector('#images-view');
     elements.loadedDropOverlay = document.querySelector('#loaded-drop-overlay');
@@ -210,17 +225,18 @@ function bindEvents() {
         });
     });
 
-    elements.dropzone.addEventListener('click', () => {
-        if (!state.isProcessing) {
+    elements.dropzone.addEventListener('click', event => {
+        if (!event.target.closest('button') && !state.isProcessing && !state.isImporting) {
             void pickImages();
         }
     });
 
-    elements.addImagesButton.addEventListener('click', () => {
-        void pickImages();
+    [elements.chooseImagesButton, elements.addImagesButton].forEach(button => {
+        button.addEventListener('click', () => void pickImages());
     });
 
     elements.removeAllButton.addEventListener('click', () => {
+        releaseUrlImages(state.images);
         state.images = [];
         state.metadataByImageId.clear();
         closeImageInspector({ restoreFocus: false, renderAfter: false });
@@ -522,6 +538,7 @@ function removeImage(imageId) {
         return;
     }
     const removedSelectedImage = state.inspector.imageId === imageId;
+    releaseUrlImages([state.images[removedIndex]]);
     state.images = state.images.filter(image => image.id !== imageId);
     state.metadataByImageId.delete(imageId);
     syncResizeReference();
@@ -911,6 +928,7 @@ async function bindNativeDragDrop() {
 }
 
 async function pickImages() {
+    if (state.isProcessing || state.isImporting) return;
     try {
         const selection = await dialogApi.open({
             directory: false,
@@ -1142,6 +1160,11 @@ async function deleteMagicDirectoryById(id) {
 }
 
 async function addImagePaths(paths, options = {}) {
+    if (state.isProcessing || state.isImporting) {
+        setStatus('info', 'Wait for the current import or conversion to finish before adding images.');
+        render();
+        return;
+    }
     const source = options.source ?? '';
     const uniquePaths = [...new Set(normalizePathPayload(paths))];
     const existingPaths = new Set(state.images.map(image => image.path));
@@ -1168,15 +1191,7 @@ async function addImagePaths(paths, options = {}) {
 
     try {
         const response = await invoke('probe_images_command', { paths: freshPaths });
-        const loadedImages = response.loaded.map(image => ({
-            id: createImageId(),
-            ...image,
-            result: null,
-        }));
-
-        state.images.push(...loadedImages);
-        syncResizeReference();
-        clearResults();
+        const loadedImages = appendLoadedImages(response.loaded);
 
         if (response.rejected.length) {
             setStatus('warning', buildImportStatus(loadedImages.length, response.rejected.length, source));
@@ -1190,6 +1205,26 @@ async function addImagePaths(paths, options = {}) {
         validateState();
         render();
     }
+}
+
+function appendLoadedImages(images, sourceUrl = null) {
+    const known = new Set(state.images.map(image => image.path));
+    const loaded = images.filter(image => {
+        if (known.has(image.path)) return false;
+        known.add(image.path);
+        return true;
+    }).map(image => ({ id: createImageId(), ...image, sourceUrl, result: null }));
+    if (loaded.length) {
+        state.images.push(...loaded);
+        syncResizeReference();
+        clearResults();
+    }
+    return loaded;
+}
+
+function releaseUrlImages(images) {
+    const paths = images.filter(image => image.sourceUrl).map(image => image.path);
+    if (paths.length) void invoke('release_url_images', { paths }).catch(() => {});
 }
 
 async function handleBulkConvert() {

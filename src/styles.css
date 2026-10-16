@@ -234,6 +234,79 @@ body {
     margin-top: var(--oj-space-3);
 }
 
+.import-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--oj-space-2);
+}
+
+.url-import-dialog {
+    width: min(620px, calc(100vw - var(--oj-space-8)));
+}
+
+.url-import-body {
+    display: grid;
+    gap: var(--oj-space-3);
+    padding-block: var(--oj-space-4);
+}
+
+#url-import-input {
+    width: 100%;
+    resize: vertical;
+    min-height: 120px;
+    max-height: 35vh;
+}
+
+.url-import-settings summary {
+    cursor: pointer;
+    margin-bottom: var(--oj-space-2);
+}
+
+.url-import-settings input {
+    width: 100px;
+    margin-block: var(--oj-space-2);
+}
+
+.url-import-results {
+    display: grid;
+    gap: var(--oj-space-2);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    max-height: 220px;
+    overflow: auto;
+}
+
+.url-import-result {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--oj-space-1) var(--oj-space-3);
+    padding: var(--oj-space-3);
+    border: 1px solid var(--oj-border-subtle);
+    border-radius: var(--oj-radius-md);
+}
+
+.url-import-result-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.url-import-result-message {
+    grid-column: 1 / -1;
+    overflow-wrap: anywhere;
+}
+
+.url-import-result[data-status='failed'] .url-import-result-status,
+#url-import-validation[data-invalid='true'] {
+    color: var(--oj-danger);
+}
+
+.url-import-result[data-status='ready'] .url-import-result-status {
+    color: var(--oj-success);
+}
+
 .images-view {
     position: relative;
     flex: 1;

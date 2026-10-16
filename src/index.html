@@ -54,18 +54,23 @@
 
             <main id="convert-view" class="workspace app-view">
                 <section class="oj-panel upload-panel" aria-label="Image import and preview">
-                    <button id="dropzone" class="oj-dropzone dropzone" type="button" aria-labelledby="dropzone-title">
+                    <div id="dropzone" class="oj-dropzone dropzone" role="group" aria-labelledby="dropzone-title">
                         <i class="dropzone-icon fa-solid fa-images" aria-hidden="true"></i>
                         <div class="dropzone-copy">
                             <p id="dropzone-title" class="oj-empty-state-title dropzone-title">Drop images here</p>
                             <p class="oj-caption dropzone-meta">
                                 JPEG · PNG · WEBP · AVIF · SVG · HEIC · TIFF · GIF · JPEG XL · JPEG 2000 · ICO
                             </p>
-                            <span class="oj-button oj-button-primary dropzone-choose">Choose Images</span>
+                            <div class="import-actions dropzone-choose">
+                                <button id="choose-images-button" class="oj-button oj-button-primary" type="button">Choose Images</button>
+                                <button class="oj-button oj-button-secondary" type="button" data-add-from-url>
+                                    <i class="fa-solid fa-link" aria-hidden="true"></i> Add from URL
+                                </button>
+                            </div>
                             <p class="oj-helper dropzone-helper">or drag files from Finder</p>
                             <p class="oj-helper dropzone-helper">GIF / JPEG XL: first frame · TIFF: first page</p>
                         </div>
-                    </button>
+                    </div>
 
                     <div id="images-view" class="images-view" hidden>
                         <div class="images-header">
@@ -87,7 +92,10 @@
                                     class="oj-button oj-button-secondary oj-button-compact"
                                     type="button"
                                 >
-                                    Add Images
+                                    <i class="fa-solid fa-plus" aria-hidden="true"></i> Add Images
+                                </button>
+                                <button class="oj-button oj-button-secondary oj-button-compact" type="button" data-add-from-url>
+                                    <i class="fa-solid fa-link" aria-hidden="true"></i> Add from URL
                                 </button>
                             </div>
                         </div>
@@ -828,6 +836,34 @@
                 </div>
             </footer>
         </div>
+
+        <dialog id="url-import-dialog" class="oj-dialog url-import-dialog" data-oj-dialog
+            aria-labelledby="url-import-title" aria-describedby="url-import-description">
+            <div class="oj-dialog-header">
+                <h2 id="url-import-title" class="oj-dialog-title">Import Images from URLs</h2>
+            </div>
+            <div class="oj-dialog-body url-import-body">
+                <p id="url-import-description" class="oj-body-muted">Paste one or more image URLs, one per line.</p>
+                <label class="oj-label oj-sr-only" for="url-import-input">Image URLs</label>
+                <textarea id="url-import-input" class="oj-textarea" rows="5" maxlength="819200"
+                    placeholder="https://example.com/image.jpg" spellcheck="false" autocapitalize="off"
+                    aria-describedby="url-import-validation"></textarea>
+                <p id="url-import-validation" class="oj-helper" aria-live="polite"></p>
+                <details class="url-import-settings">
+                    <summary class="oj-caption">Download settings</summary>
+                    <label class="oj-label" for="url-import-max-size">Maximum image size (MB)</label>
+                    <input id="url-import-max-size" class="oj-input" type="number" min="1" max="200" value="50" />
+                    <p class="oj-helper">30-second timeout per image. Public HTTP and HTTPS addresses only.</p>
+                </details>
+                <ol id="url-import-results" class="url-import-results" aria-label="Image download progress" hidden></ol>
+                <p id="url-import-summary" class="oj-helper" role="status" aria-live="polite" hidden></p>
+            </div>
+            <div class="oj-dialog-footer">
+                <button id="url-import-retry" class="oj-button oj-button-secondary" type="button" hidden>Retry Failed Images</button>
+                <button id="url-import-cancel" class="oj-button oj-button-ghost" type="button">Cancel</button>
+                <button id="url-import-submit" class="oj-button oj-button-primary" type="button" disabled>Import Images</button>
+            </div>
+        </dialog>
 
         <dialog
             id="statistics-dialog"

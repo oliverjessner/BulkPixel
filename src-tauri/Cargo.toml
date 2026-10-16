@@ -19,6 +19,7 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 jxl-oxide = { version = "0.12", features = ["image", "moxcms"] }
 kamadak-exif = "0.6"
 notify = "8.2"
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "stream"] }
 resvg = "0.47"
 roxmltree = "0.21"
 rusqlite = { version = "0.32", features = ["bundled"] }
@@ -26,7 +27,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
+tempfile = "3"
 thiserror = "2"
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 webp = "0.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]

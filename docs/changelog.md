@@ -3,7 +3,7 @@
 - macOS Dock menu shortcuts for Convert, Presets, and Watched Folders
 - ico support
 - context menu from dock
-- input url
+- Import original images from URLs in the app and CLI, with clipboard detection, batch progress, cancellation, retries, configurable size limits, and public-network destination checks
 
 # 3.1.4
 

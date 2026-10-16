@@ -16,6 +16,7 @@ use crate::{
         load_statistics_for_cli, record_cli_usage_for_cli, record_conversion_statistics_for_cli,
         save_preset_for_cli,
     },
+    url_import::{import_urls, Cancellation, DownloadSettings, DownloadStore, ImportStatus},
 };
 
 const HELP_TEXT: &str = concat!(
@@ -25,6 +26,7 @@ const HELP_TEXT: &str = concat!(
 
 Usage:
   bulkpixel convert --input <file...> --output-dir <dir> [options]
+  bulkpixel convert --url <http(s)-url...> --output-dir <dir> [--url-max-mb <1-200>] [options]
   bulkpixel convert --preset <name...> --input <file...> [--silent]
   bulkpixel presets list
   bulkpixel presets create --name <name> --output-dir <dir> --format <format> [options]
@@ -52,12 +54,19 @@ Watched formats:
 Watched-folder overwrite options:
   --overwrite     Replace existing output files (default: off)
   --no-overwrite  Keep existing files and choose unique filenames
+
+URL import:
+  --url <url...>       Download original images before conversion (can mix with --input)
+  --url-max-mb <size>  Maximum download size per image, default 50 MB (1-200)
+  Public HTTP/HTTPS only; 30-second timeout, at most 5 redirects. Ctrl+C cancels downloads.
 "
 );
 
 #[derive(Debug, Default)]
 struct ConvertOptions {
     inputs: Vec<String>,
+    urls: Vec<String>,
+    url_max_mb: Option<u64>,
     preset_names: Vec<String>,
     output_dir: Option<String>,
     width: Option<String>,
@@ -183,13 +192,84 @@ fn handle_convert(args: &[String]) -> Result<i32, String> {
         return Ok(0);
     }
 
-    let options = parse_convert_options(args)?;
-
-    if options.preset_names.is_empty() {
+    let mut options = parse_convert_options(args)?;
+    let mut local = Vec::new();
+    for input in options.inputs.drain(..) {
+        if input.to_ascii_lowercase().starts_with("http://")
+            || input.to_ascii_lowercase().starts_with("https://")
+        {
+            options.urls.push(input);
+        } else {
+            local.push(input);
+        }
+    }
+    options.inputs = local;
+    let mut downloaded = None;
+    let mut import_failures = false;
+    if !options.urls.is_empty() {
+        // Validate conversion options before making any network requests.
+        if options.preset_names.is_empty() {
+            parse_optional_format(options.format.as_deref())?;
+            parse_optional_quality(options.quality.as_deref())?;
+            parse_resize(options.width.as_deref(), options.height.as_deref())?;
+            parse_filename_options(options.prefix.as_deref(), options.postfix.as_deref())?;
+            if options
+                .output_dir
+                .as_ref()
+                .is_none_or(|directory| directory.trim().is_empty())
+            {
+                return Err("--output-dir is required.".into());
+            }
+        } else {
+            let presets = load_requested_presets(&options.preset_names)?;
+            if presets.len() > 1 {
+                validate_multiple_preset_markers(&presets)?;
+            }
+        }
+        let settings = DownloadSettings {
+            max_megabytes: options.url_max_mb.unwrap_or(50),
+        }
+        .validate()?;
+        let store = DownloadStore::cli_store()?;
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .map_err(|_| "The image downloader could not start.")?;
+        let cancel = Cancellation::default();
+        let urls = std::mem::take(&mut options.urls);
+        let response = runtime.block_on(async {
+            let batch = import_urls(&store, urls, settings, &cancel, |item| {
+                if !options.silent
+                    && matches!(item.status, ImportStatus::Failed | ImportStatus::Canceled)
+                {
+                    eprintln!("URL image {}: {}", item.index + 1, item.message);
+                }
+            });
+            tokio::pin!(batch);
+            tokio::select! {
+                result = &mut batch => result,
+                _ = tokio::signal::ctrl_c() => { cancel.cancel(); batch.await }
+            }
+        })?;
+        for item in response.items {
+            if let Some(image) = item.image {
+                options.inputs.push(image.path);
+            } else {
+                import_failures = true;
+            }
+        }
+        downloaded = Some(store);
+        if options.inputs.is_empty() {
+            return Ok(1);
+        }
+    }
+    let result = if options.preset_names.is_empty() {
         run_direct_conversion(options)
     } else {
         run_preset_conversion(options)
-    }
+    };
+    drop(downloaded);
+    result.map(|code| if import_failures { 1 } else { code })
 }
 
 fn run_direct_conversion(options: ConvertOptions) -> Result<i32, String> {
@@ -371,6 +451,20 @@ fn parse_convert_options(args: &[String]) -> Result<ConvertOptions, String> {
 
     while index < args.len() {
         match args[index].as_str() {
+            "--url" => {
+                let (values, next_index) = take_values(args, index)?;
+                options.urls.extend(values);
+                index = next_index;
+            }
+            "--url-max-mb" => {
+                let (value, next_index) = take_one_value(args, index)?;
+                let max_megabytes = value
+                    .parse()
+                    .map_err(|_| "--url-max-mb must be a whole number between 1 and 200.")?;
+                options.url_max_mb =
+                    Some(DownloadSettings { max_megabytes }.validate()?.max_megabytes);
+                index = next_index;
+            }
             "--input" => {
                 let (values, next_index) = take_values(args, index)?;
                 options.inputs = values;
@@ -1272,6 +1366,35 @@ mod tests {
             assert_eq!(request.overwrite, expected);
             assert_eq!(request.id, Some(42));
             assert_eq!(request.preset_ids, vec![7]);
+        }
+    }
+
+    #[test]
+    fn url_import_flags_support_batches_size_limits_and_local_inputs() {
+        let args = [
+            "--input",
+            "local.png",
+            "--url",
+            "https://example.com/a?id=42",
+            "https://example.com/123",
+            "--url-max-mb",
+            "25",
+            "--output-dir",
+            "/tmp/output",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect::<Vec<_>>();
+        let options = parse_convert_options(&args).unwrap();
+        assert_eq!(options.inputs, ["local.png"]);
+        assert_eq!(
+            options.urls,
+            ["https://example.com/a?id=42", "https://example.com/123"]
+        );
+        assert_eq!(options.url_max_mb, Some(25));
+        assert!(HELP_TEXT.contains("--url <url...>"));
+        for size in ["0", "201", "1.5", "invalid"] {
+            assert!(parse_convert_options(&["--url-max-mb".into(), size.into()]).is_err());
         }
     }
 

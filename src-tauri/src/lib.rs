@@ -7,6 +7,7 @@ mod image_pipeline;
 mod magic_directories;
 mod models;
 mod presets;
+mod url_import;
 
 use app_navigation::{AppNavigationState, AppView};
 use image_metadata::inspect_image_metadata;
@@ -29,8 +30,8 @@ use presets::{
 };
 use std::{collections::HashSet, path::PathBuf, sync::Mutex, time::Instant};
 use tauri::menu::Menu;
-#[cfg(target_os = "macos")]
 use tauri::{Emitter, Manager};
+use url_import::{DownloadSettings, UrlImportProgress, UrlImportResponse, UrlImportState};
 
 #[derive(Default)]
 struct OpenedFilesState {
@@ -203,11 +204,55 @@ fn get_initial_view(navigation: tauri::State<'_, AppNavigationState>) -> Option<
     navigation.take_initial_view()
 }
 
+#[tauri::command]
+async fn import_image_urls(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, UrlImportState>,
+    batch_id: String,
+    urls: Vec<String>,
+    settings: DownloadSettings,
+) -> Result<UrlImportResponse, String> {
+    let root = app
+        .path()
+        .app_cache_dir()
+        .map_err(|_| "The image cache is unavailable.")?
+        .join("url-imports");
+    let store = state.store(&root)?;
+    let cancel = state.begin(&batch_id)?;
+    let response = url_import::import_urls(&store, urls, settings, &cancel, |item| {
+        let _ = app.emit_to(
+            "main",
+            "url-import-progress",
+            UrlImportProgress {
+                batch_id: batch_id.clone(),
+                item,
+            },
+        );
+    })
+    .await;
+    state.finish(&batch_id);
+    response
+}
+
+#[tauri::command]
+fn cancel_url_import(
+    state: tauri::State<'_, UrlImportState>,
+    batch_id: String,
+) -> Result<(), String> {
+    state.cancel(&batch_id)
+}
+
+#[tauri::command]
+fn release_url_images(state: tauri::State<'_, UrlImportState>, paths: Vec<String>) {
+    state.release(&paths);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
         .manage(OpenedFilesState::default())
         .manage(AppNavigationState::default())
+        .manage(UrlImportState::default())
         .manage(MagicWatcherState::default())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -235,12 +280,18 @@ pub fn run() {
             save_magic_directory,
             delete_magic_directory,
             get_opened_files,
-            get_initial_view
+            get_initial_view,
+            import_image_urls,
+            cancel_url_import,
+            release_url_images
         ])
         .build(tauri::generate_context!())
         .expect("error while running BulkPixel");
 
     app.run(|app, event| {
+        if matches!(&event, tauri::RunEvent::Exit) {
+            app.state::<UrlImportState>().cleanup();
+        }
         #[cfg(target_os = "macos")]
         handle_run_event(app, event);
 

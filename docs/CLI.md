@@ -27,9 +27,31 @@ See [Supported Formats](FORMATS.md) for the complete import/export matrix, Watch
 
 Inputs include JPEG, PNG, WebP, AVIF, SVG, HEIC/HEIF, TIFF (`.tif`/`.tiff`), GIF, JPEG XL (`.jxl`), JPEG 2000 (`.jp2`), and ICO (`.ico`). Animated GIF and JPEG XL files convert their first frame; multipage TIFF files convert their first page. ICO supports PNG- and BMP-backed images and selects the highest color depth, then the largest dimensions at that depth, producing one image per file. The desktop app uses the same behavior. TIFF and JPEG XL retain decoded 16-bit channels when exporting to PNG. JPEG 2000 uses the native macOS decoder and produces 8-bit sRGB output.
 
+### Import from URLs
+
+Use `--url` for one or more image URLs. Quote URLs so shell characters in signed query strings are preserved. HTTP/HTTPS URLs passed to `--input` are also recognized. Local files and URLs can be mixed, and URLs work with `--preset` as well as direct conversion settings.
+
+```sh
+bulkpixel convert \
+  --input ./local.png \
+  --url 'https://example.com/photo.jpg' 'https://cdn.example.com/asset?id=42' \
+  --output-dir ./exports --format webp --width 1200 --quality 90 \
+  --prefix web_ --url-max-mb 50
+
+bulkpixel convert --preset 'Website WEBP' --url 'https://example.com/original'
+```
+
+The CLI and desktop app share the native downloader and existing image pipeline. Downloads retain their original bytes; format detection checks content rather than trusting an extension or Content-Type alone. Filenames prefer Content-Disposition, then the final URL path, then a generated name. The detected extension is applied, unsafe characters are removed, and duplicate names receive numeric suffixes. Query parameters are never used as filenames.
+
+The default download limit is 50 MB per image; `--url-max-mb` accepts whole numbers from 1–200. Batches support up to 100 URLs, processed sequentially. Each image has a 30-second overall timeout and at most five redirects; HTTPS-to-HTTP redirects are rejected. Every destination is checked, DNS answers are validated and pinned to the connection, and loopback, private, link-local, multicast, and reserved network addresses are blocked. System proxies, cookies, and URL credentials are not used. Authenticated images that require browser cookies are not supported. Remote SVGs may contain inline vector content and embedded raster images, but cannot reference external resources or embedded SVGs; styles with escaped resource references are rejected.
+
+Press Ctrl+C during URL import to cancel pending downloads. Failed or duplicate URL imports are reported individually; the remaining images continue. Successfully downloaded and local images are converted, and any failed/canceled import makes the command exit with status 1 even if other conversions succeed. `--silent` suppresses import messages as well as the conversion report. Rerun a failed URL to retry it; the desktop dialog provides a **Retry Failed Images** button.
+
+Temporary originals and partial downloads are isolated in a private cache session and removed when the CLI finishes. Abandoned sessions are cleaned up on the next URL import without deleting active sessions from another app/CLI process. Conversion collisions, overwrite behavior, presets, output folders, and shared statistics follow the existing rules below. Downloads themselves do not increment conversion counters. The desktop app retains successful imports in its queue after a partial failure or cancellation; the CLI exports successful downloads and then cleans up its temporary originals.
+
 Required:
 
-- `--input`
+- `--input` and/or `--url`
 - `--output-dir`
 
 Optional:

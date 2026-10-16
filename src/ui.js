@@ -107,6 +107,8 @@ function renderControls(state, elements) {
           : 'idle';
     elements.dropzone.disabled = state.isProcessing || state.isImporting;
     elements.dropzone.setAttribute('aria-disabled', String(elements.dropzone.disabled));
+    elements.chooseImagesButton.disabled = elements.dropzone.disabled;
+    for (const button of elements.urlImportButtons) button.disabled = elements.dropzone.disabled;
     elements.dropzoneTitle.textContent = state.dragActive ? 'Drop images to add them' : 'Drop images here';
 
     for (const option of elements.formatOptions) {
