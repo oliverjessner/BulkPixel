@@ -64,6 +64,10 @@ The default limit is 50 MB per image, configurable from 1–200 MB in the dialog
 
 The CLI supports the same importer with `bulkpixel convert --url <url...>` and `--url-max-mb`; see [CLI documentation](docs/CLI.md#import-from-urls).
 
+Images imported from [oliverjessner.at](https://oliverjessner.at):
+
+![BulkPixel with images imported from the whole oliverjessner.at homepage](src/assets/mockups/screenshot_download_whole_page.webp)
+
 ## Image Inspector
 
 Open Image Info for any loaded image to inspect its dimensions, format, color information, embedded metadata, and privacy-relevant fields without leaving the conversion workflow.
@@ -117,7 +121,7 @@ npm run dev
 
 Node.js 26 or newer is required for development. Installation runs `npm run prepare:ui`, which copies the installed design system into the ignored `src/vendor/oj-designsystem/` directory. Tauri's dev/build hooks run `npm run prepare:app`, preparing both the UI and Fetchary with a checksum-verified official Node runtime for macOS Apple Silicon or Intel. The first preparation downloads that runtime; subsequent builds reuse the local cache. Chromium downloads are disabled because website extraction parses HTML without launching a browser. CSS, JavaScript, fonts, icons, and license notices are bundled locally; URL imports need network access. Do not edit generated files. Run `npm run prepare:ui` after changing the design system dependency when serving `src/` directly.
 
-Run `npm test` for frontend checks and `npm run screenshots` to capture all six views with the Tauri mock. Screenshot generation first deletes the existing images in `src/assets/mockups/`, then writes the new screenshots there as WebP files.
+Run `npm test` for frontend checks and `npm run screenshots` to capture all seven views with the Tauri mock. Screenshot generation first deletes the existing images in `src/assets/mockups/`, then writes the new screenshots there as WebP files. The website-import view replays actual image metadata and embedded previews captured from `https://oliverjessner.at` in `tests/fixtures/screenshots/website-import.json`, so screenshot generation itself works offline. To capture a fresh live snapshot without changing the existing fixture, run `cargo run --manifest-path src-tauri/Cargo.toml --example capture_website_import -- https://oliverjessner.at /tmp/website-import.json`, review it, and replace the fixture before regenerating the screenshots.
 
 The logo master is `src/assets/icons/logo.png`, cropped to the artwork with transparent rounded corners. Run `npm run icons` (requires ImageMagick) after replacing it to regenerate the logo copies and all Tauri PNG, ICNS, and ICO assets. The app icon uses a centered 856px surface on a transparent 1024px canvas for macOS spacing; `src/assets/icons/icon_app_artboard.html` previews that layout.
 

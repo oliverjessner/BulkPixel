@@ -34,6 +34,7 @@ export const SCREENSHOT_SPECS = Object.freeze([
     },
     { scenario: 'statistics', filename: 'statistics.webp', format: 'webp' },
     { scenario: 'inspector', filename: 'image_inspector.webp', format: 'webp' },
+    { scenario: 'website-import', filename: 'screenshot_download_whole_page.webp', format: 'webp' },
 ]);
 
 let browserProcess;
@@ -50,6 +51,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
 
 async function main() {
     const fixtures = buildFixtureData();
+    const websiteImport = readWebsiteImportFixture();
     const chromePath = findChromeExecutable();
     await clearMockupImages();
 
@@ -76,7 +78,7 @@ async function main() {
             features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
         });
         await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
-            source: buildTauriMock(appOrigin, fixtures),
+            source: buildTauriMock(appOrigin, fixtures, websiteImport),
         });
 
         for (const spec of SCREENSHOT_SPECS) {
@@ -112,6 +114,10 @@ export function buildFixtureData() {
             fileSize,
         };
     });
+}
+
+export function readWebsiteImportFixture() {
+    return JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'tests/fixtures/screenshots/website-import.json'), 'utf8'));
 }
 
 function startStaticServer() {
@@ -326,6 +332,24 @@ async function captureScenario(cdp, origin, scenario, filename, format = 'webp')
 }
 
 async function waitForScenario(cdp, scenario) {
+    if (scenario === 'website-import') {
+        const fixture = readWebsiteImportFixture();
+        const imageCount = fixture.response.items.filter(item => item.image).length;
+        await waitForExpression(cdp, `document.querySelector('[data-add-from-url]')`);
+        await evaluate(cdp, `(() => {
+            document.querySelector('[data-add-from-url]').click();
+            const input = document.querySelector('#url-import-input');
+            input.value = ${JSON.stringify(fixture.sourceUrl)};
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            document.querySelector('#url-import-submit').click();
+        })()`);
+        await waitForExpression(cdp, `document.querySelectorAll('.preview-card').length === ${imageCount} && !document.querySelector('#url-import-summary').hidden`);
+        await evaluate(cdp, `(() => {
+            if (document.querySelector('#url-import-dialog').open) document.querySelector('#url-import-cancel').click();
+        })()`);
+        await waitForExpression(cdp, `!document.querySelector('#url-import-dialog').open`);
+        return;
+    }
     if (scenario === 'convert') {
         await waitForExpression(cdp, `document.querySelectorAll('.preview-card').length === 5`);
         return;
@@ -398,18 +422,25 @@ async function evaluate(cdp, expression) {
     return response.result.value;
 }
 
-function buildTauriMock(origin, fixtures) {
+function buildTauriMock(origin, fixtures, websiteImport) {
     const { version: appVersion } = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf8'));
-    const loadedImages = fixtures.map(fixture => ({
-        path: fixture.path,
-        name: fixture.name,
-        fileType: fixture.fileType,
-        width: fixture.width,
-        height: fixture.height,
-        fileSize: fixture.fileSize,
-        previewDataUrl: `${origin}/tests/test_images/${encodeURIComponent(fixture.name)}`,
-    }));
-    const uniquePaths = [...new Set(fixtures.map(fixture => fixture.path))];
+    const copies = new Map();
+    const loadedImages = fixtures.map(fixture => {
+        const copy = copies.get(fixture.path) ?? 0;
+        copies.set(fixture.path, copy + 1);
+        return {
+            // Repeated demo pictures represent separate files. The real queue
+            // correctly deduplicates paths, so each copy needs its own mock path.
+            path: copy ? path.join(path.dirname(fixture.path), `copy-${copy + 1}`, fixture.name) : fixture.path,
+            name: fixture.name,
+            fileType: fixture.fileType,
+            width: fixture.width,
+            height: fixture.height,
+            fileSize: fixture.fileSize,
+            previewDataUrl: `${origin}/tests/test_images/${encodeURIComponent(fixture.name)}`,
+        };
+    });
+    const uniquePaths = loadedImages.map(image => image.path);
     const presets = [
         {
             id: 1,
@@ -471,11 +502,21 @@ function buildTauriMock(origin, fixtures) {
     const metadata = buildInspectorMetadata();
 
     return `
+        const screenshotEventListeners = new Map();
         window.__TAURI__ = {
             core: {
                 invoke: async (command, args = {}) => {
                     const scenario = new URL(window.location.href).searchParams.get('screenshot');
                     if (command === 'get_app_version') return ${JSON.stringify(appVersion)};
+                    if (command === 'import_image_urls' && scenario === 'website-import') {
+                        const response = ${JSON.stringify(websiteImport.response)};
+                        for (const item of response.items) {
+                            for (const listener of screenshotEventListeners.get('url-import-progress') ?? []) {
+                                listener({ payload: { ...item, batchId: args.batchId } });
+                            }
+                        }
+                        return response;
+                    }
                     if (command === 'get_default_output_directory') return '/Users/oli/Downloads';
                     if (command === 'get_opened_files') {
                         return ['convert', 'inspector'].includes(scenario)
@@ -493,7 +534,11 @@ function buildTauriMock(origin, fixtures) {
                 },
             },
             dialog: { open: async () => null },
-            event: { listen: async () => () => {} },
+            event: { listen: async (name, listener) => {
+                if (!screenshotEventListeners.has(name)) screenshotEventListeners.set(name, new Set());
+                screenshotEventListeners.get(name).add(listener);
+                return () => screenshotEventListeners.get(name).delete(listener);
+            } },
             webview: {
                 getCurrentWebview: () => ({ onDragDropEvent: async () => () => {} }),
             },

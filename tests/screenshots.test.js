@@ -8,6 +8,7 @@ import {
     buildFixtureData,
     clearMockupImages,
     FIXTURE_NAMES,
+    readWebsiteImportFixture,
     SCREENSHOT_DIR,
     SCREENSHOT_SPECS,
 } from '../scripts/screenshots.mjs';
@@ -44,9 +45,27 @@ test('defines exactly the requested screenshot outputs', () => {
             { filename: 'watched_folders_directory.webp', format: 'webp' },
             { filename: 'statistics.webp', format: 'webp' },
             { filename: 'image_inspector.webp', format: 'webp' },
+            { filename: 'screenshot_download_whole_page.webp', format: 'webp' },
         ],
     );
     assert.equal(SCREENSHOT_DIR, path.resolve('src/assets/mockups'));
+});
+
+test('website screenshot replays real imported images from oliverjessner.at', () => {
+    const fixture = readWebsiteImportFixture();
+    assert.equal(fixture.sourceUrl, 'https://oliverjessner.at');
+    assert.equal(fixture.response.items[0].status, 'discovered');
+    const images = fixture.response.items.filter(item => item.image);
+    assert.ok(images.length > 0);
+    for (const item of images) {
+        assert.equal(item.status, 'ready');
+        assert.equal(new URL(item.url).hostname, 'oliverjessner.at');
+        assert.ok(item.image.width > 0 && item.image.height > 0);
+        assert.ok(item.image.fileSize > 0);
+        assert.match(item.image.previewDataUrl, /^data:image\/png;base64,/);
+        const png = Buffer.from(item.image.previewDataUrl.split(',')[1], 'base64');
+        assert.equal(png.subarray(1, 4).toString(), 'PNG');
+    }
 });
 
 test('clears previous mockup images before generation while preserving other files', async t => {
