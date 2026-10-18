@@ -1,4 +1,4 @@
-# 3.1,6
+# 3.1.6
 
 - Import website images with Fetchary in the app and CLI; direct image extensions bypass extraction
 
