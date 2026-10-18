@@ -1,3 +1,7 @@
+# 3.1,6
+
+- Import website images with Fetchary in the app and CLI; direct image extensions bypass extraction
+
 # 3.1.5
 
 - macOS Dock menu shortcuts for Convert, Presets, and Watched Folders

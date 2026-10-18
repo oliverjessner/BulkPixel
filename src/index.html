@@ -843,10 +843,10 @@
                 <h2 id="url-import-title" class="oj-dialog-title">Import Images from URLs</h2>
             </div>
             <div class="oj-dialog-body url-import-body">
-                <p id="url-import-description" class="oj-body-muted">Paste one or more image URLs, one per line.</p>
-                <label class="oj-label oj-sr-only" for="url-import-input">Image URLs</label>
+                <p id="url-import-description" class="oj-body-muted">Paste image or website URLs, one per line. Websites import all images found by Fetchary. Direct image URLs download immediately.</p>
+                <label class="oj-label oj-sr-only" for="url-import-input">Image or website URLs</label>
                 <textarea id="url-import-input" class="oj-textarea" rows="5" maxlength="819200"
-                    placeholder="https://example.com/image.jpg" spellcheck="false" autocapitalize="off"
+                    placeholder="https://example.com/image.jpg&#10;https://example.com/gallery" spellcheck="false" autocapitalize="off"
                     aria-describedby="url-import-validation"></textarea>
                 <p id="url-import-validation" class="oj-helper" aria-live="polite"></p>
                 <details class="url-import-settings">

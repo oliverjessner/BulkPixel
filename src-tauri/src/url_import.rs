@@ -1,6 +1,7 @@
 mod source;
 #[cfg(test)]
 mod tests;
+mod website;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -57,6 +58,8 @@ impl DownloadSettings {
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum ImportStatus {
+    Discovering,
+    Discovered,
     Downloading,
     Ready,
     Failed,
@@ -337,29 +340,46 @@ pub(crate) async fn import_urls(
     let settings = settings.validate()?;
     if urls.is_empty() || urls.len() > MAX_URLS {
         return Err(format!(
-            "Import between 1 and {MAX_URLS} image URLs at a time."
+            "Import between 1 and {MAX_URLS} image or website URLs at a time."
         ));
     }
     let mut seen = HashSet::new();
-    let prepared = urls
+    let mut pending = urls
         .iter()
         .map(|raw| {
-            let url = parse_url(raw)?;
-            if !seen.insert(url.as_str().to_string()) {
-                return Err("Duplicate URL skipped.".into());
-            }
-            Ok(url)
+            let parsed = parse_url(raw).and_then(|url| {
+                if !seen.insert(url.as_str().to_string()) {
+                    return Err("Duplicate URL skipped.".into());
+                }
+                Ok(url)
+            });
+            (raw.trim().to_string(), parsed, true)
         })
-        .collect::<Vec<Result<Url, String>>>();
+        .collect::<Vec<_>>();
     let mut items = Vec::with_capacity(urls.len());
-    for (index, (raw, parsed)) in urls.into_iter().zip(prepared).enumerate() {
+    let mut index = 0;
+    while index < pending.len() {
+        let (raw, parsed, inspect_website) = pending[index].clone();
+        let inspect_website = inspect_website
+            && parsed
+                .as_ref()
+                .is_ok_and(|url| !website::is_direct_image(url));
         let mut item = UrlImportItem {
             index,
-            url: raw.trim().to_string(),
-            status: ImportStatus::Downloading,
+            url: raw,
+            status: if inspect_website {
+                ImportStatus::Discovering
+            } else {
+                ImportStatus::Downloading
+            },
             downloaded_bytes: 0,
             total_bytes: None,
-            message: "Downloading…".into(),
+            message: if inspect_website {
+                "Checking image or website…"
+            } else {
+                "Downloading…"
+            }
+            .into(),
             image: None,
         };
         let outcome = if cancel.is_canceled() {
@@ -369,12 +389,19 @@ pub(crate) async fn import_urls(
             let timeout = REQUEST_TIMEOUT;
             #[cfg(test)]
             let timeout = store.timeout.unwrap_or(timeout);
-            let download = download_one(store, url, index, settings, |bytes, total| {
-                let mut update = item.clone();
-                update.downloaded_bytes = bytes;
-                update.total_bytes = total;
-                progress(update);
-            });
+            let download = download_one(
+                store,
+                url,
+                index,
+                settings,
+                inspect_website,
+                |bytes, total| {
+                    let mut update = item.clone();
+                    update.downloaded_bytes = bytes;
+                    update.total_bytes = total;
+                    progress(update);
+                },
+            );
             tokio::select! {
                 biased;
                 _ = cancel.cancelled() => Err("Import canceled.".into()),
@@ -386,12 +413,33 @@ pub(crate) async fn import_urls(
             Err(parsed.unwrap_err())
         };
         match outcome {
-            Ok(image) => {
+            Ok(DownloadedSource::Image(image)) => {
                 item.status = ImportStatus::Ready;
                 item.downloaded_bytes = image.file_size;
                 item.total_bytes = Some(image.file_size);
                 item.message = "Ready".into();
                 item.image = Some(image);
+            }
+            Ok(DownloadedSource::Website(urls)) => {
+                let mut added = 0;
+                for raw in urls {
+                    // Revalidate every extracted URL in the native downloader. Never
+                    // recursively crawl images which turn out to be HTML pages.
+                    let parsed = parse_url(&raw);
+                    let key = parsed.as_ref().map(|url| url.as_str()).unwrap_or(&raw);
+                    if seen.insert(key.to_string()) {
+                        pending.push((raw, parsed, false));
+                        added += 1;
+                    }
+                }
+                if added == 0 {
+                    item.status = ImportStatus::Discovered;
+                    item.message =
+                        "All images on this website are already included in this import.".into();
+                } else {
+                    item.status = ImportStatus::Discovered;
+                    item.message = format!("Found {added} images. Downloading originals…");
+                }
             }
             Err(message) => {
                 item.status = if cancel.is_canceled() {
@@ -404,6 +452,7 @@ pub(crate) async fn import_urls(
         }
         progress(item.clone());
         items.push(item);
+        index += 1;
     }
     Ok(UrlImportResponse {
         items,
@@ -411,13 +460,19 @@ pub(crate) async fn import_urls(
     })
 }
 
+enum DownloadedSource {
+    Image(LoadedImage),
+    Website(Vec<String>),
+}
+
 async fn download_one(
     store: &DownloadStore,
     mut url: Url,
     index: usize,
     settings: DownloadSettings,
+    inspect_website: bool,
     progress: impl Fn(u64, Option<u64>),
-) -> Result<LoadedImage, String> {
+) -> Result<DownloadedSource, String> {
     let mut response = None;
     let mut seen_redirects = HashSet::new();
     for redirects in 0..=MAX_REDIRECTS {
@@ -438,7 +493,14 @@ async fn download_one(
             .map_err(|_| "The image downloader could not start.")?;
         let received = client
             .get(url.clone())
-            .header(header::ACCEPT, "image/*")
+            .header(
+                header::ACCEPT,
+                if inspect_website {
+                    "image/*, text/html, application/xhtml+xml"
+                } else {
+                    "image/*"
+                },
+            )
             .header(header::ACCEPT_ENCODING, "identity")
             .send()
             .await
@@ -543,10 +605,40 @@ async fn download_one(
         .unwrap_or("")
         .to_string();
     let detected_path = partial.clone();
-    let extension =
+    let detected =
         tokio::task::spawn_blocking(move || detect_format(&detected_path, &content_type))
             .await
-            .map_err(|_| "The image could not be checked.")??;
+            .map_err(|_| "The image could not be checked.")?;
+    let extension = match detected {
+        Ok(extension) => extension,
+        Err(error) => {
+            let content_type = headers
+                .get(header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or("");
+            if inspect_website {
+                let mut prefix = vec![0; downloaded.min(4096) as usize];
+                use tokio::io::AsyncReadExt;
+                tokio::fs::File::open(&partial)
+                    .await
+                    .map_err(|_| "The website could not be read.")?
+                    .read_exact(&mut prefix)
+                    .await
+                    .map_err(|_| "The website could not be read.")?;
+                if website::is_html(&prefix, content_type) {
+                    if downloaded > 20 * 1024 * 1024 {
+                        return Err("Website exceeds the 20 MB page limit.".into());
+                    }
+                    let urls = website::extract_images(&partial, &url, content_type).await?;
+                    if urls.is_empty() {
+                        return Err("No supported image URLs were found on this website.".into());
+                    }
+                    return Ok(DownloadedSource::Website(urls));
+                }
+            }
+            return Err(error);
+        }
+    };
     let name = store.reserve_filename(image_filename(&headers, &url, extension, index));
     let final_path = working.path().join(name);
     tokio::fs::rename(&partial, &final_path)
@@ -568,7 +660,7 @@ async fn download_one(
         .lock()
         .expect("download store poisoned")
         .insert(path, working);
-    Ok(image)
+    Ok(DownloadedSource::Image(image))
 }
 
 fn size_error(settings: DownloadSettings) -> String {

@@ -1,10 +1,15 @@
 {
     "name": "bulkpixel",
     "private": true,
-    "version": "3.1.5",
+    "version": "3.1.6",
     "type": "module",
+    "engines": {
+        "node": ">=26.0.0"
+    },
     "scripts": {
         "prepare:ui": "node scripts/sync-designsystem.mjs",
+        "prepare:url-import": "node scripts/prepare-url-import.mjs",
+        "prepare:app": "npm run prepare:ui && npm run prepare:url-import",
         "postinstall": "npm run prepare:ui",
         "tauri": "tauri",
         "dev": "tauri dev",
@@ -32,6 +37,7 @@
         "@tauri-apps/cli": "^2.12.0"
     },
     "dependencies": {
+        "fetchary": "2.0.2",
         "oj-designsystem": "0.1.0"
     }
 }

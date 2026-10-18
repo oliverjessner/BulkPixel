@@ -153,6 +153,178 @@ fn assert_no_downloads(store: &DownloadStore) {
     assert!(store.files.lock().unwrap().is_empty());
 }
 
+#[test]
+fn direct_image_urls_skip_website_discovery_for_every_supported_extension() {
+    for extension in crate::image_pipeline::SUPPORTED_EXTENSIONS {
+        let url = Url::parse(&format!(
+            "https://example.com/PHOTO.{}?token=a&size=42#fragment",
+            extension.to_ascii_uppercase()
+        ))
+        .unwrap();
+        assert!(website::is_direct_image(&url), "{extension}");
+    }
+    for path in [
+        "/gallery",
+        "/page.html",
+        "/gallery.png/",
+        "/asset?name=photo.png",
+    ] {
+        assert!(!website::is_direct_image(
+            &Url::parse(&format!("https://example.com{path}")).unwrap()
+        ));
+    }
+}
+
+#[tokio::test]
+async fn imports_all_website_images_once_with_partial_errors_and_no_recursive_crawl() {
+    let original = png();
+    let bytes = original.clone();
+    let server = server(move |path| {
+        let mut reply = match path {
+            "/start" => {
+                let mut redirect = Reply::body(vec![]);
+                redirect.status = 302;
+                redirect
+                    .headers
+                    .push(("Location", "/gallery/page.html".into()));
+                return redirect;
+            }
+            "/gallery/page.html" => Reply::body(
+                br#"<html><body>
+                <img src="one.png"><img src="one.png#duplicate">
+                <img srcset="two 2x, broken.jpg 3x"><img src="http://127.0.0.1/private.png">
+                <img src="nested"><img src="explicit.png">
+                </body></html>"#
+                    .to_vec(),
+            ),
+            "/gallery/one.png" | "/gallery/two" | "/gallery/explicit.png" => {
+                Reply::body(bytes.clone())
+            }
+            "/gallery/nested" => {
+                Reply::body(b"<html><img src='/must-not-crawl.png'></html>".to_vec())
+            }
+            "/gallery/broken.jpg" => {
+                let mut reply = Reply::body(vec![]);
+                reply.status = 404;
+                reply
+            }
+            other => panic!("Unexpected image request: {other}"),
+        };
+        reply.headers.push((
+            "Content-Type",
+            if path.ends_with(".html") || path.ends_with("nested") {
+                "text/html"
+            } else {
+                "image/png"
+            }
+            .into(),
+        ));
+        reply
+    })
+    .await;
+    let root = tempfile::tempdir().unwrap();
+    let store = store(root.path(), &server);
+    let events = Mutex::new(Vec::new());
+    let response = import_urls(
+        &store,
+        urls(&["/start", "/gallery/explicit.png"]),
+        DownloadSettings::default(),
+        &Cancellation::default(),
+        |item| events.lock().unwrap().push(item),
+    )
+    .await
+    .unwrap();
+    assert_eq!(response.items[0].status, ImportStatus::Discovered);
+    assert_eq!(response.items.len(), 7);
+    assert_eq!(
+        response
+            .items
+            .iter()
+            .filter(|item| item.status == ImportStatus::Ready)
+            .count(),
+        3
+    );
+    assert_eq!(
+        response
+            .items
+            .iter()
+            .filter(|item| item.status == ImportStatus::Failed)
+            .count(),
+        3
+    );
+    assert_eq!(server.requests.load(Ordering::SeqCst), 7);
+    for item in response.items.iter().filter_map(|item| item.image.as_ref()) {
+        assert_eq!(fs::read(&item.path).unwrap(), original);
+    }
+    let events = events.lock().unwrap();
+    assert_eq!(events[0].status, ImportStatus::Discovering);
+    assert!(events
+        .iter()
+        .any(|item| item.index == 6 && item.status == ImportStatus::Failed));
+    assert!(response
+        .items
+        .iter()
+        .enumerate()
+        .all(|(index, item)| index == item.index));
+}
+
+#[tokio::test]
+async fn html_at_a_direct_image_url_is_rejected_without_extracting_its_images() {
+    let server =
+        server(|_| Reply::body(b"<html><img src='/never-download.png'></html>".to_vec())).await;
+    let root = tempfile::tempdir().unwrap();
+    let store = store(root.path(), &server);
+    let response = import_urls(
+        &store,
+        urls(&["/photo.JPEG?token=abc"]),
+        DownloadSettings::default(),
+        &Cancellation::default(),
+        |_| {},
+    )
+    .await
+    .unwrap();
+    assert_eq!(response.items.len(), 1);
+    assert_eq!(response.items[0].status, ImportStatus::Failed);
+    assert_eq!(server.requests.load(Ordering::SeqCst), 1);
+    assert_no_downloads(&store);
+}
+
+#[tokio::test]
+async fn website_can_expand_beyond_the_input_limit_and_cancel_all_pending_images() {
+    let server = server(|path| {
+        assert_eq!(path, "/gallery");
+        let images = (0..105)
+            .map(|index| format!("<img src='/image-{index}.png'>"))
+            .collect::<String>();
+        Reply::body(format!("<html><body>{images}</body></html>").into_bytes())
+    })
+    .await;
+    let root = tempfile::tempdir().unwrap();
+    let store = store(root.path(), &server);
+    let cancel = Cancellation::default();
+    let response = import_urls(
+        &store,
+        urls(&["/gallery"]),
+        DownloadSettings::default(),
+        &cancel,
+        |item| {
+            if item.status == ImportStatus::Discovered {
+                cancel.cancel();
+            }
+        },
+    )
+    .await
+    .unwrap();
+    assert!(response.canceled);
+    assert_eq!(response.items.len(), 106);
+    assert_eq!(response.items[0].status, ImportStatus::Discovered);
+    assert!(response.items[1..]
+        .iter()
+        .all(|item| item.status == ImportStatus::Canceled));
+    assert_eq!(server.requests.load(Ordering::SeqCst), 1);
+    assert_no_downloads(&store);
+}
+
 #[tokio::test]
 async fn imports_original_bytes_without_extensions_despite_wrong_content_type() {
     let original = png();

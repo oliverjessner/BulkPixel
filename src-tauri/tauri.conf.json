@@ -4,8 +4,8 @@
     "version": "3.1.5",
     "identifier": "com.oli.bulkpixel",
     "build": {
-        "beforeDevCommand": "npm run prepare:ui",
-        "beforeBuildCommand": "npm run prepare:ui",
+        "beforeDevCommand": "npm run prepare:app",
+        "beforeBuildCommand": "npm run prepare:app",
         "frontendDist": "../src"
     },
     "app": {
@@ -30,6 +30,8 @@
         "active": true,
         "targets": "all",
         "copyright": "Copyright © Oliver Jessner",
+        "externalBin": ["binaries/bulkpixel-node"],
+        "resources": { "resources/url-import/": "url-import/" },
         "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
         "fileAssociations": [
             {

@@ -56,7 +56,7 @@ Watched-folder overwrite options:
   --no-overwrite  Keep existing files and choose unique filenames
 
 URL import:
-  --url <url...>       Download original images before conversion (can mix with --input)
+  --url <url...>       Import images or all website images (can mix with --input)
   --url-max-mb <size>  Maximum download size per image, default 50 MB (1-200)
   Public HTTP/HTTPS only; 30-second timeout, at most 5 redirects. Ctrl+C cancels downloads.
 "
@@ -254,7 +254,7 @@ fn handle_convert(args: &[String]) -> Result<i32, String> {
         for item in response.items {
             if let Some(image) = item.image {
                 options.inputs.push(image.path);
-            } else {
+            } else if matches!(item.status, ImportStatus::Failed | ImportStatus::Canceled) {
                 import_failures = true;
             }
         }

@@ -29,7 +29,7 @@ Inputs include JPEG, PNG, WebP, AVIF, SVG, HEIC/HEIF, TIFF (`.tif`/`.tiff`), GIF
 
 ### Import from URLs
 
-Use `--url` for one or more image URLs. Quote URLs so shell characters in signed query strings are preserved. HTTP/HTTPS URLs passed to `--input` are also recognized. Local files and URLs can be mixed, and URLs work with `--preset` as well as direct conversion settings.
+Use `--url` for one or more image or website URLs. Quote URLs so shell characters in signed query strings are preserved. HTTP/HTTPS URLs passed to `--input` are also recognized. Local files and URLs can be mixed, and URLs work with `--preset` as well as direct conversion settings.
 
 ```sh
 bulkpixel convert \
@@ -39,13 +39,18 @@ bulkpixel convert \
   --prefix web_ --url-max-mb 50
 
 bulkpixel convert --preset 'Website WEBP' --url 'https://example.com/original'
+
+# Download and convert every image discovered on a website
+bulkpixel convert --url 'https://example.com/gallery' --output-dir ./gallery --format webp
 ```
 
 The CLI and desktop app share the native downloader and existing image pipeline. Downloads retain their original bytes; format detection checks content rather than trusting an extension or Content-Type alone. Filenames prefer Content-Disposition, then the final URL path, then a generated name. The detected extension is applied, unsafe characters are removed, and duplicate names receive numeric suffixes. Query parameters are never used as filenames.
 
-The default download limit is 50 MB per image; `--url-max-mb` accepts whole numbers from 1–200. Batches support up to 100 URLs, processed sequentially. Each image has a 30-second overall timeout and at most five redirects; HTTPS-to-HTTP redirects are rejected. Every destination is checked, DNS answers are validated and pinned to the connection, and loopback, private, link-local, multicast, and reserved network addresses are blocked. System proxies, cookies, and URL credentials are not used. Authenticated images that require browser cookies are not supported. Remote SVGs may contain inline vector content and embedded raster images, but cannot reference external resources or embedded SVGs; styles with escaped resource references are rejected.
+Supported image extensions (`jpg`, `jpeg`, `png`, `webp`, `avif`, `svg`, `heic`, `heif`, `tif`, `tiff`, `gif`, `jxl`, `jp2`, `ico`) bypass Fetchary entirely, including uppercase extensions and signed query strings. For other URLs, image responses still import directly; HTML responses are passed to Fetchary's `extractImages` using the already downloaded page and its final URL. Fetchary parses image tags, picture/srcset sources, lazy attributes, metadata images, image links, and inline CSS background URLs. All unique discovered URLs are downloaded with the same native validation and image checks. Extracted images do not recursively import further websites. JavaScript and external stylesheets are not evaluated. Fetchary and Node.js are included in the app bundle, so the CLI needs no system Node installation.
 
-Press Ctrl+C during URL import to cancel pending downloads. Failed or duplicate URL imports are reported individually; the remaining images continue. Successfully downloaded and local images are converted, and any failed/canceled import makes the command exit with status 1 even if other conversions succeed. `--silent` suppresses import messages as well as the conversion report. Rerun a failed URL to retry it; the desktop dialog provides a **Retry Failed Images** button.
+The default download limit is 50 MB per image; `--url-max-mb` accepts whole numbers from 1–200. Batches support up to 100 input URLs, processed sequentially; discovered images are additional and can exceed 100. Each website is limited to 20 MB (or `--url-max-mb` when smaller), 10,000 extracted image URLs, and a 16 MB URL list. Exceeding a limit reports an error instead of truncating the import. Each source has a 30-second overall timeout and at most five redirects; HTTPS-to-HTTP redirects are rejected. Every destination is checked, DNS answers are validated and pinned to the connection, and loopback, private, link-local, multicast, and reserved network addresses are blocked. System proxies, cookies, and URL credentials are not used. Authenticated images that require browser cookies are not supported. Remote SVGs may contain inline vector content and embedded raster images, but cannot reference external resources or embedded SVGs; styles with escaped resource references are rejected.
+
+Press Ctrl+C during URL import to cancel page discovery and pending downloads. Empty websites and individual broken or unsupported image responses are reported as failures; remaining images continue. Duplicate discovered images are downloaded once per import. Duplicate explicitly entered URLs are reported individually. Successfully downloaded and local images are converted, and any failed/canceled import makes the command exit with status 1 even if other conversions succeed. Successful website discovery itself is not counted as an image or a failure. `--silent` suppresses import messages as well as the conversion report. Rerun a failed URL to retry it; the desktop dialog provides a **Retry Failed Images** button, including batches with more than 100 failed images.
 
 Temporary originals and partial downloads are isolated in a private cache session and removed when the CLI finishes. Abandoned sessions are cleaned up on the next URL import without deleting active sessions from another app/CLI process. Conversion collisions, overwrite behavior, presets, output folders, and shared statistics follow the existing rules below. Downloads themselves do not increment conversion counters. The desktop app retains successful imports in its queue after a partial failure or cancellation; the CLI exports successful downloads and then cleans up its temporary originals.
 

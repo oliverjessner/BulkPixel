@@ -17,10 +17,10 @@ export function parseImageUrls(text) {
             if (seen.has(url.href)) duplicates += 1;
             else { seen.add(url.href); urls.push(url.href); }
         } catch (error) {
-            errors.push(`Line ${index + 1}: ${error instanceof TypeError ? 'Enter a complete HTTP or HTTPS image URL.' : error.message}`);
+            errors.push(`Line ${index + 1}: ${error instanceof TypeError ? 'Enter a complete HTTP or HTTPS image or website URL.' : error.message}`);
         }
     });
-    if (urls.length > 100) errors.push('Import up to 100 image URLs at a time.');
+    if (urls.length > 100) errors.push('Enter up to 100 image or website URLs at a time.');
     return { urls, errors, duplicates };
 }
 
@@ -61,11 +61,11 @@ export function createUrlImporter({ root = document, invoke, eventApi, isBusy, o
         const notes = [...parsed.errors];
         if (parsed.duplicates) notes.push(`${parsed.duplicates} duplicate URL${parsed.duplicates === 1 ? '' : 's'} ignored.`);
         if (!validSize) notes.push('Maximum image size must be between 1 and 200 MB.');
-        if (!notes.length && parsed.urls.length) notes.push(`${parsed.urls.length} image URL${parsed.urls.length === 1 ? '' : 's'} ready to import.`);
+        if (!notes.length && parsed.urls.length) notes.push(`${parsed.urls.length} URL${parsed.urls.length === 1 ? '' : 's'} ready to import. Websites import all discovered images.`);
         validation.textContent = notes.join(' ');
         validation.dataset.invalid = String(parsed.errors.length > 0 || !validSize);
         input.setAttribute('aria-invalid', String(parsed.errors.length > 0));
-        submit.disabled = busy || !validSize || !parsed.urls.length || parsed.urls.length > 100;
+        submit.disabled = busy || !validSize || parsed.errors.length > 0 || !parsed.urls.length;
         input.disabled = busy;
         sizeInput.disabled = busy;
         cancel.disabled = cancelRequested;
@@ -75,37 +75,43 @@ export function createUrlImporter({ root = document, invoke, eventApi, isBusy, o
         return parsed;
     }
 
+    function renderItem(item) {
+        const row = root.createElement('li');
+        row.className = 'url-import-result';
+        row.dataset.status = item.status;
+        const name = root.createElement('span');
+        name.className = 'oj-caption url-import-result-name';
+        // Keep signed query strings out of result labels and tooltips.
+        try { const url = new URL(item.url); name.textContent = `${url.hostname}${url.pathname}`; }
+        catch { name.textContent = `Image ${item.index + 1}`; }
+        const status = root.createElement('span');
+        status.className = 'oj-caption url-import-result-status';
+        status.textContent = { waiting: 'Waiting', discovering: 'Finding images', discovered: 'Images found', downloading: 'Downloading', ready: 'Ready', failed: 'Failed', canceled: 'Canceled' }[item.status] ?? 'Waiting';
+        row.append(name, status);
+        const message = root.createElement('span');
+        message.className = 'oj-helper url-import-result-message';
+        if (item.status === 'downloading' && item.downloadedBytes) {
+            const megabytes = (item.downloadedBytes / (1024 * 1024)).toFixed(1);
+            message.textContent = `${megabytes} MB downloaded${item.totalBytes ? ` of ${(item.totalBytes / (1024 * 1024)).toFixed(1)} MB` : ''}`;
+        } else message.textContent = item.message ?? '';
+        row.append(message);
+        return row;
+    }
+
     function renderProgress() {
         results.hidden = !items.length;
-        results.replaceChildren(...items.map(item => {
-            const row = root.createElement('li');
-            row.className = 'url-import-result';
-            row.dataset.status = item.status;
-            const name = root.createElement('span');
-            name.className = 'oj-caption url-import-result-name';
-            // Keep signed query strings out of result labels and tooltips.
-            try { const url = new URL(item.url); name.textContent = `${url.hostname}${url.pathname}`; }
-            catch { name.textContent = `Image ${item.index + 1}`; }
-            const status = root.createElement('span');
-            status.className = 'oj-caption url-import-result-status';
-            status.textContent = { waiting: 'Waiting', downloading: 'Downloading', ready: 'Ready', failed: 'Failed', canceled: 'Canceled' }[item.status] ?? 'Waiting';
-            row.append(name, status);
-            const message = root.createElement('span');
-            message.className = 'oj-helper url-import-result-message';
-            if (item.status === 'downloading' && item.downloadedBytes) {
-                const megabytes = (item.downloadedBytes / (1024 * 1024)).toFixed(1);
-                message.textContent = `${megabytes} MB downloaded${item.totalBytes ? ` of ${(item.totalBytes / (1024 * 1024)).toFixed(1)} MB` : ''}`;
-            } else message.textContent = item.message ?? '';
-            row.append(message);
-            return row;
-        }));
+        results.replaceChildren(...items.map(renderItem));
     }
 
     function receive(item) {
-        if (!Number.isInteger(item.index) || item.index < 0 || item.index >= items.length) return;
+        if (!Number.isInteger(item.index) || item.index < 0 || item.index > items.length) return;
+        const wasReady = items[item.index]?.status === 'ready';
         items[item.index] = item;
-        if (item.status === 'ready' && item.image) onImages([item.image], item.url);
-        renderProgress();
+        if (!wasReady && item.status === 'ready' && item.image) onImages([item.image], item.url);
+        const row = renderItem(item);
+        if (results.children[item.index]) results.children[item.index].replaceWith(row);
+        else results.append(row);
+        results.hidden = false;
     }
 
     function open(text, source) {
@@ -146,13 +152,35 @@ export function createUrlImporter({ root = document, invoke, eventApi, isBusy, o
         renderProgress();
         let closeWhenFinished = false;
         try {
-            unlisten = await eventApi.listen('url-import-progress', event => {
-                if (event.payload?.batchId === batchId) receive(event.payload);
-            });
-            const response = await invoke('import_image_urls', {
-                batchId, urls, settings: { maxMegabytes: Number(sizeInput.value) },
-            });
-            response.items.forEach(receive);
+            const response = { items: [] };
+            // A website can produce more images than the input URL limit. Retry
+            // those images in bounded batches while retaining one progress list.
+            for (let offset = 0; offset < urls.length && !cancelRequested; offset += 100) {
+                batchId = `url-${crypto.randomUUID()}`;
+                const chunk = urls.slice(offset, offset + 100);
+                const indices = new Map(chunk.map((_, index) => [index, offset + index]));
+                const receiveChunk = item => {
+                    if (!indices.has(item.index)) indices.set(item.index, items.length);
+                    const mapped = { ...item, index: indices.get(item.index) };
+                    receive(mapped);
+                    return mapped;
+                };
+                unlisten = await eventApi.listen('url-import-progress', event => {
+                    if (event.payload?.batchId === batchId) receiveChunk(event.payload);
+                });
+                const batch = await invoke('import_image_urls', {
+                    batchId, urls: chunk, settings: { maxMegabytes: Number(sizeInput.value) },
+                });
+                response.items.push(...batch.items.map(receiveChunk));
+                unlisten(); unlisten = null;
+            }
+            if (cancelRequested) {
+                items.filter(item => item.status === 'waiting').forEach(item => {
+                    const canceled = { ...item, status: 'canceled', message: 'Import canceled.' };
+                    receive(canceled);
+                    response.items.push(canceled);
+                });
+            }
             const ready = response.items.filter(item => item.status === 'ready').length;
             const failed = response.items.filter(item => item.status === 'failed').length;
             const canceled = response.items.filter(item => item.status === 'canceled').length;
