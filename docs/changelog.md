@@ -1,6 +1,7 @@
-# 3.1.7
+# 3.2.0
 
 - icons for menu buttons
+- Browser image context menu “Send to BulkPixel” for Chrome, Chromium, Brave, and Edge, with native app handoff, queued imports, setup/retry feedback, and matching CLI image-only URL imports
 
 # 3.1.6
 

@@ -21,6 +21,17 @@ bulkpixel --help
 bulkpixel --version
 ```
 
+## Browser Image Imports
+
+The bundled Chrome/Chromium/Brave/Edge extension adds **Send to BulkPixel** to image context menus on macOS. See [browser setup](BROWSER.md) to load the extension and obtain its ID, then connect it to the installed app:
+
+```sh
+bulkpixel browser install --extension-id <32-letter-extension-id> --browser chrome
+bulkpixel browser uninstall --browser chrome
+```
+
+Supported browser values are `chrome` (default), `chromium`, `brave`, and `edge`. Installation writes a per-user Native Messaging manifest for that extension ID and browser; it does not change presets or statistics. Reconnect after moving the app or changing extension IDs. Use the CLI from a packaged `BulkPixel.app`; transient development binaries are rejected. This desktop handoff adds images to the app's queue; terminal workflows use `convert --url` below with the same downloader and conversion pipeline.
+
 ## Convert Images
 
 See [Supported Formats](FORMATS.md) for the complete import/export matrix, Watched Folder compatibility, and format-specific behavior.
@@ -30,6 +41,8 @@ Inputs include JPEG, PNG, WebP, AVIF, SVG, HEIC/HEIF, TIFF (`.tif`/`.tiff`), GIF
 ### Import from URLs
 
 Use `--url` for one or more image or website URLs. Quote URLs so shell characters in signed query strings are preserved. HTTP/HTTPS URLs passed to `--input` are also recognized. Local files and URLs can be mixed, and URLs work with `--preset` as well as direct conversion settings.
+
+Add `--url-images-only` to reject HTML/website responses while still accepting image URLs without extensions. This is the mode used for images sent by the browser extension. Omit it to retain website-image discovery. The regular desktop **Add from URL** dialog supports both images and websites; browser imports always use image-only mode to avoid importing a login page or an unexpected website.
 
 ```sh
 bulkpixel convert \

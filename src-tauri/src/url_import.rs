@@ -20,6 +20,10 @@ use tokio::{io::AsyncWriteExt, sync::watch};
 use crate::{image_pipeline::probe_images, models::LoadedImage};
 use source::{detect_format, image_filename, is_public_ip, parse_url};
 
+pub(crate) fn validate_image_url(raw: &str) -> Result<Url, String> {
+    parse_url(raw)
+}
+
 pub(crate) const DEFAULT_MAX_MB: u64 = 50;
 pub(crate) const MAX_DOWNLOAD_MB: u64 = 200;
 const MAX_URLS: usize = 100;
@@ -30,12 +34,15 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 #[serde(rename_all = "camelCase")]
 pub(crate) struct DownloadSettings {
     pub max_megabytes: u64,
+    #[serde(default)]
+    pub images_only: bool,
 }
 
 impl Default for DownloadSettings {
     fn default() -> Self {
         Self {
             max_megabytes: DEFAULT_MAX_MB,
+            images_only: false,
         }
     }
 }
@@ -353,7 +360,7 @@ pub(crate) async fn import_urls(
                 }
                 Ok(url)
             });
-            (raw.trim().to_string(), parsed, true)
+            (raw.trim().to_string(), parsed, !settings.images_only)
         })
         .collect::<Vec<_>>();
     let mut items = Vec::with_capacity(urls.len());

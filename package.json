@@ -1,7 +1,7 @@
 {
     "name": "bulkpixel",
     "private": true,
-    "version": "3.1.7",
+    "version": "3.2.0",
     "type": "module",
     "engines": {
         "node": ">=26.0.0"
@@ -34,10 +34,12 @@
         "url": "https://oliverjessner.at"
     },
     "devDependencies": {
-        "@tauri-apps/cli": "^2.12.0"
+        "@tauri-apps/cli": "^2.12.4"
     },
     "dependencies": {
-        "fetchary": "2.0.2",
-        "oj-designsystem": "0.1.0"
+        "add": "^2.0.9",
+        "fetchary": "2.0.7",
+        "git": "^0.1.5",
+        "oj-designsystem": "0.2.1"
     }
 }

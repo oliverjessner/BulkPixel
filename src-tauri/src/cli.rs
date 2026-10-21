@@ -37,6 +37,8 @@ Usage:
   bulkpixel watched-folders update --id <id> [options]
   bulkpixel watched-folders delete --id <id>
   bulkpixel stats
+  bulkpixel browser install --extension-id <id> [--browser chrome|chromium|brave|edge]
+  bulkpixel browser uninstall [--browser chrome|chromium|brave|edge]
   bulkpixel --help
   bulkpixel --version
 
@@ -58,6 +60,7 @@ Watched-folder overwrite options:
 URL import:
   --url <url...>       Import images or all website images (can mix with --input)
   --url-max-mb <size>  Maximum download size per image, default 50 MB (1-200)
+  --url-images-only    Reject website responses (used by Send to BulkPixel)
   Public HTTP/HTTPS only; 30-second timeout, at most 5 redirects. Ctrl+C cancels downloads.
 "
 );
@@ -67,6 +70,7 @@ struct ConvertOptions {
     inputs: Vec<String>,
     urls: Vec<String>,
     url_max_mb: Option<u64>,
+    url_images_only: bool,
     preset_names: Vec<String>,
     output_dir: Option<String>,
     width: Option<String>,
@@ -139,6 +143,7 @@ fn execute(args: Vec<String>) -> Result<i32, String> {
         "presets" => handle_presets(&args[1..]),
         "watched-folders" | "magic-directories" => handle_magic_directories(&args[1..]),
         "stats" => handle_stats(&args[1..]),
+        "browser" => crate::browser_host::handle_cli(&args[1..]),
         command => Err(format!("Unknown command: {command}")),
     }
 }
@@ -228,6 +233,7 @@ fn handle_convert(args: &[String]) -> Result<i32, String> {
         }
         let settings = DownloadSettings {
             max_megabytes: options.url_max_mb.unwrap_or(50),
+            images_only: options.url_images_only,
         }
         .validate()?;
         let store = DownloadStore::cli_store()?;
@@ -461,9 +467,19 @@ fn parse_convert_options(args: &[String]) -> Result<ConvertOptions, String> {
                 let max_megabytes = value
                     .parse()
                     .map_err(|_| "--url-max-mb must be a whole number between 1 and 200.")?;
-                options.url_max_mb =
-                    Some(DownloadSettings { max_megabytes }.validate()?.max_megabytes);
+                options.url_max_mb = Some(
+                    DownloadSettings {
+                        max_megabytes,
+                        ..Default::default()
+                    }
+                    .validate()?
+                    .max_megabytes,
+                );
                 index = next_index;
+            }
+            "--url-images-only" => {
+                options.url_images_only = true;
+                index += 1;
             }
             "--input" => {
                 let (values, next_index) = take_values(args, index)?;
@@ -1379,6 +1395,7 @@ mod tests {
             "https://example.com/123",
             "--url-max-mb",
             "25",
+            "--url-images-only",
             "--output-dir",
             "/tmp/output",
         ]
@@ -1392,6 +1409,7 @@ mod tests {
             ["https://example.com/a?id=42", "https://example.com/123"]
         );
         assert_eq!(options.url_max_mb, Some(25));
+        assert!(options.url_images_only);
         assert!(HELP_TEXT.contains("--url <url...>"));
         for size in ["0", "201", "1.5", "invalid"] {
             assert!(parse_convert_options(&["--url-max-mb".into(), size.into()]).is_err());

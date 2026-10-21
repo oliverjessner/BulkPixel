@@ -10,6 +10,7 @@ import {
 } from './formatters.js';
 import { renderApp } from './ui.js';
 import { createUrlImporter } from './url-import.js';
+import { createBrowserImports } from './browser-import.js';
 import { closeDialog, confirmDialog, initDialogs, initDropdowns, openDialog } from './vendor/oj-designsystem/index.js';
 
 const { invoke } = window.__TAURI__.core;
@@ -76,13 +77,14 @@ const state = {
 const elements = {};
 let inspectorRequestSerial = 0;
 let inspectorReturnFocusImageId = null;
+let browserImports;
 
 window.addEventListener('DOMContentLoaded', async () => {
     cacheElements();
     const cleanupDialogs = initDialogs(document);
     window.addEventListener('pagehide', cleanupDialogs, { once: true });
     bindEvents();
-    createUrlImporter({
+    const urlImporter = createUrlImporter({
         invoke, eventApi,
         isBusy: () => state.isProcessing || state.isImporting,
         loadedUrls: () => new Set(state.images.map(image => image.sourceUrl).filter(Boolean)),
@@ -94,6 +96,17 @@ window.addEventListener('DOMContentLoaded', async () => {
         },
         onStatus: (kind, text) => { setStatus(kind, text); render(); },
     });
+    browserImports = createBrowserImports({
+        invoke, eventApi,
+        isBusy: () => state.isProcessing || state.isImporting || Boolean(document.querySelector('dialog[open]')),
+        importImages: urls => { selectAppView('convert'); return urlImporter.importImages(urls); },
+        onError: text => { setStatus('error', text); render(); },
+    });
+    document.addEventListener('close', browserImports.notifyIdle, true);
+    window.addEventListener('pagehide', () => {
+        document.removeEventListener('close', browserImports.notifyIdle, true);
+        browserImports.destroy();
+    }, { once: true });
     render();
     const cleanupPresetDropdown = initDropdowns(elements.presetDropdown);
     window.addEventListener('pagehide', cleanupPresetDropdown, { once: true });
@@ -106,6 +119,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadMagicDirectories();
     await bindMagicDirectoryEvents();
     await bindNativeDragDrop();
+    await browserImports.start();
 });
 
 function cacheElements() {
@@ -1858,4 +1872,5 @@ function setMagicActivity(kind, text) {
 
 function render() {
     renderApp(state, elements);
+    browserImports?.notifyIdle();
 }

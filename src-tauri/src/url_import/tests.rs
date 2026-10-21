@@ -290,6 +290,58 @@ async fn html_at_a_direct_image_url_is_rejected_without_extracting_its_images() 
 }
 
 #[tokio::test]
+async fn browser_images_only_imports_extensionless_images_and_rejects_html_without_crawling() {
+    let server = server(|path| {
+        if path == "/asset" {
+            Reply::body(png())
+        } else {
+            Reply::body(b"<html><body><img src='/should-not-download.png'></body></html>".to_vec())
+        }
+    })
+    .await;
+    let root = tempfile::tempdir().unwrap();
+    let store = store(root.path(), &server);
+    let response = import_urls(
+        &store,
+        urls(&["/asset", "/login"]),
+        DownloadSettings {
+            images_only: true,
+            ..Default::default()
+        },
+        &Cancellation::default(),
+        |_| {},
+    )
+    .await
+    .unwrap();
+    assert_eq!(response.items.len(), 2);
+    assert_eq!(response.items[0].status, ImportStatus::Ready);
+    assert_eq!(response.items[1].status, ImportStatus::Failed);
+    assert_eq!(server.requests.load(Ordering::SeqCst), 2);
+    let image = response.items[0].image.as_ref().unwrap();
+    let output = root.path().join("converted");
+    fs::create_dir(&output).unwrap();
+    let conversion = crate::image_pipeline::convert_images(ConversionRequest {
+        images: vec![ConversionImageInput {
+            path: image.path.clone(),
+        }],
+        format: ExportFormat::Webp,
+        resize: ResizeOptions {
+            width: Some(6),
+            height: None,
+        },
+        quality: 80,
+        filename_component: "browser_".into(),
+        filename_mode: "prefix".into(),
+        output_dir: output.to_string_lossy().into(),
+        collision_mode: CollisionMode::Rename,
+    })
+    .unwrap();
+    assert_eq!(conversion.summary.success_count, 1);
+    let converted = image::open(conversion.results[0].output_path.as_ref().unwrap()).unwrap();
+    assert_eq!((converted.width(), converted.height()), (6, 4));
+}
+
+#[tokio::test]
 async fn website_can_expand_beyond_the_input_limit_and_cancel_all_pending_images() {
     let server = server(|path| {
         assert_eq!(path, "/gallery");
@@ -504,7 +556,10 @@ async fn enforces_declared_and_streamed_download_limits_and_rejects_bad_images()
     let response = import_urls(
         &store,
         urls(&["/length", "/chunked", "/broken"]),
-        DownloadSettings { max_megabytes: 1 },
+        DownloadSettings {
+            max_megabytes: 1,
+            ..Default::default()
+        },
         &Cancellation::default(),
         |_| {},
     )
@@ -830,8 +885,18 @@ fn handles_cancel_before_start_and_rejects_reused_active_batch_ids() {
     state.cancel("batch-running").unwrap();
     assert!(token.is_canceled());
     assert!(state.begin("../../invalid").is_err());
-    assert!(DownloadSettings { max_megabytes: 0 }.validate().is_err());
-    assert!(DownloadSettings { max_megabytes: 201 }.validate().is_err());
+    assert!(DownloadSettings {
+        max_megabytes: 0,
+        ..Default::default()
+    }
+    .validate()
+    .is_err());
+    assert!(DownloadSettings {
+        max_megabytes: 201,
+        ..Default::default()
+    }
+    .validate()
+    .is_err());
 }
 
 #[tokio::test]

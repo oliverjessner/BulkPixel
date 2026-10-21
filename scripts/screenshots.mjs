@@ -508,6 +508,7 @@ function buildTauriMock(origin, fixtures, websiteImport) {
                 invoke: async (command, args = {}) => {
                     const scenario = new URL(window.location.href).searchParams.get('screenshot');
                     if (command === 'get_app_version') return ${JSON.stringify(appVersion)};
+                    if (command === 'take_browser_imports') return { urls: [], errors: [] };
                     if (command === 'import_image_urls' && scenario === 'website-import') {
                         const response = ${JSON.stringify(websiteImport.response)};
                         for (const item of response.items) {

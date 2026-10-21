@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Send to BulkPixel",
+  "version": "1.0.0",
+  "description": "Right-click an image and send it to the BulkPixel macOS app.",
+  "permissions": ["contextMenus", "nativeMessaging"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "Set up Send to BulkPixel" },
+  "icons": { "32": "icons/32.png", "128": "icons/128.png" }
+}

@@ -1,4 +1,6 @@
 mod app_navigation;
+mod browser_host;
+mod browser_import;
 mod cli;
 #[cfg(target_os = "macos")]
 mod dock_menu;
@@ -10,6 +12,7 @@ mod presets;
 mod url_import;
 
 use app_navigation::{AppNavigationState, AppView};
+use browser_import::{BrowserImportState, PendingImports};
 use image_metadata::inspect_image_metadata;
 use image_pipeline::{convert_images, default_output_directory, probe_images};
 use magic_directories::{
@@ -205,6 +208,11 @@ fn get_initial_view(navigation: tauri::State<'_, AppNavigationState>) -> Option<
 }
 
 #[tauri::command]
+fn take_browser_imports(state: tauri::State<'_, BrowserImportState>) -> PendingImports {
+    state.take()
+}
+
+#[tauri::command]
 async fn import_image_urls(
     app: tauri::AppHandle,
     state: tauri::State<'_, UrlImportState>,
@@ -252,6 +260,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .manage(OpenedFilesState::default())
         .manage(AppNavigationState::default())
+        .manage(BrowserImportState::default())
         .manage(UrlImportState::default())
         .manage(MagicWatcherState::default())
         .plugin(tauri_plugin_dialog::init())
@@ -281,6 +290,7 @@ pub fn run() {
             delete_magic_directory,
             get_opened_files,
             get_initial_view,
+            take_browser_imports,
             import_image_urls,
             cancel_url_import,
             release_url_images
@@ -304,6 +314,12 @@ pub fn run() {
 }
 
 pub fn run_cli_from_env() -> i32 {
+    if let Some(origin) = std::env::args()
+        .nth(1)
+        .filter(|arg| browser_host::is_native_origin(arg))
+    {
+        return browser_host::run(&origin);
+    }
     cli::run_from_env()
 }
 
@@ -327,6 +343,17 @@ fn handle_run_event<R: tauri::Runtime>(app: &tauri::AppHandle<R>, event: tauri::
 
 #[cfg(target_os = "macos")]
 fn handle_opened_urls<R: tauri::Runtime>(app: &tauri::AppHandle<R>, urls: Vec<tauri::Url>) {
+    let browser_links: Vec<_> = urls
+        .iter()
+        .filter(|url| url.scheme() == "bulkpixel")
+        .cloned()
+        .collect();
+    if !browser_links.is_empty() {
+        app.state::<BrowserImportState>().enqueue(browser_links);
+        focus_main_window(app);
+        // The queue is retained until the frontend drains it, including cold starts.
+        let _ = app.emit_to("main", "browser-import-pending", ());
+    }
     let paths = local_paths_from_urls(urls);
     if paths.is_empty() {
         return;

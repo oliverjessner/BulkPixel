@@ -54,6 +54,7 @@ export function createUrlImporter({ root = document, invoke, eventApi, isBusy, o
     let items = [];
     let trigger;
     let unlisten;
+    let imagesOnly = false;
 
     function updateValidation() {
         const parsed = parseImageUrls(input.value);
@@ -61,7 +62,7 @@ export function createUrlImporter({ root = document, invoke, eventApi, isBusy, o
         const notes = [...parsed.errors];
         if (parsed.duplicates) notes.push(`${parsed.duplicates} duplicate URL${parsed.duplicates === 1 ? '' : 's'} ignored.`);
         if (!validSize) notes.push('Maximum image size must be between 1 and 200 MB.');
-        if (!notes.length && parsed.urls.length) notes.push(`${parsed.urls.length} URL${parsed.urls.length === 1 ? '' : 's'} ready to import. Websites import all discovered images.`);
+        if (!notes.length && parsed.urls.length) notes.push(`${parsed.urls.length} URL${parsed.urls.length === 1 ? '' : 's'} ready to import. ${imagesOnly ? 'Only the selected images will be imported.' : 'Websites import all discovered images.'}`);
         validation.textContent = notes.join(' ');
         validation.dataset.invalid = String(parsed.errors.length > 0 || !validSize);
         input.setAttribute('aria-invalid', String(parsed.errors.length > 0));
@@ -114,8 +115,9 @@ export function createUrlImporter({ root = document, invoke, eventApi, isBusy, o
         results.hidden = false;
     }
 
-    function open(text, source) {
+    function open(text, source, options = {}) {
         if (busy || isBusy()) return;
+        imagesOnly = options.imagesOnly === true;
         trigger = source ?? root.activeElement;
         if (text !== undefined) input.value = text;
         items = [];
@@ -169,7 +171,7 @@ export function createUrlImporter({ root = document, invoke, eventApi, isBusy, o
                     if (event.payload?.batchId === batchId) receiveChunk(event.payload);
                 });
                 const batch = await invoke('import_image_urls', {
-                    batchId, urls: chunk, settings: { maxMegabytes: Number(sizeInput.value) },
+                    batchId, urls: chunk, settings: { maxMegabytes: Number(sizeInput.value), imagesOnly },
                 });
                 response.items.push(...batch.items.map(receiveChunk));
                 unlisten(); unlisten = null;
@@ -236,5 +238,12 @@ export function createUrlImporter({ root = document, invoke, eventApi, isBusy, o
         if (busy) void invoke('cancel_url_import', { batchId }).catch(() => {});
         unlisten?.();
     }, { once: true });
-    return { open };
+    return {
+        open,
+        async importImages(urls) {
+            open(urls.join('\n'), undefined, { imagesOnly: true });
+            const parsed = updateValidation();
+            if (!submit.disabled) await start(parsed.urls);
+        },
+    };
 }

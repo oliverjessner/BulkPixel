@@ -33,6 +33,7 @@ It is local-first, fast, and intentionally restrained.
 - Drag and drop images into the app
 - Native file picker support
 - Import original images from public HTTP/HTTPS image or website URLs, including clipboard paste, batch downloads, progress, cancel, and retry
+- Browser image context menu **Send to BulkPixel** through the bundled Chrome/Chromium/Brave/Edge extension ([setup](docs/BROWSER.md))
 - macOS Dock menu shortcuts for Convert, Presets, and Watched Folders
 - Batch conversion for multiple images at once
 - Input support for `jpg`, `jpeg`, `png`, `avif`, `webp`, `svg`, `heic`, `heif`, `tif`, `tiff`, `gif`, `jxl` (JPEG XL), `jp2` (JPEG 2000), and `ico`

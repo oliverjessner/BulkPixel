@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Send to BulkPixel</title>
+    <link rel="icon" href="icons/32.png">
+    <link rel="stylesheet" href="setup.css">
+    <script type="module" src="setup.js"></script>
+</head>
+<body>
+    <main>
+        <img src="icons/128.png" alt="" width="72" height="72">
+        <h1>Send to BulkPixel</h1>
+        <p>Right-click an image, choose <strong>Send to BulkPixel</strong>, and continue in the Mac app.</p>
+        <p id="status" role="status" aria-live="polite" hidden></p>
+        <button id="retry" hidden>Retry sending image</button>
+        <h2>Connect your browser once</h2>
+        <ol>
+            <li>Install the BulkPixel version that includes browser integration in your Applications folder.</li>
+            <li>Choose your browser, then run the command below in Terminal.</li>
+        </ol>
+        <label for="browser">Browser</label>
+        <select id="browser">
+            <option value="chrome">Google Chrome</option>
+            <option value="chromium">Chromium</option>
+            <option value="brave">Brave</option>
+            <option value="edge">Microsoft Edge</option>
+        </select>
+        <pre><code id="command"></code></pre>
+        <button id="copy">Copy command</button>
+        <p>After connecting, send an image again or use Retry above. If you move the app or reinstall the extension, reconnect it with this command.</p>
+        <h2>Your images stay yours</h2>
+        <p>Only the image address you choose is sent to the Mac app. BulkPixel downloads public images directly and converts them locally. The extension does not read page content, browsing history, or cookies.</p>
+        <p>Images requiring a signed-in browser session, private-network URLs, and blob/data URLs are unsupported. Save those images to your Mac and add the files to BulkPixel.</p>
+    </main>
+</body>
+</html>
