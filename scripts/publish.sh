@@ -6,6 +6,11 @@ SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 cd "$REPO_ROOT"
 
+# Both this direct entry point and npm publish share the cleanup/publish lock.
+if [ "${BULKPIXEL_PUBLISH_LOCK_HELD:-}" != "$PPID" ] || [ ! -f "$REPO_ROOT/.bulkpixel-publish.lock/$PPID.pid" ]; then
+    exec node "$SCRIPT_DIR/publish.mjs" "$@"
+fi
+
 RELEASE_REPO="oliverjessner/BulkPixel"
 CHANGELOG_URL="https://raw.githubusercontent.com/$RELEASE_REPO/main/docs/changelog.md"
 BUNDLE_DIR="src-tauri/target/release/bundle"
@@ -209,4 +214,4 @@ update_homebrew_cask
 
 echo "Build completed successfully."
 echo "Opening the ${PRODUCT_NAME} release page..."
-open -a "Google Chrome" "https://github.com/$RELEASE_REPO/releases/tag/$TAG"
+open -a "Google Chrome" "https://github.com/$RELEASE_REPO/releases/tag/$TAG" || echo "Open the release page manually: https://github.com/$RELEASE_REPO/releases/tag/$TAG"

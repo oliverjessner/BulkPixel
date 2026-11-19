@@ -10,6 +10,7 @@ src-tauri/target/
 src-tauri/binaries/
 src-tauri/resources/url-import/
 .url-import-cache/
+.bulkpixel-publish.lock/
 .DS_Store
 .env
 .env.*

@@ -1,3 +1,5 @@
+#[cfg(target_os = "macos")]
+mod about;
 mod app_navigation;
 mod browser_host;
 mod browser_import;
@@ -266,6 +268,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let menu = Menu::default(app.handle())?;
+            #[cfg(target_os = "macos")]
+            about::install(app.handle(), &menu)?;
             app.set_menu(menu)?;
             #[cfg(target_os = "macos")]
             dock_menu::install(app.handle())?;

@@ -19,6 +19,8 @@
         "prescreenshots": "npm run prepare:ui",
         "screenshots": "node scripts/screenshots.mjs",
         "icons": "node scripts/generate-icons.mjs",
+        "clean": "node scripts/cleanup.mjs",
+        "cleanup": "node scripts/cleanup.mjs",
         "publish": "sh scripts/publish.sh"
     },
     "repository": {

@@ -1,5 +1,6 @@
 # 3.2.0
 
+- Add previewable build-artifact cleanup after successful publishing, with shared locking and protection for source files and unverified releases.
 - Remove the unused npm Git dependency and its vulnerable MIME dependency (Dependabot alert #7).
 - icons for menu buttons
 - Browser image context menu “Send to BulkPixel” for Chrome, Chromium, Brave, and Edge, with native app handoff, queued imports, setup/retry feedback, and matching CLI image-only URL imports
