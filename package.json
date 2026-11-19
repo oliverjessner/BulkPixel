@@ -39,7 +39,6 @@
     "dependencies": {
         "add": "^2.0.9",
         "fetchary": "2.0.7",
-        "git": "^0.1.5",
         "oj-designsystem": "0.2.1"
     }
 }
