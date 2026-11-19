@@ -22,6 +22,7 @@ define_class!(
     // SAFETY: NSObject has no subclassing requirements, and this type has no Drop implementation.
     #[unsafe(super = NSObject)]
     #[thread_kind = MainThreadOnly]
+    #[ivars = ()]
     struct AboutLinkTarget;
 
     // SAFETY: NSObjectProtocol has no additional requirements.
@@ -110,7 +111,7 @@ fn create_panel(app: &tauri::AppHandle, mtm: MainThreadMarker) -> Result<AboutPa
         .ok_or("The app icon could not be loaded.")?;
     let icon = NSImageView::new(mtm);
     icon.setImage(Some(&image));
-    icon.setImageScaling(NSImageScaling::ProportionallyUpOrDown);
+    icon.setImageScaling(NSImageScaling::ScaleProportionallyUpOrDown);
     icon.setTranslatesAutoresizingMaskIntoConstraints(false);
     // AppKit uses logical points, so the icon stays sharp at 52 × 52 on Retina displays.
     icon.widthAnchor()
@@ -137,9 +138,11 @@ fn create_panel(app: &tauri::AppHandle, mtm: MainThreadMarker) -> Result<AboutPa
     let copyright = label("Copyright © 2026 Oliver Jessner", &body_font, &secondary, mtm);
     let license = label("MIT License", &body_font, &secondary, mtm);
 
-    // SAFETY: This is NSObject's standard initializer on our main-thread-only subclass.
+    // Initialize our subclass before invoking NSObject's superclass initializer.
+    let link_target = AboutLinkTarget::alloc(mtm).set_ivars(());
+    // SAFETY: Our ivars are initialized, and NSObject's init has the standard signature.
     let link_target: Retained<AboutLinkTarget> =
-        unsafe { msg_send![super(AboutLinkTarget::alloc(mtm)), init] };
+        unsafe { msg_send![super(link_target), init] };
     // SAFETY: The retained target implements openWebsite: with the standard action signature.
     let website = unsafe {
         NSButton::buttonWithTitle_target_action(
